@@ -68,6 +68,37 @@ if [ "$INTERACTIVE" = true ]; then
 
   # Hook TAB directly inside Readline for read -e
   bind -x '"\t": _mix_bind_tab' 2>/dev/null || true
+
+  # Hook Ctrl+V to paste image from clipboard
+  _mix_paste_image() {
+    local dir="/tmp/mix-clipboard"
+    mkdir -p "$dir"
+    local f="$dir/img_$(date +%s).png"
+    local has_img=false
+
+    if command -v wl-paste >/dev/null 2>&1 && wl-paste -l 2>/dev/null | grep -q image; then
+      wl-paste -t image/png > "$f" 2>/dev/null && has_img=true
+    elif command -v xclip >/dev/null 2>&1 && xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -q image; then
+      xclip -selection clipboard -t image/png -o > "$f" 2>/dev/null && has_img=true
+    elif command -v osascript >/dev/null 2>&1; then
+      osascript -e "try" -e "write (the clipboard as «class PNGf») to (open for access POSIX file \"$f\" with write permission)" -e "end try" >/dev/null 2>&1
+      [ -s "$f" ] && has_img=true
+    fi
+
+    if [ "$has_img" = true ]; then
+      local insert="[image: $f] "
+      READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
+      READLINE_POINT=$((READLINE_POINT + ${#insert}))
+    else
+      # Just warn inline, will not mess up prompt entirely
+      echo -e "\n  \033[0;90m(No image found in clipboard or missing xclip/wl-paste)\033[0m"
+    fi
+  }
+
+  # Unbind lnext (literal next) from Ctrl+V so readline can receive it natively
+  stty lnext undef 2>/dev/null || true
+
+  bind -x '"\C-v": _mix_paste_image' 2>/dev/null || true
 fi
 
 while true; do

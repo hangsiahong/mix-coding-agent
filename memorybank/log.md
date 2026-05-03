@@ -62,3 +62,5 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | i see nothing changed? beside uglier and the terminal is showing nothing now?
 
 ## [2026-05-03] task | now check our codebase and @index.html  and update the website make it non gener
+
+## [2026-05-03] task | do mix coding agent have subagent? and parrell working?

@@ -9,7 +9,7 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
-| *(none yet)* | |
+| mix-coding-agent-architecture.md | Subagent/parallel architecture: tmux workers, no LLM-in-LLM | |
 
 ## sources
 
