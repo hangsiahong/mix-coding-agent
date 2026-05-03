@@ -790,7 +790,7 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","strea
   local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
   
   BASE_URL="$BASE_URL" API_KEY="$_api_key" EXTRA_HEADERS="$_extra_headers" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
-import json,sys,base64,os,urllib.request,urllib.error
+import json,sys,base64,os,re,urllib.request,urllib.error
 tty=open("/dev/tty","w") if os.path.exists("/dev/tty") and os.environ.get("IS_INTERACTIVE") != "false" else sys.stderr
 
 url = os.environ.get("BASE_URL") + "/chat/completions"
@@ -886,6 +886,55 @@ if not is_done and not was_interrupted:
 full="".join(content).replace("\n    ", "\n")
 if full:
     tty.write("\n")
+    tty.flush()
+    # ── Post-stream markdown render: erase streamed output, reprint rendered ──
+    rendered_lines = []
+    in_code_block = False
+    code_lang = ""
+    for raw_line in full.split("\n"):
+        # Fenced code blocks
+        if raw_line.startswith("```"):
+            if not in_code_block:
+                in_code_block = True
+                code_lang = raw_line[3:].strip()
+                rendered_lines.append("\033[0;90m  ┌─" + (f" {code_lang} " if code_lang else "") + "\033[0m")
+            else:
+                in_code_block = False
+                rendered_lines.append("\033[0;90m  └─\033[0m")
+            continue
+        if in_code_block:
+            rendered_lines.append("\033[0;90m  │\033[0m \033[38;5;222m" + raw_line + "\033[0m")
+            continue
+        # Headers
+        if raw_line.startswith("### "):
+            rendered_lines.append("\033[1;36m" + raw_line[4:] + "\033[0m")
+            continue
+        if raw_line.startswith("## "):
+            rendered_lines.append("\033[1;33m" + raw_line[3:] + "\033[0m")
+            continue
+        if raw_line.startswith("# "):
+            rendered_lines.append("\033[1;37m" + raw_line[2:] + "\033[0m")
+            continue
+        # Bullet points
+        line = raw_line
+        if re.match(r"^[-*] ", line):
+            line = "\033[38;5;99m•\033[0m " + line[2:]
+        elif re.match(r"^\d+\. ", line):
+            m = re.match(r"^(\d+\.) (.*)", line)
+            if m: line = "\033[38;5;99m" + m.group(1) + "\033[0m " + m.group(2)
+        # Inline: **bold**, `code`, *italic*
+        line = re.sub(r"\*\*(.+?)\*\*", "\033[1m\\1\033[0m", line)
+        line = re.sub(r"`([^`]+)`", "\033[38;5;222m\\1\033[0m", line)
+        line = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", "\033[3m\\1\033[0m", line)
+        rendered_lines.append(line)
+    # Count lines streamed so we can erase them
+    raw_display = "".join(content)
+    streamed_line_count = raw_display.count("\n") + 2  # +2 for header line + last line
+    # Move cursor up and erase, then reprint
+    tty.write(f"\033[{streamed_line_count}A\033[J")
+    tty.write("  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n")
+    for rl in rendered_lines:
+        tty.write("    " + rl + "\n")
     tty.flush()
 msg={"role":"assistant","content":full}
 if tcs:
