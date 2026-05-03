@@ -100,7 +100,7 @@ LAYERS:
 
 KEY FILES (create if missing):
   memorybank/index.md  content catalog. Every page + one-line summary + link, grouped by category.
-                       Update on every ingest. Read first before any query.
+                       Update on every ingest. CRITICAL: Read this file FIRST on any fresh start or flush before acting.
   memorybank/log.md    append-only timeline. Format: ## [YYYY-MM-DD] ingest|query|lint | Title
                        Parseable: grep '^## \[' memorybank/log.md | tail -5
 

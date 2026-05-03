@@ -84,3 +84,17 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | bash ./build.sh && cp mix.compiled mix
 
 ## [2026-05-03] task | I just implemented the next critical round of robustness and security fixes from
+
+## [2026-05-03] task | what about sessions? or history? i think mix-coding-agent build it this way for 
+
+## [2026-05-03] task | ls -la memorybank/
+
+## [2026-05-03] task | head -n 25 src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_cha
+
+## [2026-05-03] task | sed -n '/KEY FILES/,/OPS:/p' src/03_system_prompt_rebuilt_on_each_call_to_pick_u
+
+## [2026-05-03] task | sed -i 's/Update on every ingest. Read first before any query./Update on every i
+
+## [2026-05-03] task | bash patch_prompt.sh && rm patch_prompt.sh
+
+## [2026-05-03] task | git diff src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_chang
