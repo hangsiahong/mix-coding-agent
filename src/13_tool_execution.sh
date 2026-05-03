@@ -30,18 +30,19 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
       path=$(cat "$_ea_dir/p"); old_text=$(cat "$_ea_dir/o"); new_text=$(cat "$_ea_dir/n")
       rm -rf "$_ea_dir"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
-      local count; count=$(grep -cF "$old_text" "$path" || true)
-      if [ "$count" -eq 0 ]; then echo "Error: old_text not found in $path"
-      elif [ "$count" -gt 1 ]; then echo "Error: old_text not unique ($count matches) in $path"
-      else
-        python3 -c "
+      result=$(python3 -c "
 import sys
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
-c=open(p).read().replace(o,n,1)
-open(p,'w').write(c)
-print('Edited '+p)
-" "$path" "$old_text" "$new_text"
-      fi
+content=open(p).read()
+count=content.count(o)
+if count == 0:
+    print('Error: old_text not found in '+p)
+elif count > 1:
+    print('Error: old_text not unique ('+str(count)+' matches) in '+p)
+else:
+    open(p,'w').write(content.replace(o,n,1))
+    print('Edited '+p)
+" "$path" "$old_text" "$new_text")
       return
       ;;
     list_files)
