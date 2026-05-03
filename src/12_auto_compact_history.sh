@@ -55,7 +55,8 @@ print(json.dumps({"model":m,"messages":msg}))
   sum_esc=$(printf '[Compacted context]\n%s' "$summary" \
     | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || { echo ""; return; }
 
-  HISTORY=$(printf '%s\n%s' \
+  local _compacted
+  _compacted=$(printf '%s\n%s' \
     "[{\"role\":\"user\",\"content\":$sum_esc},{\"role\":\"assistant\",\"content\":\"Understood. Context loaded.\"}]" \
     "$recent" \
   | python3 -c '
@@ -65,6 +66,8 @@ base=json.loads(lines[0])
 recent=json.loads(lines[1])
 print(json.dumps(base+recent))
 ' 2>/dev/null) || { echo ""; return; }
+  # Only update HISTORY if we actually got a valid result
+  [ -n "$_compacted" ] && HISTORY="$_compacted"
 
   save_history
   local new_count
@@ -74,8 +77,20 @@ print(json.dumps(base+recent))
 
 append_raw() {
   local msg="$1"
-  if [ "$HISTORY" = "[]" ]; then HISTORY="[$msg]"
-  else HISTORY=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys; h=json.load(sys.stdin); h.append(json.loads(sys.argv[1])); print(json.dumps(h))' "$msg"); fi
+  if [ "$HISTORY" = "[]" ]; then
+    HISTORY="[$msg]"
+  else
+    # Pass msg via stdin (2nd line) to avoid ARG_MAX limits on large histories
+    local _new
+    _new=$(printf '%s\n%s' "$HISTORY" "$msg" | python3 -c '
+import json,sys
+lines=sys.stdin.read().split("\n",1)
+h=json.loads(lines[0])
+h.append(json.loads(lines[1]))
+print(json.dumps(h))
+' 2>/dev/null)
+    [ -n "$_new" ] && HISTORY="$_new"
+  fi
   save_history
 }
 

@@ -51,6 +51,61 @@ _TOOLS_USED=0
 ACTIVE_SKILLS=""
 WORKDIR="$(pwd)"
 
+# ─── Provider system ─────────────────────────────────────────────────────────
+# Provider = pluggable API backend. Default is openai-compatible (koompi proxy).
+# Providers live in src/providers/<name>.sh and override auth/headers/endpoints.
+# Activated via: /provider <name>  or  AGENT_PROVIDER=<name>
+PROVIDER="${AGENT_PROVIDER:-default}"
+PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers"
+MIX_PROVIDERS_DIR="${HOME}/.mix/providers"  # user-installed providers
+
+# Load provider if set and exists
+_load_provider() {
+  local name="$1"
+  # Check if already loaded (embedded in compiled binary or previously sourced)
+  if type "${name}_activate" >/dev/null 2>&1; then
+    return 0
+  fi
+  # Check: built-in files > user-installed files
+  local pfile=""
+  if [ -f "${PROVIDER_DIR}/${name}.sh" ]; then
+    pfile="${PROVIDER_DIR}/${name}.sh"
+  elif [ -f "${MIX_PROVIDERS_DIR}/${name}.sh" ]; then
+    pfile="${MIX_PROVIDERS_DIR}/${name}.sh"
+  fi
+  [ -z "$pfile" ] && return 1
+  source "$pfile"
+  return 0
+}
+
+# List available provider names (embedded + file-based)
+_list_providers() {
+  local -A _seen
+  # From embedded/loaded functions (declare -F works in non-interactive)
+  while IFS= read -r _line; do
+    local _fn="${_line#declare -f }"
+    local _pn="${_fn%_activate}"
+    [ "$_pn" != "$_fn" ] && [ -n "$_pn" ] && [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
+  done < <(declare -F 2>/dev/null | grep '_activate$')
+  # From files
+  for f in "$PROVIDER_DIR"/*.sh "$MIX_PROVIDERS_DIR"/*.sh; do
+    [ -f "$f" ] || continue
+    local _pn
+    _pn="$(basename "$f" .sh)"
+    [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
+  done
+}
+
+# Auto-load provider at startup if AGENT_PROVIDER is set
+if [ "$PROVIDER" != "default" ]; then
+  if _load_provider "$PROVIDER"; then
+    # If provider exports an _activate function, call it (non-interactive mode)
+    if type "${PROVIDER}_activate" >/dev/null 2>&1; then
+      ${PROVIDER}_activate 2>/dev/null || true
+    fi
+  fi
+fi
+
 # ─── Tmux bootstrap ──────────────────────────────────────────────
 # Auto-launch or attach a project-scoped tmux session.
 # Bypass with: MIX_NO_TMUX=1 mix
@@ -384,11 +439,17 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || { echo ""; return; }
 
+  # Resolve API key — provider may override
+  local _compact_key="$API_KEY"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+    local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+    [ -n "$_pkey" ] && _compact_key="$_pkey"
+  fi
   local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 60 \
     "${BASE_URL}/chat/completions" \
-    -H "Authorization: Bearer $API_KEY" \
+    -H "Authorization: Bearer $_compact_key" \
     -H "Content-Type: application/json" \
     -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
@@ -409,7 +470,8 @@ print(json.dumps({"model":m,"messages":msg}))
   sum_esc=$(printf '[Compacted context]\n%s' "$summary" \
     | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || { echo ""; return; }
 
-  HISTORY=$(printf '%s\n%s' \
+  local _compacted
+  _compacted=$(printf '%s\n%s' \
     "[{\"role\":\"user\",\"content\":$sum_esc},{\"role\":\"assistant\",\"content\":\"Understood. Context loaded.\"}]" \
     "$recent" \
   | python3 -c '
@@ -419,6 +481,8 @@ base=json.loads(lines[0])
 recent=json.loads(lines[1])
 print(json.dumps(base+recent))
 ' 2>/dev/null) || { echo ""; return; }
+  # Only update HISTORY if we actually got a valid result
+  [ -n "$_compacted" ] && HISTORY="$_compacted"
 
   save_history
   local new_count
@@ -428,8 +492,20 @@ print(json.dumps(base+recent))
 
 append_raw() {
   local msg="$1"
-  if [ "$HISTORY" = "[]" ]; then HISTORY="[$msg]"
-  else HISTORY=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys; h=json.load(sys.stdin); h.append(json.loads(sys.argv[1])); print(json.dumps(h))' "$msg"); fi
+  if [ "$HISTORY" = "[]" ]; then
+    HISTORY="[$msg]"
+  else
+    # Pass msg via stdin (2nd line) to avoid ARG_MAX limits on large histories
+    local _new
+    _new=$(printf '%s\n%s' "$HISTORY" "$msg" | python3 -c '
+import json,sys
+lines=sys.stdin.read().split("\n",1)
+h=json.loads(lines[0])
+h.append(json.loads(lines[1]))
+print(json.dumps(h))
+' 2>/dev/null)
+    [ -n "$_new" ] && HISTORY="$_new"
+  fi
   save_history
 }
 
@@ -598,13 +674,35 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
+  # Resolve API key — provider may override
+  local _api_key="$API_KEY"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+    local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+    [ -n "$_pkey" ] && _api_key="$_pkey"
+  fi
+
+  # Build curl headers
+  local _curl_args=(-s -w "%{http_code}" --max-time 1800
+    "${BASE_URL}/chat/completions"
+    -H "Authorization: Bearer $_api_key"
+    -H "Content-Type: application/json")
+
+  # Provider extra headers
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+    local _pheaders; _pheaders=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+    if [ -n "$_pheaders" ]; then
+      while IFS= read -r _hk _hv; do
+        [ -n "$_hk" ] && _curl_args+=(-H "$_hk: $_hv")
+      done < <(printf '%s' "$_pheaders" | python3 -c '
+import json,sys
+for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
+' 2>/dev/null)
+    fi
+  fi
+
   local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
-  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 1800 \
-    "${BASE_URL}/chat/completions" \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null) || true
+  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
   [ "$code" != "200" ] && { echo "FAIL:$code:$body"; return 1; }
   printf '%s' "$body"
@@ -652,27 +750,41 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
+  # Resolve API key — provider may override
+  local _api_key="$API_KEY"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+    local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+    [ -n "$_pkey" ] && _api_key="$_pkey"
+  fi
+
+  # Resolve extra headers from provider (JSON string)
+  local _extra_headers="{}"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+    local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+    [ -n "$_ph" ] && _extra_headers="$_ph"
+  fi
+
   local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
   
-  # Replacing curl with pure Python urllib.request for better connection handling
-  # and resolving partial file/premature drop errors natively.
-  BASE_URL="$BASE_URL" API_KEY="$API_KEY" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
+  BASE_URL="$BASE_URL" API_KEY="$_api_key" EXTRA_HEADERS="$_extra_headers" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
 import json,sys,base64,os,urllib.request,urllib.error
-# If interactive=false, write to stderr so that pipes like `mix | tee` can log the streaming output
 tty=open("/dev/tty","w") if os.path.exists("/dev/tty") and os.environ.get("IS_INTERACTIVE") != "false" else sys.stderr
 
 url = os.environ.get("BASE_URL") + "/chat/completions"
 api_key = os.environ.get("API_KEY")
 payload = sys.stdin.read().encode("utf-8")
 
-req = urllib.request.Request(
-    url, 
-    data=payload, 
-    headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-)
+# Build headers: base + provider extras
+hdrs = {
+    "Authorization": f"Bearer {api_key}",
+    "Content-Type": "application/json"
+}
+try:
+    extra = json.loads(os.environ.get("EXTRA_HEADERS","{}"))
+    hdrs.update(extra)
+except: pass
+
+req = urllib.request.Request(url, data=payload, headers=hdrs)
 
 content=[]
 tcs={}
@@ -1075,31 +1187,43 @@ run_agent() {
     export SPIN_PID="$_SPIN_PID"
 
     local parsed
-    if [ "$STREAM" = "true" ]; then
-      parsed=$(call_api_stream)
-      # If streaming drops prematurely, auto-fallback to non-streaming for this turn
-      if [[ "$parsed" == FAIL:network_drop* ]]; then
-        [ "$INTERACTIVE" = false ] && echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >&2 || echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
-        start_spinner "turn $turn (non-streaming)"
-        local resp
-        resp=$(call_api)
+    local _api_attempt _api_max_retries=3
+    for _api_attempt in 1 2 3; do
+      if [ "$STREAM" = "true" ]; then
+        parsed=$(call_api_stream)
+        if [[ "$parsed" == FAIL:network_drop* ]]; then
+          [ "$INTERACTIVE" = false ] \
+            && echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
+            || echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
+          start_spinner "turn $turn (retry $_api_attempt)"
+          local resp; resp=$(call_api)
+          if [[ "$resp" == FAIL:* ]]; then
+            stop_spinner
+            if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
+              echo -e "\r\033[K  \033[0;90m↻ API error, retrying...\033[0m"
+              continue
+            fi
+            echo -e "\r\033[K  \033[1;31mAPI failed after $_api_max_retries attempts: ${resp#FAIL:}\033[0m"
+            break 2
+          fi
+          parsed=$(parse_resp "$resp")
+        fi
+      else
+        local resp; resp=$(call_api)
         if [[ "$resp" == FAIL:* ]]; then
           stop_spinner
-          echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
-          break
+          if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
+            echo -e "\r\033[K  \033[0;90m↻ API error (attempt $_api_attempt/$_api_max_retries), retrying...\033[0m"
+            start_spinner "turn $turn (retry $_api_attempt)"
+            continue
+          fi
+          echo -e "\r\033[K  \033[1;31mAPI failed after $_api_max_retries attempts: ${resp#FAIL:}\033[0m"
+          break 2
         fi
         parsed=$(parse_resp "$resp")
       fi
-    else
-      local resp
-      resp=$(call_api)
-      if [[ "$resp" == FAIL:* ]]; then
-        stop_spinner
-        echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
-        break
-      fi
-      parsed=$(parse_resp "$resp")
-    fi
+      break  # success — exit retry loop
+    done
     stop_spinner
 
     # If parsing somehow still resulted in a failure, abort
@@ -1187,8 +1311,83 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
-    /model)  echo "  Model: $MODEL" ;;
+    /model)  echo "  Model: $MODEL | Provider: $PROVIDER | URL: $BASE_URL" ;;
     /model\ *) MODEL="${1#/model }"; echo "  Model → $MODEL" ;;
+    /provider)
+      echo "  Provider: $PROVIDER"
+      echo "  Base URL: $BASE_URL"
+      echo "  Model: $MODEL"
+      echo ""
+      echo "  Available providers:"
+      local _plist; _plist=$(_list_providers 2>/dev/null)
+      if [ -n "$_plist" ]; then
+        while IFS= read -r _pn; do
+          echo "    - $_pn"
+        done <<< "$_plist"
+      else
+        echo "    (none found)"
+      fi
+      echo "  User providers: drop .sh in ~/.mix/providers/"
+      echo ""
+      echo "  Usage: /provider <name>        (activate provider)"
+      echo "         /provider <name> login   (run provider OAuth/login)"
+      echo "         /provider <name> models  (list available models)"
+      echo "         /provider default        (reset to default)"
+      ;;
+    /provider\ default)
+      PROVIDER="default"
+      BASE_URL="https://ai.koompi.cloud/v1"
+      if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+      MODEL="${AGENT_MODEL:-glm-5}"
+      echo "  Provider → default (koompi proxy)"
+      ;;
+    /provider\ *)
+      local _pargs="${1#/provider }"
+      local _pname="${_pargs%% *}"
+      local _paction="${_pargs#* }"
+      [ "$_paction" = "$_pname" ] && _paction=""
+
+      if [ "$_pname" = "default" ]; then
+        PROVIDER="default"
+        BASE_URL="https://ai.koompi.cloud/v1"
+        if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+        MODEL="${AGENT_MODEL:-glm-5}"
+        echo "  Provider → default (koompi proxy)"
+      elif _load_provider "$_pname"; then
+        case "$_paction" in
+          "")
+            # Activate
+            if type "${_pname}_activate" >/dev/null 2>&1; then
+              ${_pname}_activate
+            else
+              echo "  Provider $_pname loaded (no _activate hook found)"
+              echo "  Set BASE_URL, API_KEY, MODEL manually or define ${_pname}_activate()"
+            fi
+            ;;
+          login)
+            if type "${_pname}_login" >/dev/null 2>&1; then
+              ${_pname}_login
+            else
+              echo "  Provider $_pname has no login flow."
+            fi
+            ;;
+          models)
+            if type "${_pname}_list_models" >/dev/null 2>&1; then
+              ${_pname}_list_models
+            else
+              echo "  Provider $_pname has no models command."
+            fi
+            ;;
+          *)
+            echo "  Unknown action: $_paction"
+            echo "  Available: login, models, (empty=activate)"
+            ;;
+        esac
+      else
+        echo "  Provider not found: $_pname"
+        echo "  Checked: $PROVIDER_DIR/${_pname}.sh, $MIX_PROVIDERS_DIR/${_pname}.sh"
+      fi
+      ;;
     /history)
       local n; n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || n="?"
       echo "  $n messages in history"
@@ -1219,7 +1418,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /compact  /model [id]  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -1439,7 +1638,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
     
     if [[ "$word" == /* ]]; then
-      for c in "/flush" "/model" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
+      for c in "/flush" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
@@ -1501,39 +1700,8 @@ if [ "$INTERACTIVE" = true ]; then
   # Hook TAB directly inside Readline for read -e
   bind -x '"\t": _mix_bind_tab' 2>/dev/null || true
 
-  # Enable bracketed paste for safe multiline pasting
+  # enable-bracketed-paste: tells readline to treat pasted text as single input, not execute each line
   bind 'set enable-bracketed-paste on' 2>/dev/null || true
-
-  # Hook the terminal's bracketed paste (Right Click / Ctrl+Shift+V)
-  _mix_bracketed_paste() {
-    local raw_paste=""
-    local ch=""
-    # 201~ is the end bracket for bracketed paste
-    while IFS= read -r -s -d '' -n 1 ch < /dev/tty || [ -n "$ch" ]; do
-      raw_paste+="$ch"
-      if [[ "$raw_paste" == *$'\e[201~' ]]; then
-        raw_paste="${raw_paste%$'\e[201~'}"
-        break
-      fi
-    done
-    
-    if [ -n "$raw_paste" ]; then
-      local total_lines
-      total_lines=$(printf '%s\n' "$raw_paste" | wc -l)
-      if [ "$total_lines" -gt 5 ] || [ "${#raw_paste}" -gt 250 ]; then
-        local pid="bp_$(date +%s%N)"
-        local dir="/tmp/mix-clipboard"
-        mkdir -p "$dir"
-        printf '%s' "$raw_paste" > "$dir/txt_$pid.txt"
-        local insert="[paste _$pid: $total_lines lines] "
-        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
-        READLINE_POINT=$((READLINE_POINT + ${#insert}))
-      else
-        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${raw_paste}${READLINE_LINE:$READLINE_POINT}"
-        READLINE_POINT=$((READLINE_POINT + ${#raw_paste}))
-      fi
-    fi
-  }
 
   # Hook Ctrl+V to paste media (image or text) from system clipboard (if available)
   _mix_paste_media() {
@@ -1587,8 +1755,7 @@ if [ "$INTERACTIVE" = true ]; then
         READLINE_POINT=$((READLINE_POINT + ${#txt}))
       fi
     else
-      # Just warn inline, will not mess up prompt entirely
-      echo -e "\n  \033[0;90m(Clipboard empty or unable to read)\033[0m"
+      echo -e "\n  \033[0;90m(No clipboard tool. Install wl-paste or xclip, or use /paste)\033[0m"
     fi
   }
 
@@ -1615,8 +1782,6 @@ if [ "$INTERACTIVE" = true ]; then
 
   bind -x '"\C-v": _mix_paste_media' 2>/dev/null || true
   bind -x '"\C-e": _mix_edit_prompt' 2>/dev/null || true
-  bind '"\e[200~": ""' 2>/dev/null || true # disable default bracketed paste start
-  bind -x '"\e[200~": _mix_bracketed_paste' 2>/dev/null || true
 fi
 
 while true; do
@@ -1639,15 +1804,22 @@ while true; do
   INPUT="${INPUT%"${INPUT##*[![:space:]]}"}"  # trim trailing whitespace
   [ -z "$INPUT" ] && continue
 
-  # Show truncated preview for long pastes
-  if [ ${#INPUT} -gt 200 ]; then
-    _prev=$(printf "%s" "$INPUT" | tr '\n' ' ' | cut -c1-80); echo -e "  \033[90m[${#INPUT} chars] ${_prev}...\033[0m"
+  # Post-read paste collapse: if INPUT is multiline (Ctrl+Shift+V paste),
+  # erase the pasted lines from the terminal and replace with a clean token.
+  _paste_lines=$(printf '%s\n' "$INPUT" | wc -l)
+  if [ "$_paste_lines" -gt 5 ]; then
+    _paste_pid="bp_$(date +%s%N)"
+    mkdir -p /tmp/mix-clipboard
+    printf '%s' "$INPUT" > "/tmp/mix-clipboard/txt_${_paste_pid}.txt"
+    # Move cursor up _paste_lines rows, erase to bottom, reprint a clean summary
+    printf '\e[%dA\e[J❯ \033[0;90m[paste %d lines — hidden]\033[0m\n' "$_paste_lines" "$_paste_lines" > /dev/tty
+    INPUT="[paste _${_paste_pid}: ${_paste_lines} lines]"
   fi
 
   if handle_cmd "$INPUT"; then continue; fi
-  
-  # Check if handle_cmd modified INPUT (like /paste does)
-  if [[ "$INPUT" == *"[paste_"* ]]; then
+
+  # Resolve paste tokens back to full text before sending to LLM
+  if [[ "$INPUT" == *"[paste _"* ]]; then
     INPUT=$(printf '%s' "$INPUT" | python3 -c '
 import sys, re
 out = sys.stdin.read()
@@ -1666,3 +1838,250 @@ print(re.sub(r"\[paste _([a-zA-Z0-9_]+): [^\]]+\]", repl, out), end="")
   # Piped mode: exit after processing one task
   [ "$INTERACTIVE" = false ] && break
 done
+
+# ─── Embedded provider: copilot.sh ───
+_EMBEDDED_PROVIDER_copilot=1
+# ─── Provider: GitHub Copilot ────────────────────────────────────────────────
+# Reference provider implementation. Uses GitHub device-flow OAuth to get a
+# short-lived Copilot API token, then hits api.githubcopilot.com which is
+# fully OpenAI-compatible (same payload, same streaming format).
+#
+# Auth flow:
+#   1. POST github.com/login/device/code  → device_code + user_code
+#   2. User visits https://github.com/login/device, enters user_code
+#   3. Poll POST github.com/login/oauth/access_token → github_token
+#   4. GET  api.github.com/copilot_internal/v2/token → copilot_token (30min TTL)
+#   5. Bearer copilot_token on api.githubcopilot.com/chat/completions
+#
+# Config:
+#   PROVIDER=copilot
+#   MODEL=gpt-4o  (or claude-sonnet-4-20250514, o3, etc.)
+#
+# Files:
+#   ~/.mix/copilot_github_token  — persisted GitHub OAuth token (step 3)
+#   /tmp/mix-copilot-token       — cached Copilot API token (step 4, auto-refreshes)
+
+_COPILOT_CLIENT_ID="Iv1.b507a08c87ecfe98"  # GitHub Copilot CLI client ID (public)
+_COPILOT_GH_TOKEN_FILE="${HOME}/.mix/copilot_github_token"
+
+# ─── Step 1-3: GitHub device-flow OAuth ────────────────────────────────────
+copilot_login() {
+  echo "  \033[1;37mGitHub Copilot Login\033[0m"
+
+  # Request device code
+  local resp
+  resp=$(curl -s -X POST "https://github.com/login/device/code" \
+    -H "Accept: application/json" \
+    -d "client_id=${_COPILOT_CLIENT_ID}&scope=user:email" 2>/dev/null) || {
+    echo "  \033[1;31mFailed to reach GitHub. Check network.\033[0m"
+    return 1
+  }
+
+  local device_code user_code verification_uri
+  device_code=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["device_code"])' 2>/dev/null)
+  user_code=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["user_code"])' 2>/dev/null)
+  verification_uri=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["verification_uri"])' 2>/dev/null)
+
+  if [ -z "$device_code" ] || [ -z "$user_code" ]; then
+    echo "  \033[1;31mFailed to get device code from GitHub.\033[0m"
+    echo "  Response: $resp"
+    return 1
+  fi
+
+  echo ""
+  echo "  \033[1;33m  Code: $user_code\033[0m"
+  echo "  Open: \033[4m${verification_uri}\033[0m"
+  echo "  (code copied — paste it in the browser)"
+  echo ""
+
+  # Try to copy code to clipboard
+  if command -v wl-copy >/dev/null 2>&1; then
+    printf '%s' "$user_code" | wl-copy 2>/dev/null
+  elif command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$user_code" | xclip -selection clipboard 2>/dev/null
+  elif command -v pbcopy >/dev/null 2>&1; then
+    printf '%s' "$user_code" | pbcopy 2>/dev/null
+  fi
+
+  # Poll for token (GitHub says interval=5s)
+  local interval=5
+  local gh_token=""
+  echo "  Waiting for authorization..."
+  while true; do
+    sleep "$interval"
+    local poll_resp
+    poll_resp=$(curl -s -X POST "https://github.com/login/oauth/access_token" \
+      -H "Accept: application/json" \
+      -d "client_id=${_COPILOT_CLIENT_ID}&device_code=${device_code}&grant_type=urn:ietf:params:oauth:grant-type:device_code" 2>/dev/null) || true
+
+    local error
+    error=$(printf '%s' "$poll_resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("error",""))' 2>/dev/null)
+
+    if [ "$error" = "authorization_pending" ]; then
+      continue
+    elif [ "$error" = "slow_down" ]; then
+      interval=$((interval + 5))
+      continue
+    elif [ "$error" = "expired_token" ]; then
+      echo "  \033[1;31mDevice code expired. Run /provider copilot login again.\033[0m"
+      return 1
+    elif [ -z "$error" ]; then
+      gh_token=$(printf '%s' "$poll_resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null)
+      if [ -n "$gh_token" ]; then
+        break
+      fi
+    else
+      echo "  \033[1;31mUnexpected error: $error\033[0m"
+      return 1
+    fi
+  done
+
+  # Persist GitHub token
+  mkdir -p "$(dirname "$_COPILOT_GH_TOKEN_FILE")"
+  chmod 700 "$(dirname "$_COPILOT_GH_TOKEN_FILE")"
+  printf '%s' "$gh_token" > "$_COPILOT_GH_TOKEN_FILE"
+  chmod 600 "$_COPILOT_GH_TOKEN_FILE"
+
+  echo "  \033[38;5;82m✓ GitHub token saved.\033[0m"
+  return 0
+}
+
+# ─── Step 4: Exchange GitHub token → Copilot API token ─────────────────────
+copilot_get_api_token() {
+  # Check for cached token (valid ~30min)
+  local cache_file="/tmp/mix-copilot-api-token"
+  if [ -f "$cache_file" ]; then
+    local cached_ts cached_token
+    cached_ts=$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+    local now; now=$(date +%s)
+    local age=$(( now - cached_ts ))
+    # Refresh if older than 25 minutes (token lasts 30min)
+    if [ "$age" -lt 1500 ]; then
+      cat "$cache_file"
+      return 0
+    fi
+  fi
+
+  local gh_token
+  if [ -f "$_COPILOT_GH_TOKEN_FILE" ]; then
+    gh_token=$(cat "$_COPILOT_GH_TOKEN_FILE")
+  fi
+
+  if [ -z "$gh_token" ]; then
+    echo "  \033[1;33mNo GitHub token. Run: /provider copilot login\033[0m" >&2
+    return 1
+  fi
+
+  local resp
+  resp=$(curl -s "https://api.github.com/copilot_internal/v2/token" \
+    -H "Authorization: token $gh_token" \
+    -H "Accept: application/json" 2>/dev/null) || {
+    echo "  \033[1;31mFailed to get Copilot token.\033[0m" >&2
+    return 1
+  }
+
+  local api_token
+  api_token=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("token",""))' 2>/dev/null)
+
+  if [ -z "$api_token" ]; then
+    local err
+    err=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("message","unknown"))' 2>/dev/null)
+    echo "  \033[1;31mCopilot token error: $err\033[0m" >&2
+    echo "  \033[0;90m(Try: /provider copilot login)\033[0m" >&2
+    return 1
+  fi
+
+  # Cache it
+  printf '%s' "$api_token" > "$cache_file"
+  printf '%s' "$api_token"
+  return 0
+}
+
+# ─── Provider hooks (called by mix core) ───────────────────────────────────
+
+# Return the API key to use. For Copilot, we auto-refresh the short-lived token.
+copilot_get_api_key() {
+  copilot_get_api_token
+}
+
+# Return extra headers for curl (newline-separated)
+copilot_curl_headers() {
+  echo "-H \"Editor-Version: Neovim/0.9.5\""
+  echo "-H \"Editor-Plugin-Version: copilot.vim/1.16.0\""
+  echo "-H \"Openai-Organization: github-copilot\""
+  echo "-H \"Openai-Intent: copilot-panel\""
+}
+
+# Return extra env vars for python3 streaming (space-separated KEY=VALUE pairs)
+copilot_stream_env() {
+  echo "COPILOT_HEADERS=1"
+}
+
+# Copilot streaming python3 needs these extra headers injected
+# This function is called from within call_api_stream's python3 block
+copilot_extra_headers_json() {
+  python3 -c '
+import json
+h = {
+    "Editor-Version": "Neovim/0.9.5",
+    "Editor-Plugin-Version": "copilot.vim/1.16.0",
+    "Openai-Organization": "github-copilot",
+    "Openai-Intent": "copilot-panel"
+}
+print(json.dumps(h))
+'
+}
+
+# ─── List available models ─────────────────────────────────────────────────
+copilot_list_models() {
+  local api_token
+  api_token=$(copilot_get_api_token) || return 1
+
+  curl -s "https://api.githubcopilot.com/models" \
+    -H "Authorization: Bearer $api_token" \
+    -H "Accept: application/json" \
+    -H "Editor-Version: Neovim/0.9.5" \
+    -H "Editor-Plugin-Version: copilot.vim/1.16.0" \
+    -H "Openai-Organization: github-copilot" 2>/dev/null | python3 -c '
+import json,sys
+try:
+  data = json.load(sys.stdin)
+  models = data.get("data", [])
+  for m in models:
+    mid = m.get("id","?")
+    name = m.get("name", mid)
+    caps = m.get("capabilities",{})
+    streaming = "stream" if caps.get("streaming",False) else "no-stream"
+    tools = "tools" if caps.get("tool_calls",False) else "no-tools"
+    print(f"  {mid:<40} {name:<30} [{streaming}] [{tools}]")
+except Exception as e:
+  print(f"  Error parsing models: {e}")
+' 2>/dev/null
+}
+
+# ─── Set provider to copilot ───────────────────────────────────────────────
+copilot_activate() {
+  # Check for GitHub token first
+  if [ ! -f "$_COPILOT_GH_TOKEN_FILE" ]; then
+    echo "  \033[1;33mNot logged in. Run: /provider copilot login\033[0m"
+    return 1
+  fi
+
+  # Get API token to verify auth works
+  local api_token
+  api_token=$(copilot_get_api_token) || {
+    echo "  \033[1;31mAuth failed. Try: /provider copilot login\033[0m"
+    return 1
+  }
+
+  # Override config
+  BASE_URL="https://api.githubcopilot.com"
+  PROVIDER="copilot"
+  MODEL="${AGENT_MODEL:-gpt-4o}"
+
+  echo "  \033[38;5;82m✓ Provider → copilot\033[0m"
+  echo "  Base URL: $BASE_URL"
+  echo "  Model: $MODEL"
+  echo "  Run \033[1m/provider copilot models\033[0m to list available models"
+  echo "  Run \033[1m/model <id>\033[0m to switch models"
+}

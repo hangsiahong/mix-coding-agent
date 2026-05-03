@@ -28,6 +28,17 @@ cat \
     src/25_repl_commands.sh \
     src/26_banner.sh \
     src/27_main_repl.sh > mix.compiled
+
+# Embed providers inline — they get sourced at runtime from PROVIDER_DIR
+# Since mix is a single-file binary, providers are appended directly
+for pf in src/providers/*.sh; do
+  [ -f "$pf" ] || continue
+  echo "" >> mix.compiled
+  echo "# ─── Embedded provider: $(basename "$pf") ───" >> mix.compiled
+  echo "_EMBEDDED_PROVIDER_$(basename "$pf" .sh)=1" >> mix.compiled
+  cat "$pf" >> mix.compiled
+done
+
 cp mix.compiled mix
 chmod +x mix.compiled mix
 echo "Compiled to mix (and mix.compiled)!"

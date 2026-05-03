@@ -26,31 +26,43 @@ run_agent() {
     export SPIN_PID="$_SPIN_PID"
 
     local parsed
-    if [ "$STREAM" = "true" ]; then
-      parsed=$(call_api_stream)
-      # If streaming drops prematurely, auto-fallback to non-streaming for this turn
-      if [[ "$parsed" == FAIL:network_drop* ]]; then
-        [ "$INTERACTIVE" = false ] && echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >&2 || echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
-        start_spinner "turn $turn (non-streaming)"
-        local resp
-        resp=$(call_api)
+    local _api_attempt _api_max_retries=3
+    for _api_attempt in 1 2 3; do
+      if [ "$STREAM" = "true" ]; then
+        parsed=$(call_api_stream)
+        if [[ "$parsed" == FAIL:network_drop* ]]; then
+          [ "$INTERACTIVE" = false ] \
+            && echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
+            || echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
+          start_spinner "turn $turn (retry $_api_attempt)"
+          local resp; resp=$(call_api)
+          if [[ "$resp" == FAIL:* ]]; then
+            stop_spinner
+            if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
+              echo -e "\r\033[K  \033[0;90m↻ API error, retrying...\033[0m"
+              continue
+            fi
+            echo -e "\r\033[K  \033[1;31mAPI failed after $_api_max_retries attempts: ${resp#FAIL:}\033[0m"
+            break 2
+          fi
+          parsed=$(parse_resp "$resp")
+        fi
+      else
+        local resp; resp=$(call_api)
         if [[ "$resp" == FAIL:* ]]; then
           stop_spinner
-          echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
-          break
+          if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
+            echo -e "\r\033[K  \033[0;90m↻ API error (attempt $_api_attempt/$_api_max_retries), retrying...\033[0m"
+            start_spinner "turn $turn (retry $_api_attempt)"
+            continue
+          fi
+          echo -e "\r\033[K  \033[1;31mAPI failed after $_api_max_retries attempts: ${resp#FAIL:}\033[0m"
+          break 2
         fi
         parsed=$(parse_resp "$resp")
       fi
-    else
-      local resp
-      resp=$(call_api)
-      if [[ "$resp" == FAIL:* ]]; then
-        stop_spinner
-        echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
-        break
-      fi
-      parsed=$(parse_resp "$resp")
-    fi
+      break  # success — exit retry loop
+    done
     stop_spinner
 
     # If parsing somehow still resulted in a failure, abort
