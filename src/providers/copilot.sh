@@ -319,7 +319,10 @@ copilot_activate() {
   # Override config
   BASE_URL="$_api_url"
   PROVIDER="copilot"
-  MODEL="${AGENT_MODEL:-gpt-4o}"
+  # Only set default model if none is already set (preserves /model + persisted choice)
+  if [ -z "${MODEL:-}" ] || [ "${MODEL}" = "glm-5" ]; then
+    MODEL="${AGENT_MODEL:-gpt-4o}"
+  fi
 
   echo -e "  \033[38;5;82m✓ Provider → copilot\033[0m"
   echo "  Base URL: $BASE_URL"

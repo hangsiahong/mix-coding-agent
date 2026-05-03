@@ -203,6 +203,56 @@ print(json.dumps(h))
 }
 
 # ─── List available models ─────────────────────────────────────────────────
+copilot_validate_model() {
+  local model_id="$1"
+  local api_token
+  api_token=$(copilot_get_api_token 2>/dev/null) || { echo "Could not fetch token to validate model."; return 1; }
+
+  local resp
+  resp=$(curl -s "https://api.githubcopilot.com/models" \
+    -H "Authorization: Bearer $api_token" \
+    -H "Accept: application/json" \
+    -H "Editor-Version: vscode/1.90.0" \
+    -H "Openai-Organization: github-copilot" 2>/dev/null)
+
+  local found
+  found=$(printf '%s' "$resp" | python3 -c "
+import json,sys
+try:
+  data=json.loads(sys.stdin.read())
+  models=data.get('data',data if isinstance(data,list) else [])
+  ids=[m.get('id','') for m in models]
+  print('yes' if '$model_id' in ids else 'no')
+except: print('unknown')
+" 2>/dev/null)
+
+  if [ "$found" = "yes" ]; then
+    return 0
+  elif [ "$found" = "unknown" ]; then
+    # Can't verify — allow it with a warning
+    echo "(Could not verify model list — proceeding anyway)"
+    return 0
+  else
+    # Print closest matches
+    printf '%s' "$resp" | python3 -c "
+import json,sys
+try:
+  data=json.loads(sys.stdin.read())
+  models=data.get('data',data if isinstance(data,list) else [])
+  ids=[m.get('id','') for m in models]
+  needle='$model_id'.lower()
+  close=[i for i in ids if needle in i.lower() or i.lower() in needle]
+  if close:
+    print('Did you mean: ' + ', '.join(close[:5]) + '?')
+  else:
+    # show all
+    print('Available: ' + ', '.join(ids))
+except: pass
+" 2>/dev/null
+    return 1
+  fi
+}
+
 copilot_list_models() {
   local api_token
   api_token=$(copilot_get_api_token) || return 1
@@ -272,7 +322,10 @@ copilot_activate() {
   # Override config
   BASE_URL="$_api_url"
   PROVIDER="copilot"
-  MODEL="${AGENT_MODEL:-gpt-4o}"
+  # Only set default model if none is already set (preserves /model + persisted choice)
+  if [ -z "${MODEL:-}" ] || [ "${MODEL}" = "glm-5" ]; then
+    MODEL="${AGENT_MODEL:-gpt-4o}"
+  fi
 
   echo -e "  \033[38;5;82m✓ Provider → copilot\033[0m"
   echo "  Base URL: $BASE_URL"
@@ -975,8 +1028,8 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       _gm_content=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "$_gm_action" = "append" ]; then
         [ ! -f "$_gmem" ] && printf '# Global Memory\n\n' > "$_gmem"
-        printf '- %s\n' "$_gm_content" >> "$_gmem"
-        result="Global memory updated: + $( printf '%s' "$_gm_content" | head -c 80)"
+        printf '%s\n' "- $_gm_content" >> "$_gmem"
+        result="Global memory updated: + $(printf '%s' "$_gm_content" | head -c 80)"
       elif [ "$_gm_action" = "replace" ]; then
         _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
         if [ -f "$_gmem" ] && grep -qF "$_gm_old" "$_gmem"; then
@@ -1786,7 +1839,19 @@ handle_cmd() {
       ;;
     /model)  echo "  Model: $MODEL | Provider: $PROVIDER | URL: $BASE_URL" ;;
     /model\ *)
-      MODEL="${1#/model }"
+      local _new_model="${1#/model }"
+      # Validate against provider if it supports it
+      if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_validate_model" >/dev/null 2>&1; then
+        local _vout; _vout=$(${PROVIDER}_validate_model "$_new_model" 2>/dev/null)
+        local _vcode=$?
+        if [ $_vcode -ne 0 ]; then
+          echo "  ✗ Model '$_new_model' not available on provider '$PROVIDER'"
+          [ -n "$_vout" ] && echo "  $_vout"
+          echo "  Use /models to list available models."
+          return 0
+        fi
+      fi
+      MODEL="$_new_model"
       echo "  Model → $MODEL"
       _mix_save_defaults
       ;;
