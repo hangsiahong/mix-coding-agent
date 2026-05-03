@@ -1155,7 +1155,11 @@ _status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033
 [ "$AGENT_MODE"   != "fast" ] && _status_line+="   \033[0;36m◎ ${AGENT_MODE}\033[0m"
 [ -n "$ENV_INFO" ]            && _status_line+="   \033[0;90m[${ENV_INFO}]\033[0m"
 echo -e "$_status_line"
-echo -e "  \033[0;33m/spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]\033[0m"
+if [ -f "$WORKDIR/SPEC.md" ]; then
+  echo -e "  \033[0;33m/spec [bug:|amend]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]\033[0m"
+else
+  echo -e "  \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
+fi
 echo -e "  \033[0;33m/flush /compact /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /workers /exit\033[0m"
 echo ""
 
