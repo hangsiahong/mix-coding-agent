@@ -197,7 +197,7 @@ if [ "$INTERACTIVE" = true ]; then
 
   bind -x '"\C-v": _mix_paste_media' 2>/dev/null || true
   bind -x '"\C-e": _mix_edit_prompt' 2>/dev/null || true
-  bind '"\e[200~": ""' # disable default bracketed paste start
+  bind '"\e[200~": ""' 2>/dev/null || true # disable default bracketed paste start
   bind -x '"\e[200~": _mix_bracketed_paste' 2>/dev/null || true
 fi
 
