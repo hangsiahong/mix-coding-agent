@@ -1,2 +1,4 @@
 .agent_history.json
 .agent_history.json.bak
+.env
+report.md
