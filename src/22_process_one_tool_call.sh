@@ -98,7 +98,7 @@ $_rh"
       show_edit_diff "$targs"
       if confirm "    Apply edit? [Y/n] "; then
         result=$(run_tool edit_file "$targs")
-        FAIL_STREAK=${FAIL_STREAK:-0}
+        FAIL_STREAK=0
         _TOOLS_USED=$((_TOOLS_USED + 1))
         if [[ "$result" == Edited* ]]; then
           if [ "$GIT_ENABLED" = true ]; then
