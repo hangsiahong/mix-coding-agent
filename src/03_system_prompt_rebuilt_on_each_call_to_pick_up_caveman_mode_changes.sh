@@ -21,7 +21,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
-- REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list
+- REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
 
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
@@ -94,6 +94,18 @@ CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutat
 /build [§T.n]      implement tasks from spec, flip status . → ~ → x, commit each
 /check [§V|§I|§T]  drift report — reads only, zero writes
 Suggest /spec when: new project, unclear scope, user describes features/constraints, or repeated direction-changes."
+  fi
+
+  if [ -n "$ACTIVE_SKILLS" ]; then
+    base+="
+
+## LOADED SKILLS"
+    for _skill in $ACTIVE_SKILLS; do
+      base+="
+--- $_skill ---
+$(cat "$_skill" 2>/dev/null)
+"
+    done
   fi
 
   if [ "$CAVEMAN_MODE" = "off" ]; then

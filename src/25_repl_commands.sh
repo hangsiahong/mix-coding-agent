@@ -34,7 +34,56 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /help  /exit"
+      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /skill <name>  /skills  /help  /exit"
+      ;;
+    /skills)
+      if [ -z "$ACTIVE_SKILLS" ]; then
+        echo "  No active skills."
+      else
+        echo "  Active skills:"
+        for s in $ACTIVE_SKILLS; do echo "    - $s"; done
+      fi
+      ;;
+    /skill\ clear)
+      ACTIVE_SKILLS=""
+      echo "  Skills cleared."
+      ;;
+    /skill)
+      echo "  Available skills:"
+      local count=0
+      for f in .mix/skills/*.md "$HOME/.mix/skills/"*.md; do
+        if [ -f "$f" ]; then
+          echo "    - $(basename "$f" .md)"
+          count=$((count + 1))
+        fi
+      done
+      if [ "$count" -eq 0 ]; then
+        echo "    (No skills found in .mix/skills or ~/.mix/skills)"
+      fi
+      echo "  Usage: /skill <name>   (loads a skill)"
+      echo "         /skills         (lists active skills)"
+      echo "         /skill clear    (clears active skills)"
+      ;;
+    /skill\ *)
+      local _sk="${1#/skill }"
+      local _found=""
+      if [ -f "$_sk" ]; then _found="$_sk"
+      elif [ -f ".mix/skills/$_sk.md" ]; then _found=".mix/skills/$_sk.md"
+      elif [ -f ".mix/skills/$_sk" ]; then _found=".mix/skills/$_sk"
+      elif [ -f "$HOME/.mix/skills/$_sk.md" ]; then _found="$HOME/.mix/skills/$_sk.md"
+      elif [ -f "$HOME/.mix/skills/$_sk" ]; then _found="$HOME/.mix/skills/$_sk"
+      fi
+      if [ -n "$_found" ]; then
+        if echo "$ACTIVE_SKILLS" | grep -qF "$_found"; then
+          echo "  Skill already loaded: $_found"
+        else
+          ACTIVE_SKILLS="$ACTIVE_SKILLS $_found"
+          ACTIVE_SKILLS="${ACTIVE_SKILLS# }"
+          echo "  Skill loaded: $_found"
+        fi
+      else
+        echo "  Skill not found: $_sk / $_sk.md (checked ., .mix/skills/, ~/.mix/skills/)"
+      fi
       ;;
     /compact)
       local _cmsg_before

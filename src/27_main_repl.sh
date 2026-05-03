@@ -19,8 +19,20 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
     
     if [[ "$word" == /* ]]; then
-      for c in "/flush" "/model" "/history" "/caveman" "/mode" "/yolo" "/workers" "/help" "/exit" "/spec" "/build" "/check"; do
+      for c in "/flush" "/model" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
+      done
+    elif [[ "$pre" == "/skill "* ]]; then
+      local sfiles=()
+      if [ -d ".mix/skills" ]; then
+        for f in .mix/skills/*.md; do [ -f "$f" ] && sfiles+=("$(basename "$f" .md)"); done
+      fi
+      if [ -d "$HOME/.mix/skills" ]; then
+        for f in "$HOME/.mix/skills/"*.md; do [ -f "$f" ] && sfiles+=("$(basename "$f" .md)"); done
+      fi
+      sfiles+=("clear")
+      for s in "${sfiles[@]}"; do
+        [[ "$s" == "$word"* ]] && matches+=("$s")
       done
     elif [[ "$word" == @* ]]; then
       local q="${word#@}"
