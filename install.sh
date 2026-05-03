@@ -79,6 +79,18 @@ ensure_path() {
   fi
 }
 
+# ── Directory setup ───────────────────────────────────────────────────────────
+setup_directories() {
+  local mix_dir="$HOME/.mix"
+  local skills_dir="$mix_dir/skills"
+  if [ ! -d "$skills_dir" ]; then
+    mkdir -p "$skills_dir"
+    info "created skill directory: $skills_dir"
+  else
+    ok "skill directory exists: $skills_dir"
+  fi
+}
+
 # ── API key setup ─────────────────────────────────────────────────────────────
 setup_key() {
   echo ""
@@ -142,6 +154,7 @@ check_deps
 pick_dir
 download
 ensure_path
+setup_directories
 setup_key
 quick_test
 
