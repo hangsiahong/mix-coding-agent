@@ -207,6 +207,18 @@ ENV: $ENV_INFO"
 TESTS: run '$TEST_CMD' after edits that touch tested files."
   [ "$GIT_ENABLED" = true ] && base+="
 GIT: repo active. edit_file auto-commits. Use git freely."
+
+  # Global memory — injected every call so agent always has context
+  local _gmem_file="${HOME}/.mix/memory.md"
+  base+="
+GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, patterns, lessons. Update proactively with update_global_memory when you learn something reusable. Short bullet points only."
+  if [ -f "$_gmem_file" ]; then
+    local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
+    [ -n "$_gmem_content" ] && base+="
+--- global memory ---
+$_gmem_content
+---"
+  fi
   # Mode-specific reasoning
   case "$AGENT_MODE" in
     deep) base+="
@@ -414,7 +426,7 @@ Date: %s
 }
 
 # ─── Tools (OpenAI function calling) ────────────────────────────────────────
-TOOLS_JSON='[{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"create_file","description":"Create a new file with given content. Fails if file already exists — use edit_file to modify existing files.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"},"content":{"type":"string","description":"Full file content"}},"required":["path","content"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace in existing file. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}},{"type":"function","function":{"name":"search_files","description":"Search file contents by regex pattern (grep -rn). Returns matching lines with file:line context.","parameters":{"type":"object","properties":{"pattern":{"type":"string","description":"Regex search pattern"},"path":{"type":"string","description":"Absolute directory or file path to search in"}},"required":["pattern","path"]}}}]'
+TOOLS_JSON='[{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"create_file","description":"Create a new file with given content. Fails if file already exists — use edit_file to modify existing files.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"},"content":{"type":"string","description":"Full file content"}},"required":["path","content"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace in existing file. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}},{"type":"function","function":{"name":"search_files","description":"Search file contents by regex pattern (grep -rn). Returns matching lines with file:line context.","parameters":{"type":"object","properties":{"pattern":{"type":"string","description":"Regex search pattern"},"path":{"type":"string","description":"Absolute directory or file path to search in"}},"required":["pattern","path"]}}},{"type":"function","function":{"name":"update_global_memory","description":"Append or update a note in ~/.mix/memory.md — persistent cross-project memory. Use proactively to record user preferences, recurring patterns, useful tricks, and lessons learned. Short bullet points.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["append","replace"],"description":"append: add new bullet to end. replace: find old_text and replace with new_text."},"content":{"type":"string","description":"For append: the new bullet text. For replace: the replacement text."},"old_text":{"type":"string","description":"For replace only: exact text to find."}},"required":["action","content"]}}}]'
 
 # ─── History ─────────────────────────────────────────────────────────────────
 HISTORY='[]'
@@ -572,17 +584,56 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
       rm -rf "$_ea_dir"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
       result=$(python3 -c "
-import sys
+import sys, re
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
 content=open(p).read()
+
+# 1. Exact match
 count=content.count(o)
-if count == 0:
-    print('Error: old_text not found in '+p)
-elif count > 1:
-    print('Error: old_text not unique ('+str(count)+' matches) in '+p)
-else:
+if count == 1:
     open(p,'w').write(content.replace(o,n,1))
     print('Edited '+p)
+    sys.exit(0)
+if count > 1:
+    print('Error: old_text not unique ('+str(count)+' matches) in '+p)
+    sys.exit(0)
+
+# 2. Fuzzy match: normalize trailing whitespace + line endings
+def normalize(s):
+    return '\n'.join(line.rstrip() for line in s.replace('\r\n','\n').replace('\r','\n').split('\n'))
+
+nc = normalize(content)
+no = normalize(o)
+fcount = nc.count(no)
+if fcount == 1:
+    # Find the span in normalized content, map replacement back
+    idx = nc.index(no)
+    # Rebuild: prefix + new_text normalized + suffix
+    open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(no):])
+    print('Edited '+p+' (fuzzy whitespace match)')
+    sys.exit(0)
+if fcount > 1:
+    print('Error: old_text not unique after fuzzy match ('+str(fcount)+' matches) in '+p)
+    sys.exit(0)
+
+# 3. Indent-agnostic match: strip all leading whitespace per line
+def strip_indent(s):
+    return '\n'.join(line.lstrip() for line in s.split('\n'))
+
+sc = strip_indent(nc)
+so = strip_indent(no)
+icount = sc.count(so)
+if icount == 1:
+    # Apply: find the actual region in normalized content and replace
+    idx = sc.index(so)
+    open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(so):])
+    print('Edited '+p+' (fuzzy indent match)')
+    sys.exit(0)
+if icount > 1:
+    print('Error: old_text not unique after indent-agnostic match ('+str(icount)+' matches) in '+p)
+    sys.exit(0)
+
+print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
       #return
       ;;
@@ -612,6 +663,32 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       [ ! -e "$_sf_path" ] && { echo "Error: not found: $_sf_path"; return; }
       result=$(grep -rn -E -I "$_sf_pat" "$_sf_path" 2>/dev/null | head -60) || true
       [ -z "$result" ] && result="(no matches for: $_sf_pat)"
+      ;;
+    update_global_memory)
+      local _gmem="${HOME}/.mix/memory.md"
+      mkdir -p "${HOME}/.mix"
+      local _gm_action _gm_content _gm_old
+      _gm_action=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("action","append"))' 2>/dev/null) || _gm_action="append"
+      _gm_content=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "$_gm_action" = "append" ]; then
+        [ ! -f "$_gmem" ] && printf '# Global Memory\n\n' > "$_gmem"
+        printf '- %s\n' "$_gm_content" >> "$_gmem"
+        result="Global memory updated: + $( printf '%s' "$_gm_content" | head -c 80)"
+      elif [ "$_gm_action" = "replace" ]; then
+        _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
+        if [ -f "$_gmem" ] && grep -qF "$_gm_old" "$_gmem"; then
+          result=$(python3 -c '
+import sys
+old,new,path=sys.argv[1],sys.argv[2],sys.argv[3]
+content=open(path).read()
+if old not in content: print("Error: old_text not found"); sys.exit(0)
+open(path,"w").write(content.replace(old,new,1))
+print("Global memory updated.")
+' "$_gm_old" "$_gm_content" "$_gmem" 2>/dev/null) || result="Error updating global memory"
+        else
+          result="Error: old_text not found in global memory"
+        fi
+      fi
       ;;
     *) result="Unknown tool: $name" ;;
   esac
@@ -1186,6 +1263,12 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
       local sdir; sdir=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || sdir="?"
       echo -e "    \033[0;90m🔍 /$spat/ in $sdir\033[0m"
       result=$(run_tool search_files "$targs")
+      ;;
+    update_global_memory)
+      local _gm_act; _gm_act=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("action","append"))' 2>/dev/null) || _gm_act="append"
+      local _gm_txt; _gm_txt=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || _gm_txt="?"
+      echo -e "    \033[0;90m🧠 global memory ($_gm_act): ${_gm_txt:0:60}\033[0m"
+      result=$(run_tool update_global_memory "$targs")
       ;;
     *) result="Unknown: $tname" ;;
   esac

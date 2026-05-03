@@ -31,17 +31,56 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
       rm -rf "$_ea_dir"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
       result=$(python3 -c "
-import sys
+import sys, re
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
 content=open(p).read()
+
+# 1. Exact match
 count=content.count(o)
-if count == 0:
-    print('Error: old_text not found in '+p)
-elif count > 1:
-    print('Error: old_text not unique ('+str(count)+' matches) in '+p)
-else:
+if count == 1:
     open(p,'w').write(content.replace(o,n,1))
     print('Edited '+p)
+    sys.exit(0)
+if count > 1:
+    print('Error: old_text not unique ('+str(count)+' matches) in '+p)
+    sys.exit(0)
+
+# 2. Fuzzy match: normalize trailing whitespace + line endings
+def normalize(s):
+    return '\n'.join(line.rstrip() for line in s.replace('\r\n','\n').replace('\r','\n').split('\n'))
+
+nc = normalize(content)
+no = normalize(o)
+fcount = nc.count(no)
+if fcount == 1:
+    # Find the span in normalized content, map replacement back
+    idx = nc.index(no)
+    # Rebuild: prefix + new_text normalized + suffix
+    open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(no):])
+    print('Edited '+p+' (fuzzy whitespace match)')
+    sys.exit(0)
+if fcount > 1:
+    print('Error: old_text not unique after fuzzy match ('+str(fcount)+' matches) in '+p)
+    sys.exit(0)
+
+# 3. Indent-agnostic match: strip all leading whitespace per line
+def strip_indent(s):
+    return '\n'.join(line.lstrip() for line in s.split('\n'))
+
+sc = strip_indent(nc)
+so = strip_indent(no)
+icount = sc.count(so)
+if icount == 1:
+    # Apply: find the actual region in normalized content and replace
+    idx = sc.index(so)
+    open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(so):])
+    print('Edited '+p+' (fuzzy indent match)')
+    sys.exit(0)
+if icount > 1:
+    print('Error: old_text not unique after indent-agnostic match ('+str(icount)+' matches) in '+p)
+    sys.exit(0)
+
+print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
       #return
       ;;
