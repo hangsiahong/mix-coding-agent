@@ -109,6 +109,13 @@ except KeyboardInterrupt:
     kill_spinner()
     tty.write("\n    \033[38;5;196m[Cancelled by User]\033[0m\n")
     tty.flush()
+except urllib.error.HTTPError as e:
+    kill_spinner()
+    try: body = e.read().decode("utf-8","replace")
+    except: body = ""
+    tty.write(f"\n    \033[38;5;196m[API Request Failed: {str(e)}]\033[0m\n")
+    if body: tty.write(f"    \033[38;5;196m{body}\033[0m\n")
+    tty.flush()
 except Exception as e:
     kill_spinner()
     tty.write(f"\n    \033[38;5;196m[API Request Failed: {str(e)}]\033[0m\n")

@@ -126,8 +126,8 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       _gm_content=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "$_gm_action" = "append" ]; then
         [ ! -f "$_gmem" ] && printf '# Global Memory\n\n' > "$_gmem"
-        printf '- %s\n' "$_gm_content" >> "$_gmem"
-        result="Global memory updated: + $( printf '%s' "$_gm_content" | head -c 80)"
+        printf '%s\n' "- $_gm_content" >> "$_gmem"
+        result="Global memory updated: + $(printf '%s' "$_gm_content" | head -c 80)"
       elif [ "$_gm_action" = "replace" ]; then
         _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
         if [ -f "$_gmem" ] && grep -qF "$_gm_old" "$_gmem"; then

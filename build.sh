@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# Shebang must be line 1. Write it first, then embed providers so their
+# functions exist when src/01_config.sh runs copilot_activate at startup.
+echo '#!/usr/bin/env bash' > mix.compiled
+
+for pf in src/providers/*.sh; do
+  [ -f "$pf" ] || continue
+  echo "# ─── Embedded provider: $(basename "$pf") ───"
+  echo "_EMBEDDED_PROVIDER_$(basename "$pf" .sh)=1"
+  cat "$pf"
+  echo ""
+done >> mix.compiled
+
 cat \
     src/00_header.sh \
     src/01_config.sh \
@@ -27,18 +39,7 @@ cat \
     src/24_agent_loop_one_user_turn_multi_turn_tool_use_final_answer.sh \
     src/25_repl_commands.sh \
     src/26_banner.sh \
-    src/28_update_global_memory.sh \
-    > mix.compiled
-
-# Embed providers BEFORE main loop — functions must be defined before `while true` starts
-# Otherwise the REPL can never find provider hooks like copilot_activate
-for pf in src/providers/*.sh; do
-  [ -f "$pf" ] || continue
-  echo "" >> mix.compiled
-  echo "# ─── Embedded provider: $(basename "$pf") ───" >> mix.compiled
-  echo "_EMBEDDED_PROVIDER_$(basename "$pf" .sh)=1" >> mix.compiled
-  cat "$pf" >> mix.compiled
-done
+    >> mix.compiled
 
 # Main REPL loop — MUST come last, since it blocks forever
 cat src/27_main_repl.sh >> mix.compiled
@@ -46,3 +47,15 @@ cat src/27_main_repl.sh >> mix.compiled
 cp mix.compiled mix
 chmod +x mix.compiled mix
 echo "Compiled to mix (and mix.compiled)!"
+
+# Auto-install to the same location install.sh picked
+_install_target=""
+for _d in "$HOME/bin" "$HOME/.local/bin" "/usr/local/bin"; do
+  if echo "$PATH" | tr ':' '\n' | grep -qx "$_d" && [ -d "$_d" ]; then
+    _install_target="$_d/mix"
+    break
+  fi
+done
+if [ -n "$_install_target" ]; then
+  cp mix "$_install_target" && echo "Installed → $_install_target"
+fi

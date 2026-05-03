@@ -143,8 +143,9 @@ copilot_get_api_token() {
     return 1
   }
 
-  local api_token
+  local api_token api_endpoint
   api_token=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("token",""))' 2>/dev/null)
+  api_endpoint=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("endpoints",{}).get("api",""))' 2>/dev/null)
 
   if [ -z "$api_token" ]; then
     local err
@@ -154,8 +155,9 @@ copilot_get_api_token() {
     return 1
   fi
 
-  # Cache it
+  # Cache token and endpoint
   printf '%s' "$api_token" > "$cache_file"
+  [ -n "$api_endpoint" ] && printf '%s' "$api_endpoint" > "${cache_file}.endpoint"
   printf '%s' "$api_token"
   return 0
 }
@@ -198,6 +200,56 @@ print(json.dumps(h))
 }
 
 # ─── List available models ─────────────────────────────────────────────────
+copilot_validate_model() {
+  local model_id="$1"
+  local api_token
+  api_token=$(copilot_get_api_token 2>/dev/null) || { echo "Could not fetch token to validate model."; return 1; }
+
+  local resp
+  resp=$(curl -s "https://api.githubcopilot.com/models" \
+    -H "Authorization: Bearer $api_token" \
+    -H "Accept: application/json" \
+    -H "Editor-Version: vscode/1.90.0" \
+    -H "Openai-Organization: github-copilot" 2>/dev/null)
+
+  local found
+  found=$(printf '%s' "$resp" | python3 -c "
+import json,sys
+try:
+  data=json.loads(sys.stdin.read())
+  models=data.get('data',data if isinstance(data,list) else [])
+  ids=[m.get('id','') for m in models]
+  print('yes' if '$model_id' in ids else 'no')
+except: print('unknown')
+" 2>/dev/null)
+
+  if [ "$found" = "yes" ]; then
+    return 0
+  elif [ "$found" = "unknown" ]; then
+    # Can't verify — allow it with a warning
+    echo "(Could not verify model list — proceeding anyway)"
+    return 0
+  else
+    # Print closest matches
+    printf '%s' "$resp" | python3 -c "
+import json,sys
+try:
+  data=json.loads(sys.stdin.read())
+  models=data.get('data',data if isinstance(data,list) else [])
+  ids=[m.get('id','') for m in models]
+  needle='$model_id'.lower()
+  close=[i for i in ids if needle in i.lower() or i.lower() in needle]
+  if close:
+    print('Did you mean: ' + ', '.join(close[:5]) + '?')
+  else:
+    # show all
+    print('Available: ' + ', '.join(ids))
+except: pass
+" 2>/dev/null
+    return 1
+  fi
+}
+
 copilot_list_models() {
   local api_token
   api_token=$(copilot_get_api_token) || return 1
@@ -256,8 +308,16 @@ copilot_activate() {
     return 1
   }
 
+  # Use the endpoint from the token response if available, fallback to default
+  local _ep_cache="/tmp/mix-copilot-api-token.endpoint"
+  local _api_url="https://api.githubcopilot.com"
+  if [ -f "$_ep_cache" ]; then
+    local _cached_ep; _cached_ep=$(cat "$_ep_cache" 2>/dev/null)
+    [ -n "$_cached_ep" ] && _api_url="$_cached_ep"
+  fi
+
   # Override config
-  BASE_URL="https://api.githubcopilot.com"
+  BASE_URL="$_api_url"
   PROVIDER="copilot"
   MODEL="${AGENT_MODEL:-gpt-4o}"
 

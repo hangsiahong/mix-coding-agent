@@ -34,7 +34,19 @@ handle_cmd() {
       ;;
     /model)  echo "  Model: $MODEL | Provider: $PROVIDER | URL: $BASE_URL" ;;
     /model\ *)
-      MODEL="${1#/model }"
+      local _new_model="${1#/model }"
+      # Validate against provider if it supports it
+      if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_validate_model" >/dev/null 2>&1; then
+        local _vout; _vout=$(${PROVIDER}_validate_model "$_new_model" 2>/dev/null)
+        local _vcode=$?
+        if [ $_vcode -ne 0 ]; then
+          echo "  ✗ Model '$_new_model' not available on provider '$PROVIDER'"
+          [ -n "$_vout" ] && echo "  $_vout"
+          echo "  Use /models to list available models."
+          return 0
+        fi
+      fi
+      MODEL="$_new_model"
       echo "  Model → $MODEL"
       _mix_save_defaults
       ;;

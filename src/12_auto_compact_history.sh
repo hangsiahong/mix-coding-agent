@@ -30,13 +30,26 @@ print(json.dumps({"model":m,"messages":msg}))
     local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
     [ -n "$_pkey" ] && _compact_key="$_pkey"
   fi
+  # Build curl args with provider extra headers (e.g. Copilot Editor-Version)
+  local _curl_args=(-s -w "%{http_code}" --max-time 60
+    "${BASE_URL}/chat/completions"
+    -H "Authorization: Bearer $_compact_key"
+    -H "Content-Type: application/json")
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+    local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+    if [ -n "$_ph" ]; then
+      while IFS= read -r _hk _hv; do
+        [ -n "$_hk" ] && _curl_args+=(-H "$_hk: $_hv")
+      done < <(printf '%s' "$_ph" | python3 -c '
+import json,sys
+for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
+' 2>/dev/null)
+    fi
+  fi
+
   local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
-  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 60 \
-    "${BASE_URL}/chat/completions" \
-    -H "Authorization: Bearer $_compact_key" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null) || true
+  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
 
   if [ "$code" != "200" ]; then echo ""; return; fi
