@@ -32,17 +32,14 @@ handle_cmd() {
       echo "  Model: $MODEL"
       echo ""
       echo "  Available providers:"
-      # List from files (dev mode)
-      for f in "$PROVIDER_DIR"/*.sh "$MIX_PROVIDERS_DIR"/*.sh; do
-        [ -f "$f" ] && echo "    - $(basename "$f" .sh)"
-      done
-      # List from embedded functions (compiled mode)
-      local _embedded=""
-      while IFS= read -r _fn; do
-        local _pn="${_fn%_activate}"
-        [ "$_pn" != "$_fn" ] && echo "    - $_pn" && _embedded="1"
-      done < <(compgen -A function 2>/dev/null | grep '_activate$')
-      [ -z "$_embedded" ] && [ ! -d "$PROVIDER_DIR" ] && echo "    copilot (embedded)"
+      local _plist; _plist=$(_list_providers 2>/dev/null)
+      if [ -n "$_plist" ]; then
+        while IFS= read -r _pn; do
+          echo "    - $_pn"
+        done <<< "$_plist"
+      else
+        echo "    (none found)"
+      fi
       echo "  User providers: drop .sh in ~/.mix/providers/"
       echo ""
       echo "  Usage: /provider <name>        (activate provider)"
