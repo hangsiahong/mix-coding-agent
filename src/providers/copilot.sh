@@ -310,7 +310,7 @@ copilot_activate() {
 
   # Use the endpoint from the token response if available, fallback to default
   local _ep_cache="/tmp/mix-copilot-api-token.endpoint"
-  local _api_url="https://api.githubcopilot.com"
+  local _api_url="https://api.individual.githubcopilot.com"
   if [ -f "$_ep_cache" ]; then
     local _cached_ep; _cached_ep=$(cat "$_ep_cache" 2>/dev/null)
     [ -n "$_cached_ep" ] && _api_url="$_cached_ep"
