@@ -1178,7 +1178,7 @@ fi
 
 while true; do
   if [ "$INTERACTIVE" = true ]; then
-    read -r -p $'\033[1;37m> \033[0m' INPUT < /dev/tty || break
+    read -e -r -p $'\001\033[1;37m\002> \001\033[0m\002' INPUT < /dev/tty || break
   else
     # Piped mode: read from stdin, exit after one task
     read -r INPUT || break
