@@ -1,7 +1,7 @@
 # ─── Self-healing bash wrapper ───────────────────────────────────────────────
 run_with_heal() {
   local cmd="$1" out rc
-  out=$(eval "$cmd" 2>&1); rc=$?
+  out=$(bash -c "$cmd" 2>&1); rc=$?
   if [ $rc -ne 0 ]; then
     # Permission denied → retry with sudo
     if printf '%s' "$out" | grep -qiE 'permission denied|EACCES'; then
@@ -17,10 +17,10 @@ run_with_heal() {
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
       if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
         echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
-        out=$(eval "node_modules/.bin/$cmd" 2>&1); rc=$?
+        out=$(bash -c "node_modules/.bin/$cmd" 2>&1); rc=$?
       elif command -v npx >/dev/null 2>&1 && printf '%s' "$cmd" | grep -qE '^[a-z]'; then
         echo -e "    \033[0;90m↻ not found — retrying via npx\033[0m"
-        out=$(eval "npx $cmd" 2>&1); rc=$?
+        out=$(bash -c "npx $cmd" 2>&1); rc=$?
       fi
     fi
     [ $rc -ne 0 ] && out="[FAILED exit=$rc]

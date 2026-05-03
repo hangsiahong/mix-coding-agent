@@ -5,7 +5,7 @@ run_tool() {
     bash)
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      result=$(eval "$cmd" 2>&1)
+      result=$(bash -c "$cmd" 2>&1)
       local _ec=$?
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
@@ -18,7 +18,7 @@ $result"
       [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
       ;;
     edit_file)
-      local _ea_dir; _ea_dir=$(mktemp -d)
+      local _ea_dir; _ea_dir=$(mktemp -d -t mix-XXXXXX)
       printf '%s' "$args" | python3 -c '
 import json,sys,os
 d=json.load(sys.stdin);b=sys.argv[1]
@@ -43,7 +43,7 @@ else:
     open(p,'w').write(content.replace(o,n,1))
     print('Edited '+p)
 " "$path" "$old_text" "$new_text")
-      return
+      #return
       ;;
     list_files)
       local path
@@ -69,12 +69,7 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       _sf_pat=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       _sf_path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       [ ! -e "$_sf_path" ] && { echo "Error: not found: $_sf_path"; return; }
-      result=$(grep -rn -E "$_sf_pat" "$_sf_path" \
-        --include='*.sh' --include='*.js' --include='*.ts' --include='*.jsx' --include='*.tsx' \
-        --include='*.py' --include='*.go' --include='*.rs' --include='*.md' \
-        --include='*.json' --include='*.yaml' --include='*.yml' \
-        --include='*.html' --include='*.css' --include='*.txt' --include='*.toml' \
-        2>/dev/null | head -60) || true
+      result=$(grep -rn -E -I "$_sf_pat" "$_sf_path" 2>/dev/null | head -60) || true
       [ -z "$result" ] && result="(no matches for: $_sf_pat)"
       ;;
     *) result="Unknown tool: $name" ;;

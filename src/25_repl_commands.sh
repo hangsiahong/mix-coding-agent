@@ -101,6 +101,18 @@ handle_cmd() {
         AUTO_YES=true;  echo "  Yolo mode ON  — auto-confirming commands (guardrails active)."
       fi
       ;;
+    /undo)
+      if [ "$GIT_ENABLED" = true ]; then
+        if git rev-parse HEAD~1 >/dev/null 2>&1; then
+          git reset --soft HEAD~1
+          echo "  Undo successful: git reset --soft HEAD~1"
+        else
+          echo "  Git undo failed: no previous commit found."
+        fi
+      else
+        echo "  Undo failed: git is not enabled or not a repository."
+      fi
+      ;;
     /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
              exit 0 ;;
     /workers)
@@ -136,7 +148,7 @@ handle_cmd() {
       else
         # Write task to a temp file to avoid quote escaping issues when passing to tmux
         local _stmp _mytty
-        _stmp=$(mktemp)
+        _stmp=$(mktemp -t mix-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
         tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \

@@ -2,7 +2,7 @@
 tmux_update() {
   [ -z "$TMUX" ] && return
   local hist_chars=${#HISTORY}
-  local est_tokens=$(( hist_chars / 4 ))
+  local est_tokens=$(( hist_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
   local ctx_color="#[fg=green]"

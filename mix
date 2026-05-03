@@ -277,7 +277,7 @@ detect_env
 # ─── Self-healing bash wrapper ───────────────────────────────────────────────
 run_with_heal() {
   local cmd="$1" out rc
-  out=$(eval "$cmd" 2>&1); rc=$?
+  out=$(bash -c "$cmd" 2>&1); rc=$?
   if [ $rc -ne 0 ]; then
     # Permission denied → retry with sudo
     if printf '%s' "$out" | grep -qiE 'permission denied|EACCES'; then
@@ -293,10 +293,10 @@ run_with_heal() {
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
       if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
         echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
-        out=$(eval "node_modules/.bin/$cmd" 2>&1); rc=$?
+        out=$(bash -c "node_modules/.bin/$cmd" 2>&1); rc=$?
       elif command -v npx >/dev/null 2>&1 && printf '%s' "$cmd" | grep -qE '^[a-z]'; then
         echo -e "    \033[0;90m↻ not found — retrying via npx\033[0m"
-        out=$(eval "npx $cmd" 2>&1); rc=$?
+        out=$(bash -c "npx $cmd" 2>&1); rc=$?
       fi
     fi
     [ $rc -ne 0 ] && out="[FAILED exit=$rc]
@@ -340,7 +340,13 @@ if [ -f "$HIST_FILE" ] && [ -s "$HIST_FILE" ]; then
   fi
 fi
 
-save_history() { printf '%s\n' "$HISTORY" > "$HIST_FILE"; }
+save_history() {
+  if [ -n "${KCONSOLE_API_KEY:-}" ]; then
+    printf '%s' "$HISTORY" | sed "s/$KCONSOLE_API_KEY/\[REDACTED_API_KEY\]/g" > "$HIST_FILE"
+  else
+    printf '%s' "$HISTORY" > "$HIST_FILE"
+  fi
+}
 
 # ─── Auto-compact history ────────────────────────────────────────────────────
 # When history exceeds MAX_HIST_MSGS, ask the model to summarize old messages,
@@ -368,7 +374,7 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || { echo ""; return; }
 
-  local tmp; tmp=$(mktemp)
+  local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 60 \
     "${BASE_URL}/chat/completions" \
@@ -413,7 +419,7 @@ print(json.dumps(base+recent))
 append_raw() {
   local msg="$1"
   if [ "$HISTORY" = "[]" ]; then HISTORY="[$msg]"
-  else HISTORY="${HISTORY%]},$msg]"; fi
+  else HISTORY=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys; h=json.load(sys.stdin); h.append(json.loads(sys.argv[1])); print(json.dumps(h))' "$msg"); fi
   save_history
 }
 
@@ -431,7 +437,7 @@ run_tool() {
     bash)
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      result=$(eval "$cmd" 2>&1)
+      result=$(bash -c "$cmd" 2>&1)
       local _ec=$?
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
@@ -444,7 +450,7 @@ $result"
       [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
       ;;
     edit_file)
-      local _ea_dir; _ea_dir=$(mktemp -d)
+      local _ea_dir; _ea_dir=$(mktemp -d -t mix-XXXXXX)
       printf '%s' "$args" | python3 -c '
 import json,sys,os
 d=json.load(sys.stdin);b=sys.argv[1]
@@ -469,7 +475,7 @@ else:
     open(p,'w').write(content.replace(o,n,1))
     print('Edited '+p)
 " "$path" "$old_text" "$new_text")
-      return
+      #return
       ;;
     list_files)
       local path
@@ -495,12 +501,7 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       _sf_pat=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       _sf_path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       [ ! -e "$_sf_path" ] && { echo "Error: not found: $_sf_path"; return; }
-      result=$(grep -rn -E "$_sf_pat" "$_sf_path" \
-        --include='*.sh' --include='*.js' --include='*.ts' --include='*.jsx' --include='*.tsx' \
-        --include='*.py' --include='*.go' --include='*.rs' --include='*.md' \
-        --include='*.json' --include='*.yaml' --include='*.yml' \
-        --include='*.html' --include='*.css' --include='*.txt' --include='*.toml' \
-        2>/dev/null | head -60) || true
+      result=$(grep -rn -E -I "$_sf_pat" "$_sf_path" 2>/dev/null | head -60) || true
       [ -z "$result" ] && result="(no matches for: $_sf_pat)"
       ;;
     *) result="Unknown tool: $name" ;;
@@ -587,7 +588,7 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
-  local tmp; tmp=$(mktemp)
+  local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 1800 \
     "${BASE_URL}/chat/completions" \
@@ -641,7 +642,7 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
-  local tmp_out; tmp_out=$(mktemp)
+  local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
   
   # Replacing curl with pure Python urllib.request for better connection handling
   # and resolving partial file/premature drop errors natively.
@@ -783,7 +784,7 @@ stop_spinner() {
 # ─── Context window % bar ─────────────────────────────────────────────────────
 ctx_bar() {
   local hist_chars=${#HISTORY}
-  local est_tokens=$(( hist_chars / 4 ))
+  local est_tokens=$(( hist_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
   local filled=$(( pct * 20 / 100 )) i bar=""
@@ -801,7 +802,7 @@ ctx_bar() {
 tmux_update() {
   [ -z "$TMUX" ] && return
   local hist_chars=${#HISTORY}
-  local est_tokens=$(( hist_chars / 4 ))
+  local est_tokens=$(( hist_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
   local ctx_color="#[fg=green]"
@@ -835,7 +836,18 @@ process_tc() {
     bash)
       local cmd
       cmd=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || cmd="?"
-      echo -e "      \033[0;90m\$ $cmd\033[0m"
+      
+      local total_lines
+      total_lines=$(printf '%s\n' "$cmd" | wc -l)
+      if [ "$total_lines" -gt 15 ]; then
+        local disp_cmd
+        disp_cmd=$(printf '%s\n' "$cmd" | head -n 15)
+        printf "      \033[0;90m\$ %s\033[0m\n" "$disp_cmd" | sed '2,$s/^/        /'
+        echo -e "         \033[0;90m... ($((total_lines - 15)) more lines)\033[0m"
+      else
+        printf "      \033[0;90m\$ %s\033[0m\n" "$cmd" | sed '2,$s/^/        /'
+      fi
+
       local _risk _reason
       read -r _risk _reason <<< "$(score_risk "$cmd")"
       # Risk label
@@ -853,14 +865,14 @@ process_tc() {
         printf '    \033[1;31mType YES to confirm: \033[0m'
         read -r _ans < /dev/tty 2>/dev/null || _ans=""
         if [ "$_ans" = "YES" ]; then _run=true
-        else result="User declined (HIGH risk)."; FAIL_STREAK=0; fi
+        else result="User declined (HIGH risk)."; FAIL_STREAK=${FAIL_STREAK:-0}; fi
       elif [ "$_risk" = "MED" ]; then
         if [ "$AGENT_MODE" = "yolo" ]; then
           _run=true
         elif confirm "    Run? [Y/n] "; then 
           _run=true
         else 
-          result="User declined."; FAIL_STREAK=0; 
+          result="User declined."; FAIL_STREAK=${FAIL_STREAK:-0}; 
         fi
       else
         _run=true  # LOW: auto-run
@@ -883,7 +895,7 @@ $_logs"
 $_rh"
           fi
         else
-          FAIL_STREAK=0
+          FAIL_STREAK=${FAIL_STREAK:-0}
         fi
       fi
       ;;
@@ -906,7 +918,7 @@ $_rh"
       show_edit_diff "$targs"
       if confirm "    Apply edit? [Y/n] "; then
         result=$(run_tool edit_file "$targs")
-        FAIL_STREAK=0
+        FAIL_STREAK=${FAIL_STREAK:-0}
         _TOOLS_USED=$((_TOOLS_USED + 1))
         if [[ "$result" == Edited* ]]; then
           if [ "$GIT_ENABLED" = true ]; then
@@ -963,7 +975,7 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
       if confirm "    Create file? [Y/n] "; then
         result=$(run_tool create_file "$targs")
         _TOOLS_USED=$((_TOOLS_USED + 1))
-        FAIL_STREAK=0
+        FAIL_STREAK=${FAIL_STREAK:-0}
         if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
           git -C "$WORKDIR" add "$p" 2>/dev/null || true
           git -C "$WORKDIR" commit -m "agent: create $(basename "$p")" --quiet 2>/dev/null \
@@ -972,7 +984,7 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
         fi
       else
         result="User declined create."
-        FAIL_STREAK=0
+        FAIL_STREAK=${FAIL_STREAK:-0}
       fi
       ;;
     search_files)
@@ -1013,7 +1025,7 @@ msg=[{"role":"system","content":s}]+h
 msg.append({"role":"user","content":"List your plan as a numbered list (3-7 steps) before acting. Be concise."})
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || return 1
-  local tmp; tmp=$(mktemp)
+  local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 30 \
     "${BASE_URL}/chat/completions" \
@@ -1242,6 +1254,18 @@ handle_cmd() {
         AUTO_YES=true;  echo "  Yolo mode ON  — auto-confirming commands (guardrails active)."
       fi
       ;;
+    /undo)
+      if [ "$GIT_ENABLED" = true ]; then
+        if git rev-parse HEAD~1 >/dev/null 2>&1; then
+          git reset --soft HEAD~1
+          echo "  Undo successful: git reset --soft HEAD~1"
+        else
+          echo "  Git undo failed: no previous commit found."
+        fi
+      else
+        echo "  Undo failed: git is not enabled or not a repository."
+      fi
+      ;;
     /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
              exit 0 ;;
     /workers)
@@ -1277,7 +1301,7 @@ handle_cmd() {
       else
         # Write task to a temp file to avoid quote escaping issues when passing to tmux
         local _stmp _mytty
-        _stmp=$(mktemp)
+        _stmp=$(mktemp -t mix-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
         tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
@@ -1370,6 +1394,8 @@ fi
 
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
+# Cleanup trap for crashes and exits (R1, R2)
+trap 'stop_spinner 2>/dev/null; rm -f /tmp/mix-* 2>/dev/null; exit' EXIT TERM HUP
 
 # ─── Autocomplete ─────────────────────────────────────────────
 

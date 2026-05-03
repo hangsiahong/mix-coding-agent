@@ -24,7 +24,7 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || { echo ""; return; }
 
-  local tmp; tmp=$(mktemp)
+  local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 60 \
     "${BASE_URL}/chat/completions" \
@@ -69,7 +69,7 @@ print(json.dumps(base+recent))
 append_raw() {
   local msg="$1"
   if [ "$HISTORY" = "[]" ]; then HISTORY="[$msg]"
-  else HISTORY="${HISTORY%]},$msg]"; fi
+  else HISTORY=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys; h=json.load(sys.stdin); h.append(json.loads(sys.argv[1])); print(json.dumps(h))' "$msg"); fi
   save_history
 }
 

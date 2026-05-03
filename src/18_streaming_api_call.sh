@@ -17,7 +17,7 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
-  local tmp_out; tmp_out=$(mktemp)
+  local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
   
   # Replacing curl with pure Python urllib.request for better connection handling
   # and resolving partial file/premature drop errors natively.

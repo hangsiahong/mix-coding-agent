@@ -1,7 +1,7 @@
 # ─── Context window % bar ─────────────────────────────────────────────────────
 ctx_bar() {
   local hist_chars=${#HISTORY}
-  local est_tokens=$(( hist_chars / 4 ))
+  local est_tokens=$(( hist_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
   local filled=$(( pct * 20 / 100 )) i bar=""

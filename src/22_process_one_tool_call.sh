@@ -14,7 +14,18 @@ process_tc() {
     bash)
       local cmd
       cmd=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || cmd="?"
-      echo -e "      \033[0;90m\$ $cmd\033[0m"
+      
+      local total_lines
+      total_lines=$(printf '%s\n' "$cmd" | wc -l)
+      if [ "$total_lines" -gt 15 ]; then
+        local disp_cmd
+        disp_cmd=$(printf '%s\n' "$cmd" | head -n 15)
+        printf "      \033[0;90m\$ %s\033[0m\n" "$disp_cmd" | sed '2,$s/^/        /'
+        echo -e "         \033[0;90m... ($((total_lines - 15)) more lines)\033[0m"
+      else
+        printf "      \033[0;90m\$ %s\033[0m\n" "$cmd" | sed '2,$s/^/        /'
+      fi
+
       local _risk _reason
       read -r _risk _reason <<< "$(score_risk "$cmd")"
       # Risk label
@@ -32,14 +43,14 @@ process_tc() {
         printf '    \033[1;31mType YES to confirm: \033[0m'
         read -r _ans < /dev/tty 2>/dev/null || _ans=""
         if [ "$_ans" = "YES" ]; then _run=true
-        else result="User declined (HIGH risk)."; FAIL_STREAK=0; fi
+        else result="User declined (HIGH risk)."; FAIL_STREAK=${FAIL_STREAK:-0}; fi
       elif [ "$_risk" = "MED" ]; then
         if [ "$AGENT_MODE" = "yolo" ]; then
           _run=true
         elif confirm "    Run? [Y/n] "; then 
           _run=true
         else 
-          result="User declined."; FAIL_STREAK=0; 
+          result="User declined."; FAIL_STREAK=${FAIL_STREAK:-0}; 
         fi
       else
         _run=true  # LOW: auto-run
@@ -62,7 +73,7 @@ $_logs"
 $_rh"
           fi
         else
-          FAIL_STREAK=0
+          FAIL_STREAK=${FAIL_STREAK:-0}
         fi
       fi
       ;;
@@ -85,7 +96,7 @@ $_rh"
       show_edit_diff "$targs"
       if confirm "    Apply edit? [Y/n] "; then
         result=$(run_tool edit_file "$targs")
-        FAIL_STREAK=0
+        FAIL_STREAK=${FAIL_STREAK:-0}
         _TOOLS_USED=$((_TOOLS_USED + 1))
         if [[ "$result" == Edited* ]]; then
           if [ "$GIT_ENABLED" = true ]; then
@@ -142,7 +153,7 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
       if confirm "    Create file? [Y/n] "; then
         result=$(run_tool create_file "$targs")
         _TOOLS_USED=$((_TOOLS_USED + 1))
-        FAIL_STREAK=0
+        FAIL_STREAK=${FAIL_STREAK:-0}
         if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
           git -C "$WORKDIR" add "$p" 2>/dev/null || true
           git -C "$WORKDIR" commit -m "agent: create $(basename "$p")" --quiet 2>/dev/null \
@@ -151,7 +162,7 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
         fi
       else
         result="User declined create."
-        FAIL_STREAK=0
+        FAIL_STREAK=${FAIL_STREAK:-0}
       fi
       ;;
     search_files)

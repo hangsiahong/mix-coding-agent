@@ -15,9 +15,10 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
+| file | summary |
+|---|---|
+| codebase-audit-2025.md | Full codebase audit: 4 critical security issues, 7 bugs, robustness/arch/UX findings | |
 | *(none yet)* | |
-
-## concepts
 
 | file | summary |
 |---|---|

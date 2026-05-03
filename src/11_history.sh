@@ -10,5 +10,11 @@ if [ -f "$HIST_FILE" ] && [ -s "$HIST_FILE" ]; then
   fi
 fi
 
-save_history() { printf '%s\n' "$HISTORY" > "$HIST_FILE"; }
+save_history() {
+  if [ -n "${KCONSOLE_API_KEY:-}" ]; then
+    printf '%s' "$HISTORY" | sed "s/$KCONSOLE_API_KEY/\[REDACTED_API_KEY\]/g" > "$HIST_FILE"
+  else
+    printf '%s' "$HISTORY" > "$HIST_FILE"
+  fi
+}
 

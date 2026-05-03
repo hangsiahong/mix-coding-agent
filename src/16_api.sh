@@ -16,7 +16,7 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
-  local tmp; tmp=$(mktemp)
+  local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 1800 \
     "${BASE_URL}/chat/completions" \
