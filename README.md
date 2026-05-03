@@ -48,11 +48,23 @@ Type these inside the mix prompt:
 | `/subagent <name> <task>`| Run background AI agent (needs tmux) |
 | `/workers` | List all background jobs |
 | `/flush` | Clear chat memory to free up context |
+| `/compact` | Summarize history to shrink context |
+| `/paste` | Insert clipboard text as hidden context (no screen flood) |
 | `/caveman <level>` | Change AI chat fluff level |
 | `/mode <level>` | Change reasoning (fast/deep/plan) |
 | `/model <name>` | Swap the AI model |
 | `/yolo` | Toggle command auto-confirm on/off |
 | `/exit` | Quit |
+
+## Keyboard Shortcuts
+
+| Key | What it does |
+|---|---|
+| `Ctrl+V` | Paste clipboard as hidden token — shows `[paste N lines]`, full text sent to LLM invisibly |
+| `Ctrl+Shift+V` | Raw paste — shows the actual text in your prompt (useful for editing before sending) |
+| `Ctrl+E` | Open current prompt line in `$EDITOR` (default: vim) for multi-line editing |
+| `Tab` | Autocomplete `/commands`, `@file` paths, and bash filenames |
+| `Ctrl+C` | Cancel current AI turn, return to prompt (does not exit) |
 
 ## Project Overrides
 

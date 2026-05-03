@@ -164,3 +164,9 @@ Types: `ingest` `query` `lint` `task`
 ## [2025-07-14] query | Why "minimal" at 1.5K lines? — created memorybank/pages/why-minimal.md
 
 ## [2026-05-03] task | help me check, mix coding agent, what if they said why we think it is a super mi
+
+## [2026-05-03] task | can we add a feature when we press ctrl + e, it will open vim in /tmp/* or somet
+
+## [2026-05-03] task | /home/jiren/.local/bin/mix: line 1618: bind: warning: line editing not enabled
+
+## [2026-05-03] task | [paste _bp_1777815385601295746: 1 lines] what is this?

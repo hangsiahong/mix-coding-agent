@@ -83,39 +83,8 @@ if [ "$INTERACTIVE" = true ]; then
   # Hook TAB directly inside Readline for read -e
   bind -x '"\t": _mix_bind_tab' 2>/dev/null || true
 
-  # Enable bracketed paste for safe multiline pasting
+  # enable-bracketed-paste: tells readline to treat pasted text as single input, not execute each line
   bind 'set enable-bracketed-paste on' 2>/dev/null || true
-
-  # Hook the terminal's bracketed paste (Right Click / Ctrl+Shift+V)
-  _mix_bracketed_paste() {
-    local raw_paste=""
-    local ch=""
-    # 201~ is the end bracket for bracketed paste
-    while IFS= read -r -s -d '' -n 1 ch < /dev/tty || [ -n "$ch" ]; do
-      raw_paste+="$ch"
-      if [[ "$raw_paste" == *$'\e[201~' ]]; then
-        raw_paste="${raw_paste%$'\e[201~'}"
-        break
-      fi
-    done
-    
-    if [ -n "$raw_paste" ]; then
-      local total_lines
-      total_lines=$(printf '%s\n' "$raw_paste" | wc -l)
-      if [ "$total_lines" -gt 5 ] || [ "${#raw_paste}" -gt 250 ]; then
-        local pid="bp_$(date +%s%N)"
-        local dir="/tmp/mix-clipboard"
-        mkdir -p "$dir"
-        printf '%s' "$raw_paste" > "$dir/txt_$pid.txt"
-        local insert="[paste _$pid: $total_lines lines] "
-        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
-        READLINE_POINT=$((READLINE_POINT + ${#insert}))
-      else
-        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${raw_paste}${READLINE_LINE:$READLINE_POINT}"
-        READLINE_POINT=$((READLINE_POINT + ${#raw_paste}))
-      fi
-    fi
-  }
 
   # Hook Ctrl+V to paste media (image or text) from system clipboard (if available)
   _mix_paste_media() {
@@ -169,8 +138,7 @@ if [ "$INTERACTIVE" = true ]; then
         READLINE_POINT=$((READLINE_POINT + ${#txt}))
       fi
     else
-      # Just warn inline, will not mess up prompt entirely
-      echo -e "\n  \033[0;90m(Clipboard empty or unable to read)\033[0m"
+      echo -e "\n  \033[0;90m(No clipboard tool. Install wl-paste or xclip, or use /paste)\033[0m"
     fi
   }
 
@@ -197,8 +165,6 @@ if [ "$INTERACTIVE" = true ]; then
 
   bind -x '"\C-v": _mix_paste_media' 2>/dev/null || true
   bind -x '"\C-e": _mix_edit_prompt' 2>/dev/null || true
-  bind '"\e[200~": ""' 2>/dev/null || true # disable default bracketed paste start
-  bind -x '"\e[200~": _mix_bracketed_paste' 2>/dev/null || true
 fi
 
 while true; do
@@ -221,15 +187,22 @@ while true; do
   INPUT="${INPUT%"${INPUT##*[![:space:]]}"}"  # trim trailing whitespace
   [ -z "$INPUT" ] && continue
 
-  # Show truncated preview for long pastes
-  if [ ${#INPUT} -gt 200 ]; then
-    _prev=$(printf "%s" "$INPUT" | tr '\n' ' ' | cut -c1-80); echo -e "  \033[90m[${#INPUT} chars] ${_prev}...\033[0m"
+  # Post-read paste collapse: if INPUT is multiline (Ctrl+Shift+V paste),
+  # erase the pasted lines from the terminal and replace with a clean token.
+  _paste_lines=$(printf '%s\n' "$INPUT" | wc -l)
+  if [ "$_paste_lines" -gt 5 ]; then
+    _paste_pid="bp_$(date +%s%N)"
+    mkdir -p /tmp/mix-clipboard
+    printf '%s' "$INPUT" > "/tmp/mix-clipboard/txt_${_paste_pid}.txt"
+    # Move cursor up _paste_lines rows, erase to bottom, reprint a clean summary
+    printf '\e[%dA\e[J❯ \033[0;90m[paste %d lines — hidden]\033[0m\n' "$_paste_lines" "$_paste_lines" > /dev/tty
+    INPUT="[paste _${_paste_pid}: ${_paste_lines} lines]"
   fi
 
   if handle_cmd "$INPUT"; then continue; fi
-  
-  # Check if handle_cmd modified INPUT (like /paste does)
-  if [[ "$INPUT" == *"[paste_"* ]]; then
+
+  # Resolve paste tokens back to full text before sending to LLM
+  if [[ "$INPUT" == *"[paste _"* ]]; then
     INPUT=$(printf '%s' "$INPUT" | python3 -c '
 import sys, re
 out = sys.stdin.read()

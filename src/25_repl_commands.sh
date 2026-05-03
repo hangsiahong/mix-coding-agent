@@ -1,6 +1,28 @@
 # ─── REPL Commands ──────────────────────────────────────────────────────────
 handle_cmd() {
   case "$1" in
+    /paste)
+      local dir="/tmp/mix-clipboard"
+      mkdir -p "$dir"
+      local txt=""
+      if command -v wl-paste >/dev/null 2>&1; then
+        txt=$(wl-paste -t text/plain 2>/dev/null)
+      elif command -v xclip >/dev/null 2>&1; then
+        txt=$(xclip -selection clipboard -o 2>/dev/null)
+      elif command -v pbpaste >/dev/null 2>&1; then
+        txt=$(pbpaste 2>/dev/null)
+      fi
+      if [ -n "$txt" ]; then
+        local pid=$(date +%s%N)
+        printf '%s' "$txt" > "$dir/txt_$pid.txt"
+        local lines=$(printf '%s\n' "$txt" | wc -l)
+        INPUT="[paste _$pid: $lines lines]"
+        echo -e "  \033[38;5;99m✓\033[0m Paste appended context (${lines} lines)"
+        return 1 # Return 1 to tell loop to fall through and process INPUT
+      else
+        echo "  Clipboard is empty or missing xclip/wl-paste/pbpaste"
+      fi
+      ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
     /model)  echo "  Model: $MODEL" ;;
     /model\ *) MODEL="${1#/model }"; echo "  Model → $MODEL" ;;

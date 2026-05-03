@@ -28,5 +28,6 @@ cat \
     src/25_repl_commands.sh \
     src/26_banner.sh \
     src/27_main_repl.sh > mix.compiled
-chmod +x mix.compiled
-echo "Compiled to mix.compiled!"
+cp mix.compiled mix
+chmod +x mix.compiled mix
+echo "Compiled to mix (and mix.compiled)!"
