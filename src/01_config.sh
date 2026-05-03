@@ -73,15 +73,17 @@ _load_provider() {
 # List available provider names (embedded + file-based)
 _list_providers() {
   local -A _seen
-  # From embedded functions
-  while IFS= read -r _fn; do
+  # From embedded/loaded functions (declare -F works in non-interactive)
+  while IFS= read -r _line; do
+    local _fn="${_line#declare -f }"
     local _pn="${_fn%_activate}"
-    [ "$_pn" != "$_fn" ] && [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
-  done < <(compgen -A function 2>/dev/null | grep '_activate$')
+    [ "$_pn" != "$_fn" ] && [ -n "$_pn" ] && [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
+  done < <(declare -F 2>/dev/null | grep '_activate$')
   # From files
   for f in "$PROVIDER_DIR"/*.sh "$MIX_PROVIDERS_DIR"/*.sh; do
     [ -f "$f" ] || continue
-    local _pn="$(basename "$f" .sh)"
+    local _pn
+    _pn="$(basename "$f" .sh)"
     [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
   done
 }
