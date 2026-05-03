@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mini-agent.sh — Terminal coding agent via KConsole AI Gateway
+# mix — super minimal terminal coding agent
 # https://ai.koompi.cloud/v1 — OpenAI-compatible
 # Dependencies: bash, curl, python3
 
@@ -41,32 +41,32 @@ Tools: bash read_file edit_file list_files. Full absolute paths. edit_file: old_
 - Never give up after 1 error. Junior devs persist. So do you.
 
 ## WIKI PATTERN
-Three-layer architecture. Use when wiki/ exists or user asks to build/maintain knowledge base.
+Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
 
 LAYERS:
-  raw/       immutable sources. Read only, never modify.
-  wiki/      you own. LLM-maintained markdown. Compounding artifact — richer every session.
-  AGENTS.md  schema: wiki structure, conventions, domain rules. Co-evolve with user.
+  raw/          immutable sources. Read only, never modify.
+  memorybank/   you own. LLM-maintained markdown. Compounding artifact — richer every session.
+  AGENTS.md     schema: memorybank structure, conventions, domain rules. Co-evolve with user.
 
 KEY FILES (create if missing):
-  wiki/index.md  content catalog. Every page + one-line summary + link, grouped by category.
-                 Update on every ingest. Read first before any query.
-  wiki/log.md    append-only timeline. Format: ## [YYYY-MM-DD] ingest|query|lint | Title
-                 Parseable: grep '^## \[' wiki/log.md | tail -5
+  memorybank/index.md  content catalog. Every page + one-line summary + link, grouped by category.
+                       Update on every ingest. Read first before any query.
+  memorybank/log.md    append-only timeline. Format: ## [YYYY-MM-DD] ingest|query|lint | Title
+                       Parseable: grep '^## \[' memorybank/log.md | tail -5
 
 OPS:
   INGEST  new source arrives →
             1. read source
             2. extract key info, discuss takeaways
-            3. write wiki/sources/<slug>.md summary page
+            3. write memorybank/sources/<slug>.md summary page
             4. update/create entity + concept pages (1 source touches 10-15 pages)
-            5. update wiki/index.md
-            6. append entry to wiki/log.md
+            5. update memorybank/index.md
+            6. append entry to memorybank/log.md
 
   QUERY   user asks question →
-            1. read wiki/index.md → find relevant pages
+            1. read memorybank/index.md → find relevant pages
             2. read those pages → synthesize answer with citations
-            3. good answers = new wiki pages. File them. Exploration compounds.
+            3. good answers = new memorybank pages. File them. Exploration compounds.
 
   LINT    (when asked) health-check wiki →
             find: contradictions, stale claims newer sources supersede,
@@ -116,7 +116,7 @@ MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7)
 # ─── Project-local extensions ────────────────────────────────────────────────
 # Load repo-specific tools/overrides, then user-global rc
 [ -f "$WORKDIR/.agent/rc.sh" ]    && source "$WORKDIR/.agent/rc.sh"
-[ -f "$HOME/.mini-agent/rc.sh" ]  && source "$HOME/.mini-agent/rc.sh"
+[ -f "$HOME/.mix/rc.sh" ]  && source "$HOME/.mix/rc.sh"
 
 # ─── Pre-edit diff preview ──────────────────────────────────────────────────
 show_edit_diff() {
@@ -221,7 +221,7 @@ $out"
 # Call after a successful task: write_wiki_solution "title" "problem" "fix" "cmd"
 write_wiki_solution() {
   local title="$1" problem="$2" fix="$3" cmd="$4"
-  local sdir="$WORKDIR/wiki/solutions"
+  local sdir="$WORKDIR/memorybank/solutions"
   mkdir -p "$sdir" 2>/dev/null || return
   local slug; slug=$(printf '%s' "$title" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')
   local file="$sdir/${slug}.md"
@@ -339,7 +339,7 @@ score_risk() {
       && echo "BLOCKED rm-rf-system" && return
   fi
   # ── HIGH ──────────────────────────────────────────────────────
-  printf '%s' "$c" | grep -qE '\|(bash|sh|python[0-9]?|node)\b' \
+  printf '%s' "$c" | grep -qE '\|[[:space:]]*(bash|sh|python[0-9]?|node)\b' \
     && echo "HIGH remote-exec" && return
   printf '%s' "$c" | grep -qE 'git +push.+(-f|--force)\b' \
     && echo "HIGH git-force-push" && return
@@ -657,22 +657,21 @@ run_agent() {
   done
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
-  # Auto-append to wiki/log.md if wiki exists and tools were used
-  if [ "$_TOOLS_USED" -gt 0 ] && [ -f "$WORKDIR/wiki/log.md" ]; then
+  # Auto-append to memorybank/log.md if memorybank exists and tools were used
+  if [ "$_TOOLS_USED" -gt 0 ] && [ -f "$WORKDIR/memorybank/log.md" ]; then
     printf '\n## [%s] task | %s\n' "$(date '+%Y-%m-%d')" "${input:0:80}" \
-      >> "$WORKDIR/wiki/log.md" 2>/dev/null || true
+      >> "$WORKDIR/memorybank/log.md" 2>/dev/null || true
   fi
-  # Auto wiki solution: if edit succeeded in git repo, ask model to summarize
-  # (lightweight: just look for the "committed" marker in history)
+  # Auto memorybank solution: if edit succeeded in git repo, look for "committed" marker in history
   if [ "$_TOOLS_USED" -gt 0 ] && [ "$GIT_ENABLED" = true ] && \
-     [ -d "$WORKDIR/wiki" ] && printf '%s' "$HISTORY" | grep -q '"committed"'; then
+     [ -d "$WORKDIR/memorybank" ] && printf '%s' "$HISTORY" | grep -q '"committed"'; then
     local _slug; _slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
-    local _sfile="$WORKDIR/wiki/solutions/${_slug}.md"
+    local _sfile="$WORKDIR/memorybank/solutions/${_slug}.md"
     if [ ! -f "$_sfile" ]; then
-      mkdir -p "$WORKDIR/wiki/solutions" 2>/dev/null || true
+      mkdir -p "$WORKDIR/memorybank/solutions" 2>/dev/null || true
       printf '# %s\nDate: %s\nInput: %s\n' \
         "$_slug" "$(date '+%Y-%m-%d')" "${input:0:200}" > "$_sfile" 2>/dev/null || true
-      echo -e "  \033[0;90m✓ wiki/solutions/${_slug}.md\033[0m"
+      echo -e "  \033[0;90m✓ memorybank/solutions/${_slug}.md\033[0m"
     fi
   fi
 }
@@ -730,7 +729,7 @@ handle_cmd() {
 # ─── Banner ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "\033[1;35m  ┌─────────────────────────────────┐\033[0m"
-echo -e "\033[1;35m  │   Mini-Agent · KConsole AI       │\033[0m"
+echo -e "\033[1;35m  │   mix · minimal coding agent      │\033[0m"
 echo -e "\033[1;35m  └─────────────────────────────────┘\033[0m"
 # build status line
 _status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033[0m"
