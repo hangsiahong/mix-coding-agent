@@ -73,7 +73,14 @@ icount = sc.count(so)
 if icount == 1:
     # Apply: find the actual region in normalized content and replace
     idx = sc.index(so)
-    open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(so):])
+    # Corrected: we need the length of the matching segment in the *normalized* string, 
+    # not the stripped string, to slice correctly.
+    # Actually, easier: find start/end indices in sc, map to nc.
+    start_line = sc[:idx].count('\n')
+    match_lines = so.count('\n') + 1
+    nc_lines = nc.split('\n')
+    new_nc = nc_lines[:start_line] + [normalize(n)] + nc_lines[start_line + match_lines:]
+    open(p,'w').write('\n'.join(new_nc))
     print('Edited '+p+' (fuzzy indent match)')
     sys.exit(0)
 if icount > 1:
