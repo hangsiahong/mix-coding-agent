@@ -30,3 +30,13 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | env -i HOME=/tmp bash --norc --noprofile /tmp/test_risk.sh 2>&1 | head -20 &
 
 ## [2026-05-03] task | sleep 2
+
+## [2026-05-03] task | cd /home/jiren/projects/funs/building/agent && git add mix && git commit -m "fix
+
+## [2026-05-03] task | read mix script and tell me do we need to add SKILL support?
+
+## [2026-05-03] task | wc -l /home/jiren/projects/funs/building/agent/mix && echo "---" && head -50 /ho
+
+## [2026-05-03] task | create a website html in /tmp/index.html make it really fancy but fast
+
+## [2026-05-03] task | copy the html file to this dir instead, i like the website so keep it
