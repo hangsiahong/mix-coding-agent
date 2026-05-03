@@ -3,7 +3,8 @@ echo ""
 echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m \033[0;90m· minimal coding agent\033[0m"
 
 # build status line
-_status_line="    \033[0;90mmodel \033[1;36m${MODEL}\033[0m \033[0;90m• in \033[0m${WORKDIR}"
+_provider_label="${PROVIDER:-default}"
+_status_line="    \033[0;90mprovider \033[0;33m${_provider_label}\033[0m \033[0;90m• model \033[1;36m${MODEL}\033[0m \033[0;90m• in \033[0m${WORKDIR}"
 [ "$AUTO_YES" = "true" ]      && _status_line+=" \033[0;90m•\033[0m \033[1;33m⚡ yolo\033[0m"
 [ "$CAVEMAN_MODE" != "off" ]  && _status_line+=" \033[0;90m•\033[0m \033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m"
 [ "$AGENT_MODE"   != "fast" ] && _status_line+=" \033[0;90m•\033[0m \033[0;36m◎ ${AGENT_MODE}\033[0m"
@@ -14,7 +15,7 @@ if [ -f "$WORKDIR/SPEC.md" ]; then
 else
   echo -e "    \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
 fi
-echo -e "    \033[0;90mcommands: /flush /compact /model [id] /caveman /mode /yolo /workers /exit\033[0m"
+echo -e "    \033[0;90mcommands: /flush /compact /model [id] /models /caveman /mode /yolo /workers /exit\033[0m"
 echo ""
 
 # tmux: rename window + initial status bar

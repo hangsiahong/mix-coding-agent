@@ -88,6 +88,24 @@ _list_providers() {
   done
 }
 
+# ─── Persist/restore provider+model defaults ────────────────────────────────
+_MIX_DEFAULTS_FILE="${HOME}/.mix/defaults"
+
+_mix_save_defaults() {
+  mkdir -p "${HOME}/.mix"
+  printf 'PROVIDER=%s\nMODEL=%s\nBASE_URL=%s\n' "$PROVIDER" "$MODEL" "$BASE_URL" > "$_MIX_DEFAULTS_FILE"
+}
+
+# Load saved defaults (overridden by env vars if set)
+if [ -f "$_MIX_DEFAULTS_FILE" ] && [ -z "${AGENT_PROVIDER:-}" ]; then
+  _saved_provider=$(grep '^PROVIDER=' "$_MIX_DEFAULTS_FILE" | cut -d= -f2-)
+  _saved_model=$(grep '^MODEL=' "$_MIX_DEFAULTS_FILE" | cut -d= -f2-)
+  _saved_url=$(grep '^BASE_URL=' "$_MIX_DEFAULTS_FILE" | cut -d= -f2-)
+  [ -n "$_saved_provider" ] && PROVIDER="$_saved_provider"
+  [ -n "$_saved_model" ]   && MODEL="$_saved_model"
+  [ -n "$_saved_url" ]     && BASE_URL="$_saved_url"
+fi
+
 # Auto-load provider at startup if AGENT_PROVIDER is set
 if [ "$PROVIDER" != "default" ]; then
   if _load_provider "$PROVIDER"; then

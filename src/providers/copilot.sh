@@ -23,14 +23,14 @@ _COPILOT_GH_TOKEN_FILE="${HOME}/.mix/copilot_github_token"
 
 # ─── Step 1-3: GitHub device-flow OAuth ────────────────────────────────────
 copilot_login() {
-  echo "  \033[1;37mGitHub Copilot Login\033[0m"
+  echo -e "  \033[1;37mGitHub Copilot Login\033[0m"
 
   # Request device code
   local resp
   resp=$(curl -s -X POST "https://github.com/login/device/code" \
     -H "Accept: application/json" \
     -d "client_id=${_COPILOT_CLIENT_ID}&scope=user:email" 2>/dev/null) || {
-    echo "  \033[1;31mFailed to reach GitHub. Check network.\033[0m"
+    echo -e "  \033[1;31mFailed to reach GitHub. Check network.\033[0m"
     return 1
   }
 
@@ -40,14 +40,14 @@ copilot_login() {
   verification_uri=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["verification_uri"])' 2>/dev/null)
 
   if [ -z "$device_code" ] || [ -z "$user_code" ]; then
-    echo "  \033[1;31mFailed to get device code from GitHub.\033[0m"
+    echo -e "  \033[1;31mFailed to get device code from GitHub.\033[0m"
     echo "  Response: $resp"
     return 1
   fi
 
   echo ""
-  echo "  \033[1;33m  Code: $user_code\033[0m"
-  echo "  Open: \033[4m${verification_uri}\033[0m"
+  echo -e "  \033[1;33m  Code: $user_code\033[0m"
+  echo -e "  Open: \033[4m${verification_uri}\033[0m"
   echo "  (code copied — paste it in the browser)"
   echo ""
 
@@ -60,11 +60,17 @@ copilot_login() {
     printf '%s' "$user_code" | pbcopy 2>/dev/null
   fi
 
-  # Poll for token (GitHub says interval=5s)
+  # Poll for token (GitHub says interval=5s, device codes expire after ~15min)
   local interval=5
   local gh_token=""
+  local _poll_attempts=0 _poll_max=60  # 60 × 5s = 5 min max
   echo "  Waiting for authorization..."
   while true; do
+    _poll_attempts=$((_poll_attempts + 1))
+    if [ "$_poll_attempts" -gt "$_poll_max" ]; then
+      echo -e "  \033[1;31mTimed out waiting for authorization (5 min). Run /provider copilot login again.\033[0m"
+      return 1
+    fi
     sleep "$interval"
     local poll_resp
     poll_resp=$(curl -s -X POST "https://github.com/login/oauth/access_token" \
@@ -80,7 +86,7 @@ copilot_login() {
       interval=$((interval + 5))
       continue
     elif [ "$error" = "expired_token" ]; then
-      echo "  \033[1;31mDevice code expired. Run /provider copilot login again.\033[0m"
+      echo -e "  \033[1;31mDevice code expired. Run /provider copilot login again.\033[0m"
       return 1
     elif [ -z "$error" ]; then
       gh_token=$(printf '%s' "$poll_resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null)
@@ -88,7 +94,7 @@ copilot_login() {
         break
       fi
     else
-      echo "  \033[1;31mUnexpected error: $error\033[0m"
+      echo -e "  \033[1;31mUnexpected error: $error\033[0m"
       return 1
     fi
   done
@@ -99,7 +105,7 @@ copilot_login() {
   printf '%s' "$gh_token" > "$_COPILOT_GH_TOKEN_FILE"
   chmod 600 "$_COPILOT_GH_TOKEN_FILE"
 
-  echo "  \033[38;5;82m✓ GitHub token saved.\033[0m"
+  echo -e "  \033[38;5;82m✓ GitHub token saved.\033[0m"
   return 0
 }
 
@@ -125,7 +131,7 @@ copilot_get_api_token() {
   fi
 
   if [ -z "$gh_token" ]; then
-    echo "  \033[1;33mNo GitHub token. Run: /provider copilot login\033[0m" >&2
+    echo -e "  \033[1;33mNo GitHub token. Run: /provider copilot login\033[0m" >&2
     return 1
   fi
 
@@ -133,7 +139,7 @@ copilot_get_api_token() {
   resp=$(curl -s "https://api.github.com/copilot_internal/v2/token" \
     -H "Authorization: token $gh_token" \
     -H "Accept: application/json" 2>/dev/null) || {
-    echo "  \033[1;31mFailed to get Copilot token.\033[0m" >&2
+    echo -e "  \033[1;31mFailed to get Copilot token.\033[0m" >&2
     return 1
   }
 
@@ -143,8 +149,8 @@ copilot_get_api_token() {
   if [ -z "$api_token" ]; then
     local err
     err=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("message","unknown"))' 2>/dev/null)
-    echo "  \033[1;31mCopilot token error: $err\033[0m" >&2
-    echo "  \033[0;90m(Try: /provider copilot login)\033[0m" >&2
+    echo -e "  \033[1;31mCopilot token error: $err\033[0m" >&2
+    echo -e "  \033[0;90m(Try: /provider copilot login)\033[0m" >&2
     return 1
   fi
 
@@ -163,10 +169,11 @@ copilot_get_api_key() {
 
 # Return extra headers for curl (newline-separated)
 copilot_curl_headers() {
-  echo "-H \"Editor-Version: Neovim/0.9.5\""
-  echo "-H \"Editor-Plugin-Version: copilot.vim/1.16.0\""
+  echo "-H \"Editor-Version: vscode/1.90.0\""
+  echo "-H \"Editor-Plugin-Version: copilot-chat/0.15.0\""
   echo "-H \"Openai-Organization: github-copilot\""
   echo "-H \"Openai-Intent: copilot-panel\""
+  echo "-H \"User-Agent: GitHubCopilotChat/0.15.0\""
 }
 
 # Return extra env vars for python3 streaming (space-separated KEY=VALUE pairs)
@@ -180,10 +187,11 @@ copilot_extra_headers_json() {
   python3 -c '
 import json
 h = {
-    "Editor-Version": "Neovim/0.9.5",
-    "Editor-Plugin-Version": "copilot.vim/1.16.0",
+    "Editor-Version": "vscode/1.90.0",
+    "Editor-Plugin-Version": "copilot-chat/0.15.0",
     "Openai-Organization": "github-copilot",
-    "Openai-Intent": "copilot-panel"
+    "Openai-Intent": "copilot-panel",
+    "User-Agent": "GitHubCopilotChat/0.15.0"
 }
 print(json.dumps(h))
 '
@@ -194,40 +202,57 @@ copilot_list_models() {
   local api_token
   api_token=$(copilot_get_api_token) || return 1
 
-  curl -s "https://api.githubcopilot.com/models" \
+  local resp
+  resp=$(curl -s "https://api.githubcopilot.com/models" \
     -H "Authorization: Bearer $api_token" \
     -H "Accept: application/json" \
-    -H "Editor-Version: Neovim/0.9.5" \
-    -H "Editor-Plugin-Version: copilot.vim/1.16.0" \
-    -H "Openai-Organization: github-copilot" 2>/dev/null | python3 -c '
+    -H "Editor-Version: vscode/1.90.0" \
+    -H "Editor-Plugin-Version: copilot-chat/0.15.0" \
+    -H "Openai-Organization: github-copilot" \
+    -H "Openai-Intent: copilot-panel" \
+    -H "User-Agent: GitHubCopilotChat/0.15.0" 2>/dev/null)
+
+  if [ -z "$resp" ]; then
+    echo -e "  \033[1;31mEmpty response from models endpoint. Token may be expired.\033[0m"
+    echo "  Try: /provider copilot login"
+    return 1
+  fi
+
+  printf '%s\n' "$resp" | python3 -c '
 import json,sys
+raw = sys.stdin.read()
 try:
-  data = json.load(sys.stdin)
-  models = data.get("data", [])
-  for m in models:
-    mid = m.get("id","?")
-    name = m.get("name", mid)
-    caps = m.get("capabilities",{})
-    streaming = "stream" if caps.get("streaming",False) else "no-stream"
-    tools = "tools" if caps.get("tool_calls",False) else "no-tools"
-    print(f"  {mid:<40} {name:<30} [{streaming}] [{tools}]")
+  data = json.loads(raw)
+  # Some endpoints wrap in "data", others return top-level list
+  models = data.get("data", data if isinstance(data, list) else [])
+  if not models:
+    print("  No models returned. Raw response:")
+    print("  " + raw[:300])
+  else:
+    for m in models:
+      mid = m.get("id","?")
+      caps = m.get("capabilities",{})
+      streaming = "stream" if caps.get("streaming",False) else "no-stream"
+      tools = "tools" if caps.get("tool_calls",False) else "no-tools"
+      print(f"  {mid:<45} [{streaming}] [{tools}]")
 except Exception as e:
   print(f"  Error parsing models: {e}")
-' 2>/dev/null
+  print("  Raw (first 300): " + raw[:300])
+'
 }
 
 # ─── Set provider to copilot ───────────────────────────────────────────────
 copilot_activate() {
   # Check for GitHub token first
   if [ ! -f "$_COPILOT_GH_TOKEN_FILE" ]; then
-    echo "  \033[1;33mNot logged in. Run: /provider copilot login\033[0m"
+    echo -e "  \033[1;33mNot logged in. Run: /provider copilot login\033[0m"
     return 1
   fi
 
   # Get API token to verify auth works
   local api_token
   api_token=$(copilot_get_api_token) || {
-    echo "  \033[1;31mAuth failed. Try: /provider copilot login\033[0m"
+    echo -e "  \033[1;31mAuth failed. Try: /provider copilot login\033[0m"
     return 1
   }
 
@@ -236,9 +261,9 @@ copilot_activate() {
   PROVIDER="copilot"
   MODEL="${AGENT_MODEL:-gpt-4o}"
 
-  echo "  \033[38;5;82m✓ Provider → copilot\033[0m"
+  echo -e "  \033[38;5;82m✓ Provider → copilot\033[0m"
   echo "  Base URL: $BASE_URL"
   echo "  Model: $MODEL"
-  echo "  Run \033[1m/provider copilot models\033[0m to list available models"
-  echo "  Run \033[1m/model <id>\033[0m to switch models"
+  echo -e "  Run \033[1m/provider copilot models\033[0m to list available models"
+  echo -e "  Run \033[1m/model <id>\033[0m to switch models"
 }

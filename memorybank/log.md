@@ -3,6 +3,10 @@
 Append-only task timeline. Format: `## [YYYY-MM-DD] type | description`
 Types: `ingest` `query` `lint` `task`
 
+## [2026-05-03] task | GitHub Copilot provider fully working: device-flow OAuth, model listing (/models shortcut), persist provider+model to ~/.mix/defaults, banner shows active provider
+## [2026-05-03] task | Fixed copilot_list_models: updated headers to vscode/1.90.0 + User-Agent GitHubCopilotChat/0.15.0, fixed Python stdin consumed-before-except bug
+## [2026-05-03] task | Added /models command (lists models for active provider), /provider <name> + /model <id> now persist to ~/.mix/defaults
+
 ## [2026-05-03] task | Copilot provider: full device-flow OAuth, token caching, model listing, streaming support
 ## [2026-05-03] task | Robustness: 3-retry API loop, compact_history safety (no overwrite on failure), append_raw ARG_MAX bypass via stdin pipe
 ## [2026-05-03] task | Fix B7: FAIL_STREAK no longer resets on user-declined HIGH/MED risk commands
@@ -184,3 +188,11 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | [paste _1777816282840818804: 38 lines]
 
 ## [2026-05-03] task | please continue?
+
+## [2026-05-03] task | please continue
+
+## [2026-05-03] task | echo "DEBUG: copilot_activate type = $(type -t copilot_activate 2>&1)"
+
+## [2026-05-03] task | ╭╴☕ jiren   …/agent   21:22  plugin  !   3.14.4 
+╰─󰍟 mix
+  ⚠  So

@@ -24,8 +24,20 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /models)
+      if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
+        ${PROVIDER}_list_models
+      else
+        echo "  Provider '$PROVIDER' has no models list."
+        echo "  Use /model <id> to set manually."
+      fi
+      ;;
     /model)  echo "  Model: $MODEL | Provider: $PROVIDER | URL: $BASE_URL" ;;
-    /model\ *) MODEL="${1#/model }"; echo "  Model → $MODEL" ;;
+    /model\ *)
+      MODEL="${1#/model }"
+      echo "  Model → $MODEL"
+      _mix_save_defaults
+      ;;
     /provider)
       echo "  Provider: $PROVIDER"
       echo "  Base URL: $BASE_URL"
@@ -53,6 +65,7 @@ handle_cmd() {
       if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
       MODEL="${AGENT_MODEL:-glm-5}"
       echo "  Provider → default (koompi proxy)"
+      _mix_save_defaults
       ;;
     /provider\ *)
       local _pargs="${1#/provider }"
@@ -71,7 +84,7 @@ handle_cmd() {
           "")
             # Activate
             if type "${_pname}_activate" >/dev/null 2>&1; then
-              ${_pname}_activate
+              ${_pname}_activate && _mix_save_defaults
             else
               echo "  Provider $_pname loaded (no _activate hook found)"
               echo "  Set BASE_URL, API_KEY, MODEL manually or define ${_pname}_activate()"
@@ -131,7 +144,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /compact  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
