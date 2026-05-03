@@ -26,6 +26,16 @@ run_with_heal() {
     [ $rc -ne 0 ] && out="[FAILED exit=$rc]
 $out"
   fi
+
+  # Context bloat control: truncate output if it exceeds 200 lines
+  local total_lines
+  total_lines=$(printf '%s\n' "$out" | wc -l)
+  if [ "$total_lines" -gt 200 ]; then
+    out="$(printf '%s\n' "$out" | head -n 100)
+... ($((total_lines - 200)) lines truncated by mix to prevent context bloat) ...
+$(printf '%s\n' "$out" | tail -n 100)"
+  fi
+
   printf '%s' "$out"
 }
 

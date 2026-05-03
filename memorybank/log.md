@@ -104,3 +104,63 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | find src -name '*.sh' | xargs wc -l | grep total
 
 ## [2026-05-03] task | cat -n index.html | grep -C 5 1368
+
+## [2026-05-03] task | grep -A 10 -B 5 truncate src/*.sh
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | head -n 160 | tail -n 40
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | head -n 180 | tail -n 80
+
+## [2026-05-03] task | cat src/24_agent_loop_one_user_turn_multi_turn_tool_use_final_answer.sh | grep i
+
+## [2026-05-03] task | cat src/12_auto_compact_history.sh
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | tail -n 60
+
+## [2026-05-03] task | so as a coding agent, do you think what you have now in mix script harness cli b
+
+## [2026-05-03] task | sed -n '135,145p' src/27_main_repl.sh
+
+## [2026-05-03] task | sed -n '135,145p' src/27_main_repl.sh
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | tail -n 50 | head -n 30
+
+## [2026-05-03] task | cat src/27_main_repl.sh | grep -n -B 2 -A 5 "preview for long pastes"
+
+## [2026-05-03] task | sed -n '138,141p' src/27_main_repl.sh
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | head -n 145 | tail -n 15
+
+## [2026-05-03] task | sed -i 's/echo -e "  \[\${#\(INPUT\)} chars\] \${INPUT:0:120}\.\.\."/local _prev
+
+## [2026-05-03] task | bash ./build.sh && cp mix.compiled mix
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | head -n 145 | tail -n 15
+
+## [2026-05-03] task | grep -rn 'echo.*INPUT' src/
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | head -n 140 | tail -n 25
+
+## [2026-05-03] task | INPUT=$(cat)
+
+## [2026-05-03] task | echo "${#INPUT}"
+
+## [2026-05-03] task | sed -n '120,150p' src/27_main_repl.sh
+
+## [2026-05-03] task | cat -n src/27_main_repl.sh | head -n 30
+
+## [2026-05-03] task | sed -n '138,142p' src/27_main_repl.sh
+
+## [2026-05-03] task | sed -i 's/local _prev; _prev=/_prev=/' src/27_main_repl.sh
+
+## [2026-05-03] task | grep -n _prev src/27_main_repl.sh
+
+## [2026-05-03] task | /usr/bin/grep -n _prev src/27_main_repl.sh
+
+## [2026-05-03] task | sed -n '135,145p' src/27_main_repl.sh
+
+## [2026-05-03] task | bash ./build.sh && cp mix.compiled mix
+
+## [2025-07-14] query | Why "minimal" at 1.5K lines? — created memorybank/pages/why-minimal.md
+
+## [2026-05-03] task | help me check, mix coding agent, what if they said why we think it is a super mi

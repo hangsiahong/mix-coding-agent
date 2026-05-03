@@ -1523,7 +1523,7 @@ while true; do
 
   # Show truncated preview for long pastes
   if [ ${#INPUT} -gt 200 ]; then
-    echo -e "  \033[0;90m[${#INPUT} chars] ${INPUT:0:120}...\033[0m"
+    _prev=$(printf "%s" "$INPUT" | tr '\n' ' ' | cut -c1-80); echo -e "  \033[90m[${#INPUT} chars] ${_prev}...\033[0m"
   fi
 
   if handle_cmd "$INPUT"; then continue; fi
