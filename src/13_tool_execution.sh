@@ -10,6 +10,11 @@ run_tool() {
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
       ;;
+    bash_with_heal)
+      local cmd
+      cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      result=$(run_with_heal "$cmd")
+      ;;
     read_file)
       local path
       path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
