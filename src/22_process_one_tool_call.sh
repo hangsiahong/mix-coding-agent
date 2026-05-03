@@ -43,7 +43,7 @@ process_tc() {
         printf '    \033[1;31mType YES to confirm: \033[0m'
         read -r _ans < /dev/tty 2>/dev/null || _ans=""
         if [ "$_ans" = "YES" ]; then _run=true
-        else result="User declined (HIGH risk)."; FAIL_STREAK=${FAIL_STREAK:-0}; fi
+        else result="User declined (HIGH risk)."; fi
       elif [ "$_risk" = "MED" ]; then
         if [ "$AGENT_MODE" = "yolo" ]; then
           _run=true
