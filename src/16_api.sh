@@ -23,28 +23,28 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
     [ -n "$_pkey" ] && _api_key="$_pkey"
   fi
 
-  # Build extra curl headers from provider
-  local _extra_headers=""
-  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_curl_headers" >/dev/null 2>&1; then
-    _extra_headers=$(${PROVIDER}_curl_headers 2>/dev/null) || true
+  # Build curl headers
+  local _curl_args=(-s -w "%{http_code}" --max-time 1800
+    "${BASE_URL}/chat/completions"
+    -H "Authorization: Bearer $_api_key"
+    -H "Content-Type: application/json")
+
+  # Provider extra headers
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+    local _pheaders; _pheaders=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+    if [ -n "$_pheaders" ]; then
+      while IFS= read -r _hk _hv; do
+        [ -n "$_hk" ] && _curl_args+=(-H "$_hk: $_hv")
+      done < <(printf '%s' "$_pheaders" | python3 -c '
+import json,sys
+for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
+' 2>/dev/null)
+    fi
   fi
 
   local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
-  eval curl -s -w '"%{http_code}"' -o '"$tmp"' --max-time 1800 \
-    '"${BASE_URL}/chat/completions"' \
-    -H '"Authorization: Bearer $_api_key"' \
-    -H '"Content-Type: application/json"' \
-    $_extra_headers \
-    -d '"$payload"' 2>/dev/null || true
-  code=$(cat "$tmp.code" 2>/dev/null)
-  # Re-run with proper status capture
-  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 1800 \
-    "${BASE_URL}/chat/completions" \
-    -H "Authorization: Bearer $_api_key" \
-    -H "Content-Type: application/json" \
-    $(echo $_extra_headers) \
-    -d "$payload" 2>/dev/null) || true
+  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
   [ "$code" != "200" ] && { echo "FAIL:$code:$body"; return 1; }
   printf '%s' "$body"
