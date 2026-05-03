@@ -138,7 +138,7 @@ if [ "$INTERACTIVE" = true ]; then
         READLINE_POINT=$((READLINE_POINT + ${#txt}))
       fi
     else
-      echo -e "\n  \033[0;90m(No clipboard tool. Install wl-paste or xclip, or use /paste)\033[0m"
+      printf "\n  \033[0;90m(No clipboard tool. Install wl-paste or xclip, or use /paste)\033[0m\n"
     fi
   }
 
