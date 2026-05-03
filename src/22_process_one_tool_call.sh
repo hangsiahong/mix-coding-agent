@@ -50,7 +50,7 @@ process_tc() {
         elif confirm "    Run? [Y/n] "; then 
           _run=true
         else 
-          result="User declined."; FAIL_STREAK=${FAIL_STREAK:-0}; 
+          result="User declined.";
         fi
       else
         _run=true  # LOW: auto-run
