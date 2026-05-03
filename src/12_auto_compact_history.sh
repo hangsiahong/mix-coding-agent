@@ -24,11 +24,17 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || { echo ""; return; }
 
+  # Resolve API key — provider may override
+  local _compact_key="$API_KEY"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+    local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+    [ -n "$_pkey" ] && _compact_key="$_pkey"
+  fi
   local tmp; tmp=$(mktemp -t mix-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 60 \
     "${BASE_URL}/chat/completions" \
-    -H "Authorization: Bearer $API_KEY" \
+    -H "Authorization: Bearer $_compact_key" \
     -H "Content-Type: application/json" \
     -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
