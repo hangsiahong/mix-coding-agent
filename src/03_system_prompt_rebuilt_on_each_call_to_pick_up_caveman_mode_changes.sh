@@ -67,6 +67,18 @@ ENV: $ENV_INFO"
 TESTS: run '$TEST_CMD' after edits that touch tested files."
   [ "$GIT_ENABLED" = true ] && base+="
 GIT: repo active. edit_file auto-commits. Use git freely."
+
+  # Global memory — injected every call so agent always has context
+  local _gmem_file="${HOME}/.mix/memory.md"
+  base+="
+GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, patterns, lessons. Update proactively with update_global_memory when you learn something reusable. Short bullet points only."
+  if [ -f "$_gmem_file" ]; then
+    local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
+    [ -n "$_gmem_content" ] && base+="
+--- global memory ---
+$_gmem_content
+---"
+  fi
   # Mode-specific reasoning
   case "$AGENT_MODE" in
     deep) base+="

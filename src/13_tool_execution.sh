@@ -72,6 +72,32 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       result=$(grep -rn -E -I "$_sf_pat" "$_sf_path" 2>/dev/null | head -60) || true
       [ -z "$result" ] && result="(no matches for: $_sf_pat)"
       ;;
+    update_global_memory)
+      local _gmem="${HOME}/.mix/memory.md"
+      mkdir -p "${HOME}/.mix"
+      local _gm_action _gm_content _gm_old
+      _gm_action=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("action","append"))' 2>/dev/null) || _gm_action="append"
+      _gm_content=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "$_gm_action" = "append" ]; then
+        [ ! -f "$_gmem" ] && printf '# Global Memory\n\n' > "$_gmem"
+        printf '- %s\n' "$_gm_content" >> "$_gmem"
+        result="Global memory updated: + $( printf '%s' "$_gm_content" | head -c 80)"
+      elif [ "$_gm_action" = "replace" ]; then
+        _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
+        if [ -f "$_gmem" ] && grep -qF "$_gm_old" "$_gmem"; then
+          result=$(python3 -c '
+import sys
+old,new,path=sys.argv[1],sys.argv[2],sys.argv[3]
+content=open(path).read()
+if old not in content: print("Error: old_text not found"); sys.exit(0)
+open(path,"w").write(content.replace(old,new,1))
+print("Global memory updated.")
+' "$_gm_old" "$_gm_content" "$_gmem" 2>/dev/null) || result="Error updating global memory"
+        else
+          result="Error: old_text not found in global memory"
+        fi
+      fi
+      ;;
     *) result="Unknown tool: $name" ;;
   esac
   [ -z "$result" ] && result="(no output)"
