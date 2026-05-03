@@ -31,19 +31,19 @@ handle_cmd() {
       echo "  Base URL: $BASE_URL"
       echo "  Model: $MODEL"
       echo ""
-      echo "  Built-in providers:"
-      for f in "$PROVIDER_DIR"/*.sh; do
+      echo "  Available providers:"
+      # List from files (dev mode)
+      for f in "$PROVIDER_DIR"/*.sh "$MIX_PROVIDERS_DIR"/*.sh; do
         [ -f "$f" ] && echo "    - $(basename "$f" .sh)"
       done
-      echo "  User providers (~/.mix/providers/):"
-      local _pcount=0
-      for f in "$MIX_PROVIDERS_DIR"/*.sh; do
-        if [ -f "$f" ]; then
-          echo "    - $(basename "$f" .sh)"
-          _pcount=$((_pcount + 1))
-        fi
-      done
-      [ "$_pcount" -eq 0 ] && echo "    (none — drop .sh files in ~/.mix/providers/)"
+      # List from embedded functions (compiled mode)
+      local _embedded=""
+      while IFS= read -r _fn; do
+        local _pn="${_fn%_activate}"
+        [ "$_pn" != "$_fn" ] && echo "    - $_pn" && _embedded="1"
+      done < <(compgen -A function 2>/dev/null | grep '_activate$')
+      [ -z "$_embedded" ] && [ ! -d "$PROVIDER_DIR" ] && echo "    copilot (embedded)"
+      echo "  User providers: drop .sh in ~/.mix/providers/"
       echo ""
       echo "  Usage: /provider <name>        (activate provider)"
       echo "         /provider <name> login   (run provider OAuth/login)"
