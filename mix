@@ -421,6 +421,10 @@ print('Edited '+p)
 # Usage: read -r _risk _reason <<< "$(score_risk "$cmd")"
 score_risk() {
   local c="$1"
+  # Strip heredoc body — only scan the command line before <<, not the body text
+  if printf '%s' "$c" | grep -q '<<'; then
+    c="$(printf '%s' "$c" | head -n1)"
+  fi
   # ── BLOCKED ─────────────────────────────────────────────────────
   printf '%s' "$c" | grep -qF ':(){:|:&};:' \
     && echo "BLOCKED fork-bomb" && return
@@ -437,8 +441,10 @@ score_risk() {
     && echo "HIGH git-force-push" && return
   printf '%s' "$c" | grep -qE '\brm\b.+-[^[:space:]]*[rR]' \
     && echo "HIGH rm-recursive" && return
-  printf '%s' "$c" | grep -qE '> */[a-z]' \
-    && echo "HIGH system-write" && return
+  # Writes to system dirs are HIGH; writes within $WORKDIR are fine
+  if printf '%s' "$c" | grep -qE '> */(etc|usr|var|boot|root|bin|sbin|lib|proc|sys|dev)'; then
+    echo "HIGH system-write" && return
+  fi
   printf '%s' "$c" | grep -qE '\bsudo\b.+\b(rm|dd|mkfs)\b' \
     && echo "HIGH sudo-destruct" && return
   # ── MED ────────────────────────────────────────────────────────
