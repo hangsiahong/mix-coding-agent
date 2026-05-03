@@ -13,6 +13,8 @@ MODEL="${AGENT_MODEL:-glm-5}"
 HIST_FILE=".agent_history.json"
 MAX_TURNS="${MAX_TURNS:-25}"
 MAX_HIST_MSGS="${MAX_HIST_MSGS:-60}"  # compact history after this many messages
+CTX_TOKENS="${CTX_TOKENS:-131072}"   # model context window size (for % display)
+STREAM="${STREAM:-true}"             # stream tokens live
 AUTO_YES="${AUTO_YES:-true}"   # yolo mode: auto-confirm all non-blocked commands
 CAVEMAN_MODE="${CAVEMAN_MODE:-full}"  # caveman: off | lite | full | ultra
 MAX_FAIL_STREAK="${MAX_FAIL_STREAK:-4}"  # consecutive bash failures before forced fallback hint
@@ -500,6 +502,140 @@ else:
 ' 2>/dev/null || echo "FAIL:parse"
 }
 
+# ─── Streaming API call ───────────────────────────────────────────────────────
+# Streams content tokens live to /dev/tty. Returns same RAW/TC/TEXT format.
+call_api_stream() {
+  local payload
+  payload=$(printf '%s\n%s\n%s\n%s\n' \
+    "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+    "$TOOLS_JSON" \
+    "$HISTORY" \
+    "$MODEL" \
+  | python3 -c '
+import json,sys
+s=json.loads(sys.stdin.readline())
+t=json.loads(sys.stdin.readline())
+h=json.loads(sys.stdin.readline())
+m=sys.stdin.readline().strip()
+msg=[{"role":"system","content":s}]+h
+print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True}))
+' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
+
+  local tmp_out; tmp_out=$(mktemp)
+  curl -s -N --no-buffer --max-time 120 \
+    "${BASE_URL}/chat/completions" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null \
+  | python3 -u -c '
+import json,sys,base64,os
+tty=open("/dev/tty","w") if os.path.exists("/dev/tty") else sys.stderr
+content=[]
+tcs={}
+first=True
+for line in sys.stdin:
+    line=line.rstrip("\n\r")
+    if not line.startswith("data: "): continue
+    d=line[6:]
+    if d=="[DONE]": break
+    try: obj=json.loads(d)
+    except: continue
+    ch=obj.get("choices",[{}])[0]
+    delta=ch.get("delta",{})
+    tok=delta.get("content") or ""
+    if tok:
+        if first:
+            tty.write("\r\033[K  \033[1;32m--- Agent ---\033[0m\n  ")
+            tty.flush(); first=False
+        tty.write(tok); tty.flush()
+        content.append(tok)
+    for tc in delta.get("tool_calls",[]):
+        i=tc.get("index",0)
+        if i not in tcs: tcs[i]={"id":"","name":"","args":""}
+        if tc.get("id"): tcs[i]["id"]+=tc["id"]
+        f=tc.get("function",{})
+        if f.get("name"): tcs[i]["name"]+=f["name"]
+        if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
+full="".join(content)
+if full:
+    tty.write("\n  \033[1;32m-----------\033[0m\n")
+    tty.flush()
+msg={"role":"assistant","content":full}
+if tcs:
+    msg["tool_calls"]=[{"id":tcs[i]["id"],"type":"function",
+        "function":{"name":tcs[i]["name"],"arguments":tcs[i]["args"]}}
+        for i in sorted(tcs)]
+if not full: msg["content"]=""
+sys.stdout.write("RAW:"+base64.b64encode(json.dumps(msg).encode()).decode()+"\n")
+if tcs:
+    for i in sorted(tcs): sys.stdout.write("TC:"+tcs[i]["name"]+"|||"+tcs[i]["args"]+"\n")
+elif full: sys.stdout.write("TEXT:"+full+"\n")
+else: sys.stdout.write("TEXT:(empty)\n")
+sys.stdout.flush()
+' > "$tmp_out"
+
+  local result; result=$(cat "$tmp_out"); rm -f "$tmp_out"
+  [ -z "$result" ] && { echo "FAIL:stream"; return 1; }
+  printf '%s' "$result"
+}
+
+# ─── Spinner (background process) ────────────────────────────────────────────
+_SPIN_PID=""
+start_spinner() {
+  local label="${1:-thinking}"
+  (while :; do
+    for f in '⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏'; do
+      printf "\r\033[K  \033[1;34m%s %s...\033[0m" "$f" "$label" >/dev/tty 2>/dev/null
+      sleep 0.08 2>/dev/null || sleep 1
+    done
+  done) &
+  _SPIN_PID=$!
+}
+stop_spinner() {
+  [ -n "$_SPIN_PID" ] && kill "$_SPIN_PID" 2>/dev/null && wait "$_SPIN_PID" 2>/dev/null
+  _SPIN_PID=""
+  printf "\r\033[K" >/dev/tty 2>/dev/null
+}
+
+# ─── Context window % bar ─────────────────────────────────────────────────────
+ctx_bar() {
+  local hist_chars=${#HISTORY}
+  local est_tokens=$(( hist_chars / 4 ))
+  local pct=$(( est_tokens * 100 / CTX_TOKENS ))
+  [ "$pct" -gt 100 ] && pct=100
+  local filled=$(( pct * 20 / 100 )) i bar=""
+  for ((i=0; i<filled; i++)); do bar+="█"; done
+  for ((i=filled; i<20; i++)); do bar+="░"; done
+  local color="\033[0;32m"
+  [ "$pct" -gt 70 ] && color="\033[0;33m"
+  [ "$pct" -gt 90 ] && color="\033[0;31m"
+  local ktok=$(( est_tokens / 1000 ))
+  printf "  %b%s %3d%%%b  ~%dk / %dk tokens\033[0m\n" \
+    "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
+}
+
+# ─── Tmux status updater ──────────────────────────────────────────────────────
+tmux_update() {
+  [ -z "$TMUX" ] && return
+  local hist_chars=${#HISTORY}
+  local est_tokens=$(( hist_chars / 4 ))
+  local pct=$(( est_tokens * 100 / CTX_TOKENS ))
+  [ "$pct" -gt 100 ] && pct=100
+  local ctx_color="#[fg=green]"
+  [ "$pct" -gt 70 ] && ctx_color="#[fg=yellow]"
+  [ "$pct" -gt 90 ] && ctx_color="#[fg=red]"
+  local branch_str=""
+  [ "$GIT_ENABLED" = true ] && \
+    branch_str=" #[fg=white]|#[fg=cyan]$(git -C "$WORKDIR" branch --show-current 2>/dev/null)"
+  local mode_str=""
+  [ "$AGENT_MODE" != "fast" ] && mode_str=" #[fg=white]|#[fg=magenta]${AGENT_MODE}"
+  tmux set-option -gq status-right-length 100 2>/dev/null
+  tmux set-option -gq status-right \
+    " #[fg=white,bold]mix#[nobold] #[fg=cyan]${MODEL}${branch_str}${mode_str} #[fg=white]| ctx ${ctx_color}${pct}%#[fg=white] #[default]" \
+    2>/dev/null || true
+}
+
+
 # ─── Process one tool call ──────────────────────────────────────────────────
 process_tc() {
   local tc_line="$1"
@@ -683,16 +819,24 @@ run_agent() {
   local turn=0
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
-    printf "\r\033[K  \033[1;34m⏳ turn %d...\033[0m" "$turn"
-
-    local resp
-    resp=$(call_api) || { echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"; break; }
-
-    [[ "$resp" == FAIL:* ]] && { echo -e "\r\033[K  \033[1;31m${resp#FAIL:}\033[0m"; break; }
+    start_spinner "turn $turn"
 
     local parsed
-    parsed=$(parse_resp "$resp")
-    [[ "$parsed" == "FAIL:"* ]] && { echo -e "\r\033[K  \033[1;31mParse error\033[0m"; break; }
+    if [ "$STREAM" = "true" ]; then
+      parsed=$(call_api_stream)
+    else
+      local resp
+      resp=$(call_api)
+      if [[ "$resp" == FAIL:* ]]; then
+        stop_spinner
+        echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
+        break
+      fi
+      parsed=$(parse_resp "$resp")
+    fi
+    stop_spinner
+
+    [[ "$parsed" == FAIL:* ]] && { echo -e "  \033[1;31m${parsed#FAIL:}\033[0m"; break; }
 
     # Add raw assistant message to history
     local raw_b64
@@ -707,7 +851,7 @@ run_agent() {
     text_line=$(printf '%s' "$parsed" | grep '^TEXT:' || true)
 
     if [ -n "$tc_lines" ]; then
-      echo -e "\r\033[K"  # clear "thinking" line
+      printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
       # Process each tool call individually (avoids stdin conflicts)
       while IFS= read -r tc; do
         [ -z "$tc" ] && continue
@@ -715,10 +859,13 @@ run_agent() {
       done <<< "$tc_lines"
       # Loop continues — model will see tool results and respond
     elif [ -n "$text_line" ]; then
-      local final="${text_line#TEXT:}"
-      echo -e "\r\033[K  \033[1;32m━━━ Agent ━━━\033[0m"
-      printf '  %s\n' "$final"
-      echo -e "  \033[1;32m━━━━━━━━━━━\033[0m"
+      # streaming already printed content live to /dev/tty; skip reprint
+      if [ "$STREAM" != "true" ]; then
+        local final="${text_line#TEXT:}"
+        echo -e "\r\033[K  \033[1;32m━━━ Agent ━━━\033[0m"
+        printf '  %s\n' "$final"
+        echo -e "  \033[1;32m━━━━━━━━━━━\033[0m"
+      fi
       break
     else
       echo -e "\r\033[K  \033[1;31mUnexpected response\033[0m"
@@ -727,6 +874,8 @@ run_agent() {
   done
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
+  ctx_bar       # show context window usage after every agent turn
+  tmux_update   # refresh tmux status bar
   # Auto-append to memorybank/log.md if memorybank exists and tools were used
   if [ "$_TOOLS_USED" -gt 0 ] && [ -f "$WORKDIR/memorybank/log.md" ]; then
     printf '\n## [%s] task | %s\n' "$(date '+%Y-%m-%d')" "${input:0:80}" \
@@ -817,8 +966,14 @@ _status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033
 [ "$AGENT_MODE"   != "fast" ] && _status_line+="   \033[0;36m◎ ${AGENT_MODE}\033[0m"
 [ -n "$ENV_INFO" ]            && _status_line+="   \033[0;90m[${ENV_INFO}]\033[0m"
 echo -e "$_status_line"
-echo -e "  \033[0;33m/flush /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /exit\033[0m"
+echo -e "  \033[0;33m/flush /compact /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /exit\033[0m"
 echo ""
+
+# tmux: rename window + initial status
+if [ -n "$TMUX" ]; then
+  tmux rename-window "mix" 2>/dev/null || true
+  tmux_update
+fi
 
 # ─── Main REPL ───────────────────────────────────────────────────────────────
 # Detect if we're interactive (tty) or piped
