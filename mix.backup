@@ -276,7 +276,7 @@ run_with_heal() {
         out=$(sudo bash -c "$cmd" 2>&1); rc=$?
       fi
     # npm/node not found → try npx or node prefix
-    elif printf '%s' "$out" | grep -qiE 'command not found|: No such file or directory'; then
+    elif printf '%s' "$out" | grep -qiE 'command not found|not found|No such file'; then
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
       if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
         echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
@@ -513,7 +513,7 @@ score_risk() {
       && echo "BLOCKED rm-rf-system" && return
   fi
   # ── HIGH ──────────────────────────────────────────────────────
-  printf '%s' "$c" | grep -qE '(curl|wget).+\|[[:space:]]*(bash|sh|python[0-9]?|node)\b' \
+  printf '%s' "$c" | grep -qE '\|[[:space:]]*(bash|sh|python[0-9]?|node)\b' \
     && echo "HIGH remote-exec" && return
   printf '%s' "$c" | grep -qE 'git +push.+(-f|--force)\b' \
     && echo "HIGH git-force-push" && return
@@ -575,7 +575,7 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
 
   local tmp; tmp=$(mktemp)
   local code
-  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 1800 \
+  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 600 \
     "${BASE_URL}/chat/completions" \
     -H "Authorization: Bearer $API_KEY" \
     -H "Content-Type: application/json" \
@@ -588,7 +588,7 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
 # ─── Response Parser ─────────────────────────────────────────────────────────
 # Returns lines:
 #   RAW:<base64 of assistant message object>
-#   TC:<id>|||<name>|||<args_json>   per tool call
+#   TC:<name>|||<args_json>   per tool call
 #   TEXT:<content>            if plain text answer
 parse_resp() {
   printf '%s' "$1" | python3 -c '
@@ -599,8 +599,7 @@ print("RAW:"+base64.b64encode(json.dumps(m).encode()).decode())
 if "tool_calls" in m and m["tool_calls"]:
   for tc in m["tool_calls"]:
     f=tc["function"]
-    i=tc.get("id","")
-    print("TC:"+i+"|||"+f["name"]+"|||"+f["arguments"])
+    print("TC:"+f["name"]+"|||"+f["arguments"])
 elif m.get("content"):
   print("TEXT:"+m["content"])
 else:
@@ -628,88 +627,43 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","strea
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
   local tmp_out; tmp_out=$(mktemp)
-  
-  # Replacing curl with pure Python urllib.request for better connection handling
-  # and resolving partial file/premature drop errors natively.
-  BASE_URL="$BASE_URL" API_KEY="$API_KEY" python3 -u -c '
-import json,sys,base64,os,urllib.request,urllib.error
+  curl -s -N --no-buffer --max-time 600 \
+    "${BASE_URL}/chat/completions" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null \
+  | python3 -u -c '
+import json,sys,base64,os
 tty=open("/dev/tty","w") if os.path.exists("/dev/tty") else sys.stderr
-
-url = os.environ.get("BASE_URL") + "/chat/completions"
-api_key = os.environ.get("API_KEY")
-payload = sys.stdin.read().encode("utf-8")
-
-req = urllib.request.Request(
-    url, 
-    data=payload, 
-    headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-)
-
 content=[]
 tcs={}
 first=True
-is_done=False
-was_interrupted=False
-
-try:
-    with urllib.request.urlopen(req, timeout=1800) as response:
-        for line in response:
-            line = line.decode("utf-8").rstrip("\n\r")
-            if not line: continue
-            if not line.startswith("data: "):
-                if "error" in line.lower() and "{" in line:
-                    tty.write("\r\033[K    \033[38;5;196mAPI Error: " + line + "\033[0m\n")
-                continue
-            
-            d=line[6:]
-            if d=="[DONE]": 
-                is_done=True
-                break
-            try: obj=json.loads(d)
-            except: continue
-            ch=obj.get("choices",[{}])[0]
-            delta=ch.get("delta",{})
-            tok=delta.get("content") or ""
-            if tok:
-                if first:
-                    tty.write("\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n    ")
-                    tty.flush(); first=False
-                tok = tok.replace("\n", "\n    ")
-                tty.write(tok); tty.flush()
-                content.append(tok)
-            for tc in delta.get("tool_calls",[]):
-                i=tc.get("index",0)
-                if i not in tcs: tcs[i]={"id":"","name":"","args":""}
-                if tc.get("id"): tcs[i]["id"]+=tc["id"]
-                f=tc.get("function",{})
-                if f.get("name"): tcs[i]["name"]+=f["name"]
-                if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
-except KeyboardInterrupt:
-    was_interrupted=True
-    tty.write("\n    \033[38;5;196m[Cancelled by User]\033[0m\n")
-    tty.flush()
-except Exception as e:
-    tty.write(f"\n    \033[38;5;196m[API Request Failed: {str(e)}]\033[0m\n")
-    tty.flush()
-
-if was_interrupted:
-    sys.stdout.write("FAIL:interrupted\n")
-    sys.stdout.flush()
-    sys.exit(0)
-
-if not is_done and not was_interrupted:
-    tty.write("\n    \033[38;5;196m[Connection dropped prematurely by the API server]\033[0m")
-    tty.flush()
-    sys.stdout.write("FAIL:network_drop\n")
-    sys.stdout.flush()
-    sys.exit(0)
-
-full="".join(content).replace("\n    ", "\n")
+for line in sys.stdin:
+    line=line.rstrip("\n\r")
+    if not line.startswith("data: "): continue
+    d=line[6:]
+    if d=="[DONE]": break
+    try: obj=json.loads(d)
+    except: continue
+    ch=obj.get("choices",[{}])[0]
+    delta=ch.get("delta",{})
+    tok=delta.get("content") or ""
+    if tok:
+        if first:
+            tty.write("\r\033[K  \033[1;32m--- Agent ---\033[0m\n  ")
+            tty.flush(); first=False
+        tty.write(tok); tty.flush()
+        content.append(tok)
+    for tc in delta.get("tool_calls",[]):
+        i=tc.get("index",0)
+        if i not in tcs: tcs[i]={"id":"","name":"","args":""}
+        if tc.get("id"): tcs[i]["id"]+=tc["id"]
+        f=tc.get("function",{})
+        if f.get("name"): tcs[i]["name"]+=f["name"]
+        if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
+full="".join(content)
 if full:
-    tty.write("\n")
+    tty.write("\n  \033[1;32m-----------\033[0m\n")
     tty.flush()
 msg={"role":"assistant","content":full}
 if tcs:
@@ -719,13 +673,11 @@ if tcs:
 if not full: msg["content"]=""
 sys.stdout.write("RAW:"+base64.b64encode(json.dumps(msg).encode()).decode()+"\n")
 if tcs:
-    for i in sorted(tcs): sys.stdout.write("TC:"+tcs[i]["id"]+"|||"+tcs[i]["name"]+"|||"+tcs[i]["args"]+"\n")
-if full:
-    sys.stdout.write("TEXT:"+full+"\n")
-elif not tcs:
-    sys.stdout.write("TEXT:(empty)\n")
+    for i in sorted(tcs): sys.stdout.write("TC:"+tcs[i]["name"]+"|||"+tcs[i]["args"]+"\n")
+elif full: sys.stdout.write("TEXT:"+full+"\n")
+else: sys.stdout.write("TEXT:(empty)\n")
 sys.stdout.flush()
-' <<< "$payload" > "$tmp_out"
+' > "$tmp_out"
 
   local result; result=$(cat "$tmp_out"); rm -f "$tmp_out"
   [ -z "$result" ] && { echo "FAIL:stream"; return 1; }
@@ -738,7 +690,7 @@ start_spinner() {
   local label="${1:-thinking}"
   (while :; do
     for f in '⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏'; do
-      printf "\r\033[K    \033[38;5;99m%s\033[0m \033[0;90m%s...\033[0m" "$f" "$label" >/dev/tty 2>/dev/null
+      printf "\r\033[K  \033[1;34m%s %s...\033[0m" "$f" "$label" >/dev/tty 2>/dev/null
       sleep 0.08 2>/dev/null || sleep 1
     done
   done) &
@@ -757,13 +709,13 @@ ctx_bar() {
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
   local filled=$(( pct * 20 / 100 )) i bar=""
-  for ((i=0; i<filled; i++)); do bar+="━"; done
-  for ((i=filled; i<20; i++)); do bar+="─"; done
+  for ((i=0; i<filled; i++)); do bar+="█"; done
+  for ((i=filled; i<20; i++)); do bar+="░"; done
   local color="\033[0;32m"
   [ "$pct" -gt 70 ] && color="\033[0;33m"
   [ "$pct" -gt 90 ] && color="\033[0;31m"
   local ktok=$(( est_tokens / 1000 ))
-  printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
+  printf "  %b%s %3d%%%b  ~%dk / %dk tokens\033[0m\n" \
     "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
 }
 
@@ -793,19 +745,17 @@ tmux_update() {
 process_tc() {
   local tc_line="$1"
   local rest="${tc_line#TC:}"
-  local tid="${rest%%|||*}"
-  rest="${rest#*|||}"
   local tname="${rest%%|||*}"
   local targs="${rest#*|||}"
 
-  echo -e "    \033[38;5;99m⚡\033[0m \033[1;36m$tname\033[0m"
+  echo -e "\033[0;33m  ▶ $tname\033[0m"
 
   local result=""
   case "$tname" in
     bash)
       local cmd
       cmd=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || cmd="?"
-      echo -e "      \033[0;90m\$ $cmd\033[0m"
+      echo -e "    \033[0;90m\$ $cmd\033[0m"
       local _risk _reason
       read -r _risk _reason <<< "$(score_risk "$cmd")"
       # Risk label
@@ -825,13 +775,8 @@ process_tc() {
         if [ "$_ans" = "YES" ]; then _run=true
         else result="User declined (HIGH risk)."; FAIL_STREAK=0; fi
       elif [ "$_risk" = "MED" ]; then
-        if [ "$AGENT_MODE" = "yolo" ]; then
-          _run=true
-        elif confirm "    Run? [Y/n] "; then 
-          _run=true
-        else 
-          result="User declined."; FAIL_STREAK=0; 
-        fi
+        if confirm "    Run? [Y/n] "; then _run=true
+        else result="User declined."; FAIL_STREAK=0; fi
       else
         _run=true  # LOW: auto-run
       fi
@@ -955,16 +900,13 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
   esac
   [ -z "$result" ] && result="(no output)"
 
-  # Simplify tool result text nicely aligned 
-  local display_res="${result:0:300}"
-  display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
-  echo -e "      \033[38;5;244m└─ ${display_res}\033[0m"
-  [ ${#result} -gt 300 ] && echo -e "         \033[0;90m... (${#result} bytes)\033[0m"
+  echo -e "    \033[0;36m→ ${result:0:300}\033[0m"
+  [ ${#result} -gt 300 ] && echo -e "    \033[0;90m  ... (${#result} bytes)\033[0m"
 
   # Append tool result to history
   local esc
   esc=$(printf '%s' "$result" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || esc='"(error)"'
-  append_raw "{\"role\":\"tool\",\"tool_call_id\":\"$tid\",\"name\":\"$tname\",\"content\":$esc}"
+  append_raw "{\"role\":\"tool\",\"content\":$esc}"
 }
 
 # ─── Lightweight planning call (plan mode) ───────────────────────────────────
@@ -1021,7 +963,7 @@ run_agent() {
     # Streaming: print a static dim line that Python's \r\033[K overwrites on first token.
     # Non-streaming: use animated spinner (no race condition since no parallel tty writes).
     if [ "$STREAM" = "true" ]; then
-      printf "\r\033[K    \033[0;90m⧖ mix (turn %d)...\033[0m" "$turn" >/dev/tty 2>/dev/null
+      printf "\r\033[K  \033[0;90m⧖ turn %d...\033[0m" "$turn" >/dev/tty 2>/dev/null
     else
       start_spinner "turn $turn"
     fi
@@ -1029,20 +971,6 @@ run_agent() {
     local parsed
     if [ "$STREAM" = "true" ]; then
       parsed=$(call_api_stream)
-      # If streaming drops prematurely, auto-fallback to non-streaming for this turn
-      if [[ "$parsed" == FAIL:network_drop* ]]; then
-        echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
-        start_spinner "turn $turn (non-streaming)"
-        local resp
-        resp=$(call_api)
-        if [[ "$resp" == FAIL:* ]]; then
-          stop_spinner
-          echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
-          break
-        fi
-        parsed=$(parse_resp "$resp")
-        stop_spinner
-      fi
     else
       local resp
       resp=$(call_api)
@@ -1055,7 +983,6 @@ run_agent() {
     fi
     [ "$STREAM" != "true" ] && stop_spinner
 
-    # If parsing somehow still resulted in a failure, abort
     [[ "$parsed" == FAIL:* ]] && { echo -e "  \033[1;31m${parsed#FAIL:}\033[0m"; break; }
 
     # Add raw assistant message to history
@@ -1082,8 +1009,9 @@ run_agent() {
       # streaming already printed content live to /dev/tty; skip reprint
       if [ "$STREAM" != "true" ]; then
         local final="${text_line#TEXT:}"
-        echo -e "\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m"
-        printf '    %s\n\n' "$final"
+        echo -e "\r\033[K  \033[1;32m━━━ Agent ━━━\033[0m"
+        printf '  %s\n' "$final"
+        echo -e "  \033[1;32m━━━━━━━━━━━\033[0m"
       fi
       break
     else
@@ -1241,21 +1169,22 @@ Report caveman grouped by severity. End with one-line remedy hints per class. Wr
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 echo ""
-echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m \033[0;90m· minimal coding agent\033[0m"
-
+echo -e "\033[1;35m  ┌─────────────────────────────────┐\033[0m"
+echo -e "\033[1;35m  │   mix · minimal coding agent      │\033[0m"
+echo -e "\033[1;35m  └─────────────────────────────────┘\033[0m"
 # build status line
-_status_line="    \033[0;90mmodel \033[1;36m${MODEL}\033[0m \033[0;90m• in \033[0m${WORKDIR}"
-[ "$AUTO_YES" = "true" ]      && _status_line+=" \033[0;90m•\033[0m \033[1;33m⚡ yolo\033[0m"
-[ "$CAVEMAN_MODE" != "off" ]  && _status_line+=" \033[0;90m•\033[0m \033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m"
-[ "$AGENT_MODE"   != "fast" ] && _status_line+=" \033[0;90m•\033[0m \033[0;36m◎ ${AGENT_MODE}\033[0m"
-[ -n "$ENV_INFO" ]            && _status_line+=" \033[0;90m• [${ENV_INFO}]\033[0m"
+_status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033[0m"
+[ "$AUTO_YES" = "true" ]      && _status_line+="   \033[1;33m⚡ yolo\033[0m"
+[ "$CAVEMAN_MODE" != "off" ]  && _status_line+="   \033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m"
+[ "$AGENT_MODE"   != "fast" ] && _status_line+="   \033[0;36m◎ ${AGENT_MODE}\033[0m"
+[ -n "$ENV_INFO" ]            && _status_line+="   \033[0;90m[${ENV_INFO}]\033[0m"
 echo -e "$_status_line"
 if [ -f "$WORKDIR/SPEC.md" ]; then
-  echo -e "    \033[0;33m/spec [bug:|amend]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]\033[0m"
+  echo -e "  \033[0;33m/spec [bug:|amend]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]\033[0m"
 else
-  echo -e "    \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
+  echo -e "  \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
 fi
-echo -e "    \033[0;90mcommands: /flush /compact /model [id] /caveman /mode /yolo /workers /exit\033[0m"
+echo -e "  \033[0;33m/flush /compact /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /workers /exit\033[0m"
 echo ""
 
 # tmux: rename window + initial status bar
@@ -1263,7 +1192,7 @@ if [ -n "$TMUX" ]; then
   _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
   tmux rename-window "mix" 2>/dev/null || true
   tmux_update
-  echo -e "    \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd>  │  /workers\033[0m"
+  echo -e "  \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd> to spawn agents  │  /workers to list\033[0m"
   echo ""
 fi
 
@@ -1275,80 +1204,9 @@ else
   INTERACTIVE=false
 fi
 
-# Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
-trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
-
-# ─── Autocomplete ─────────────────────────────────────────────
-
-if [ "$INTERACTIVE" = true ]; then
-  _mix_bind_tab() {
-    local cur="${READLINE_LINE:0:$READLINE_POINT}"
-    local word="${cur##* }"
-    local pre="${cur:0:$((READLINE_POINT - ${#word}))}"
-    local matches=()
-    
-    if [[ "$word" == /* ]]; then
-      for c in "/flush" "/model" "/history" "/caveman" "/mode" "/yolo" "/workers" "/help" "/exit" "/spec" "/build" "/check"; do
-        [[ "$c" == "$word"* ]] && matches+=("$c")
-      done
-    elif [[ "$word" == @* ]]; then
-      local q="${word#@}"
-      
-      # If the query itself starts with a dot, allow matching dotfiles. Otherwise hide them.
-      local dotfile_filter
-      if [[ "$q" == .* || "$q" == */.* ]]; then
-        dotfile_filter="cat"  # no-op
-      else
-        dotfile_filter="grep -vE '(/\.|\^\.)'"
-      fi
-
-      while IFS= read -r f; do
-        [ -n "$f" ] && matches+=("@$f")
-      # Prune massive/unwanted directories, and don't show hidden files/folders unless queried
-      done < <(find . -type d \( -name ".git" -o -name "node_modules" -o -name "__pycache__" -o -name "venv" -o -name ".venv" -o -name "dist" -o -name "build" \) -prune -o -type f -print 2>/dev/null | sed 's|^\./||' | eval "$dotfile_filter" | grep -iE "(^|/)$q")
-    else
-      # standard bash file completion
-      while IFS= read -r f; do
-        [ -n "$f" ] && matches+=("$f")
-      done < <(compgen -f -- "$word")
-    fi
-
-    if (( ${#matches[@]} == 1 )); then
-      local new_word="${matches[0]}"
-      
-      # Determine if a directory to add suffix
-      # We check the raw path by removing @ if present
-      local raw_path="${new_word#@}"
-      if [[ -d "$raw_path" && ! "$raw_path" == */ ]]; then
-        new_word="$new_word/"
-      elif [[ ! "$new_word" == */ ]]; then
-        new_word="$new_word "
-      fi
-
-      READLINE_LINE="${pre}${new_word}${READLINE_LINE:$READLINE_POINT}"
-      READLINE_POINT=$((${#pre} + ${#new_word}))
-    elif (( ${#matches[@]} > 1 )); then
-      echo ""
-      # Print nicely formatted
-      printf "%s\t" "${matches[@]}"
-      echo ""
-    fi
-  }
-
-  # Hook TAB directly inside Readline for read -e
-  bind -x '"\t": _mix_bind_tab' 2>/dev/null || true
-fi
-
 while true; do
   if [ "$INTERACTIVE" = true ]; then
-    read -e -r -p $'\001\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
-      # If interrupted by SIGINT (read returns >128 status code), just continue the loop
-      if [ $? -gt 128 ]; then
-        continue
-      else
-        break
-      fi
-    }
+    read -e -r -p $'\001\033[1;37m\002> \001\033[0m\002' INPUT < /dev/tty || break
   else
     # Piped mode: read from stdin, exit after one task
     read -r INPUT || break

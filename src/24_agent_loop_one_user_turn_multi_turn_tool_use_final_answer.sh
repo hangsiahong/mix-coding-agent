@@ -1,0 +1,119 @@
+# ─── Agent Loop (one user turn → multi-turn tool use → final answer) ────────
+run_agent() {
+  local input="$1"
+  compact_history  # auto-compact before adding new turn
+  append_text "user" "$input"
+  _TOOLS_USED=0
+
+  # Plan mode: generate and show numbered plan, ask approval before tools
+  if [ "$AGENT_MODE" = "plan" ]; then
+    printf "\r\033[K  \033[1;35m📋 planning...\033[0m"
+    local _plan; _plan=$(call_api_plan) || true
+    if [ -n "$_plan" ]; then
+      echo -e "\r\033[K  \033[0;35m━━━ Plan ━━━\033[0m"
+      printf '  %s\n' "$_plan"
+      echo -e "  \033[0;35m━━━━━━━━━━━\033[0m"
+      local _pa; read -r -p $'  Proceed? [Y/n] ' _pa < /dev/tty 2>/dev/null || _pa="y"
+      if [[ "$_pa" == n* ]]; then echo "  Aborted."; return; fi
+    fi
+  fi
+
+  local turn=0
+  while [ "$turn" -lt "$MAX_TURNS" ]; do
+    turn=$((turn + 1))
+    # Streaming: print a static dim line that Python's \r\033[K overwrites on first token.
+    # Non-streaming: use animated spinner (no race condition since no parallel tty writes).
+    if [ "$STREAM" = "true" ]; then
+      printf "\r\033[K    \033[0;90m⧖ mix (turn %d)...\033[0m" "$turn" >/dev/tty 2>/dev/null
+    else
+      start_spinner "turn $turn"
+    fi
+
+    local parsed
+    if [ "$STREAM" = "true" ]; then
+      parsed=$(call_api_stream)
+      # If streaming drops prematurely, auto-fallback to non-streaming for this turn
+      if [[ "$parsed" == FAIL:network_drop* ]]; then
+        echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
+        start_spinner "turn $turn (non-streaming)"
+        local resp
+        resp=$(call_api)
+        if [[ "$resp" == FAIL:* ]]; then
+          stop_spinner
+          echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
+          break
+        fi
+        parsed=$(parse_resp "$resp")
+        stop_spinner
+      fi
+    else
+      local resp
+      resp=$(call_api)
+      if [[ "$resp" == FAIL:* ]]; then
+        stop_spinner
+        echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"
+        break
+      fi
+      parsed=$(parse_resp "$resp")
+    fi
+    [ "$STREAM" != "true" ] && stop_spinner
+
+    # If parsing somehow still resulted in a failure, abort
+    [[ "$parsed" == FAIL:* ]] && { echo -e "  \033[1;31m${parsed#FAIL:}\033[0m"; break; }
+
+    # Add raw assistant message to history
+    local raw_b64
+    raw_b64=$(printf '%s' "$parsed" | grep '^RAW:' | head -1 | sed 's/^RAW://')
+    local raw_msg
+    raw_msg=$(printf '%s' "$raw_b64" | base64 -d 2>/dev/null) || raw_msg='{"role":"assistant","content":""}'
+    append_raw "$raw_msg"
+
+    # Process: tool calls or final text
+    local tc_lines text_line
+    tc_lines=$(printf '%s' "$parsed" | grep '^TC:' || true)
+    text_line=$(printf '%s' "$parsed" | grep '^TEXT:' || true)
+
+    if [ -n "$tc_lines" ]; then
+      printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
+      # Process each tool call individually (avoids stdin conflicts)
+      while IFS= read -r tc; do
+        [ -z "$tc" ] && continue
+        process_tc "$tc"
+      done <<< "$tc_lines"
+      # Loop continues — model will see tool results and respond
+    elif [ -n "$text_line" ]; then
+      # streaming already printed content live to /dev/tty; skip reprint
+      if [ "$STREAM" != "true" ]; then
+        local final="${text_line#TEXT:}"
+        echo -e "\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m"
+        printf '    %s\n\n' "$final"
+      fi
+      break
+    else
+      echo -e "\r\033[K  \033[1;31mUnexpected response\033[0m"
+      break
+    fi
+  done
+
+  [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
+  ctx_bar       # show context window usage after every agent turn
+  tmux_update   # refresh tmux status bar
+  # Auto-append to memorybank/log.md if memorybank exists and tools were used
+  if [ "$_TOOLS_USED" -gt 0 ] && [ -f "$WORKDIR/memorybank/log.md" ]; then
+    printf '\n## [%s] task | %s\n' "$(date '+%Y-%m-%d')" "${input:0:80}" \
+      >> "$WORKDIR/memorybank/log.md" 2>/dev/null || true
+  fi
+  # Auto memorybank solution: if edit succeeded in git repo, look for "committed" marker in history
+  if [ "$_TOOLS_USED" -gt 0 ] && [ "$GIT_ENABLED" = true ] && \
+     [ -d "$WORKDIR/memorybank" ] && printf '%s' "$HISTORY" | grep -q '"committed"'; then
+    local _slug; _slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
+    local _sfile="$WORKDIR/memorybank/solutions/${_slug}.md"
+    if [ ! -f "$_sfile" ]; then
+      mkdir -p "$WORKDIR/memorybank/solutions" 2>/dev/null || true
+      printf '# %s\nDate: %s\nInput: %s\n' \
+        "$_slug" "$(date '+%Y-%m-%d')" "${input:0:200}" > "$_sfile" 2>/dev/null || true
+      echo -e "  \033[0;90m✓ memorybank/solutions/${_slug}.md\033[0m"
+    fi
+  fi
+}
+
