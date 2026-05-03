@@ -209,7 +209,7 @@ copilot_validate_model() {
   api_token=$(copilot_get_api_token 2>/dev/null) || { echo "Could not fetch token to validate model."; return 1; }
 
   local resp
-  resp=$(curl -s "https://api.githubcopilot.com/models" \
+  resp=$(curl -s "https://api.individual.githubcopilot.com/models" \
     -H "Authorization: Bearer $api_token" \
     -H "Accept: application/json" \
     -H "Editor-Version: vscode/1.90.0" \
@@ -258,7 +258,7 @@ copilot_list_models() {
   api_token=$(copilot_get_api_token) || return 1
 
   local resp
-  resp=$(curl -s "https://api.githubcopilot.com/models" \
+  resp=$(curl -s "https://api.individual.githubcopilot.com/models" \
     -H "Authorization: Bearer $api_token" \
     -H "Accept: application/json" \
     -H "Editor-Version: vscode/1.90.0" \
@@ -313,7 +313,7 @@ copilot_activate() {
 
   # Use the endpoint from the token response if available, fallback to default
   local _ep_cache="/tmp/mix-copilot-api-token.endpoint"
-  local _api_url="https://api.githubcopilot.com"
+  local _api_url="https://api.individual.githubcopilot.com"
   if [ -f "$_ep_cache" ]; then
     local _cached_ep; _cached_ep=$(cat "$_ep_cache" 2>/dev/null)
     [ -n "$_cached_ep" ] && _api_url="$_cached_ep"
@@ -334,7 +334,7 @@ copilot_activate() {
   echo -e "  Run \033[1m/model <id>\033[0m to switch models"
 }
 
-#!/usr/bin/env bash
+
 # mix — super minimal terminal coding agent
 # https://ai.koompi.cloud/v1 — OpenAI-compatible
 # Dependencies: bash, curl, python3
@@ -714,13 +714,16 @@ run_with_heal() {
       if [[ "$_sudo_ans" == [yY]* ]]; then
         out=$(sudo bash -c "$cmd" 2>&1); rc=$?
       fi
-    # npm/node not found → try npx or node prefix
+    # command not found → only retry for npm-style packages (contain - or @, no path separators)
     elif printf '%s' "$out" | grep -qiE 'command not found|: No such file or directory'; then
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
       if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
         echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
         out=$(bash -c "node_modules/.bin/$cmd" 2>&1); rc=$?
-      elif command -v npx >/dev/null 2>&1 && printf '%s' "$cmd" | grep -qE '^[a-z]'; then
+      elif command -v npx >/dev/null 2>&1 \
+        && printf '%s' "$_bin" | grep -qE '^[@a-z]' \
+        && printf '%s' "$_bin" | grep -qE '[-@]' \
+        && ! printf '%s' "$_bin" | grep -qE '[/_]'; then
         echo -e "    \033[0;90m↻ not found — retrying via npx\033[0m"
         out=$(bash -c "npx $cmd" 2>&1); rc=$?
       fi
