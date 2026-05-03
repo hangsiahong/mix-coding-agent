@@ -282,15 +282,12 @@ handle_cmd() {
       telegram_setup
       ;;
     /afk\ status|/afk\ log)
-      local _afklog="${MIX_AFK_LOG:-}"
-      if [ -z "$_afklog" ] || [ ! -f "$_afklog" ]; then
-        _afklog=$(ls -t /tmp/mix-afk-*.log 2>/dev/null | head -1)
-      fi
-      if [ -z "$_afklog" ]; then
-        echo "  No AFK log found."
+      local _plan="${HOME}/.mix/afk-plan.md"
+      if [ -f "$_plan" ]; then
+        echo "  ── ~/.mix/afk-plan.md ──"
+        cat "$_plan"
       else
-        echo "  ── AFK log: $_afklog ──"
-        tail -40 "$_afklog"
+        echo "  No plan yet. Run /afk to generate one."
       fi
       ;;
     /afk\ stop)
@@ -327,7 +324,6 @@ $(cat "$_plan_save")"
       ;;
     /afk*)
       local _afk_hint="${1#/afk}"; _afk_hint="${_afk_hint# }"
-      local _afk_log="/tmp/mix-afk-$(date +%s).log"
 
       if [ -z "$TMUX" ]; then
         echo "  Not in tmux — AFK requires tmux for background execution."
@@ -340,37 +336,39 @@ $(cat "$_plan_save")"
         _use_tg=true
       fi
 
-      # Write plan-only prompt to temp file (avoids quote hell in worker script)
-      local _plan_tmp; _plan_tmp=$(mktemp -t mix-afk-plan-XXXXXX)
+      local _plan_save="${HOME}/.mix/afk-plan.md"
       local _apply_tmp; _apply_tmp=$(mktemp -t mix-afk-apply-XXXXXX)
+      local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-afk-prompt-XXXXXX)
       local _worker_tmp; _worker_tmp=$(mktemp -t mix-afk-worker-XXXXXX)
 
-      cat > "$_plan_tmp" << 'PLAN_PROMPT_END'
-[AFK PLAN MODE — READ ONLY] The user is away. Analyse the codebase and produce a structured plan. Do NOT use edit_file, create_file, or bash commands with side effects. Only use read_file, search_files, and read-only bash (cat, grep, git log, git status, git diff, find, wc).
+      # Prompt tells the agent to write the plan directly to the file — no log parsing needed
+      cat > "$_prompt_tmp" << PLAN_PROMPT_END
+[AFK PLAN MODE] The user is away. Analyse the codebase, then write your plan as a markdown file to: ${_plan_save}
 
-Work through this analysis:
-1. SCAN: grep for TODO/FIXME/HACK/BUG in src/ — list file:line for each
-2. BUGS: Read git log --oneline -15. Look for obvious logic bugs, unquoted shell vars, missing error checks in critical paths
-3. SECURITY: Any obvious injection risks (eval with unquoted vars, curl piped to bash, etc.)
-4. DEAD CODE: Functions defined but never called or variables always overwritten before use
-5. DOCS: Is README.md accurate? Any named files/commands that no longer exist?
+Rules:
+- Do NOT use edit_file or bash commands with side effects
+- Read-only bash only: cat, grep, git log, git status, git diff, find, wc
+- Use the bash tool to write the plan file at the end
 
-CRITICAL OUTPUT FORMAT — end your final response with EXACTLY this block (required for Telegram delivery):
+Analysis to perform:
+1. grep for TODO/FIXME/HACK/BUG in src/ — list file:line for each
+2. git log --oneline -15 and look for obvious logic bugs or unquoted shell vars
+3. Check for injection risks (eval with unquoted vars, etc.)
+4. Check README.md accuracy
 
-## AFK PLAN
-### 1. [Title]
-Rationale: [why this matters]
-Files: [which files]
-Risk: low/med/high
+At the end, run this bash command to save your plan (replace the content):
+\`\`\`bash
+cat > ${_plan_save} << 'EOF'
+# AFK Plan — \$(date '+%Y-%m-%d %H:%M')
 
-### 2. [Title]
-...
+[your plan items here, one per line]
+EOF
+\`\`\`
 
-## END PLAN
+Keep the plan concise: each item should be one line with a risk level (low/med/high).
 PLAN_PROMPT_END
 
-      # Append user hint if given
-      [ -n "$_afk_hint" ] && printf '\nUser hint: %s\n' "$_afk_hint" >> "$_plan_tmp"
+      [ -n "$_afk_hint" ] && printf '\nUser focus: %s\n' "$_afk_hint" >> "$_prompt_tmp"
 
       cat > "$_apply_tmp" << 'APPLY_PREFIX_END'
 [AFK APPLY MODE] The user reviewed and approved this plan via Telegram. Execute each item using edit_file and bash. Read each file before editing. Make minimal targeted changes. Do not touch anything outside the plan scope.
@@ -378,13 +376,12 @@ PLAN_PROMPT_END
 Plan to execute:
 APPLY_PREFIX_END
 
-      # Write self-contained worker script (single-quoted heredoc = no expansion here)
+      # Worker: run mix with plan prompt, then read the written file and send to Telegram
       cat > "$_worker_tmp" << 'AFK_WORKER_END'
 #!/usr/bin/env bash
-set -uo pipefail
-PLAN_FILE="$1"
+PROMPT_FILE="$1"
 APPLY_PREFIX_FILE="$2"
-LOG_FILE="$3"
+PLAN_SAVE="$3"
 WORKDIR="$4"
 MY_TTY="$5"
 USE_TG="$6"
@@ -392,19 +389,20 @@ cd "$WORKDIR" || exit 1
 
 TG_CONFIG="$HOME/.mix/telegram"
 TG_TOKEN=$(grep '^BOT_TOKEN=' "$TG_CONFIG" 2>/dev/null | cut -d= -f2- || true)
-TG_CHAT=$(grep '^CHAT_ID=' "$TG_CONFIG" 2>/dev/null | cut -d= -f2- || true)
-MIX_BIN=$(command -v mix 2>/dev/null)
-PLAN_SAVE="$HOME/.mix/afk-plan.md"
+TG_CHAT=$(grep '^CHAT_ID='   "$TG_CONFIG" 2>/dev/null | cut -d= -f2- || true)
+
+MIX_BIN=""
+for _try in "$HOME/.local/bin/mix" "$HOME/bin/mix" "$(command -v mix 2>/dev/null || true)"; do
+    [ -x "$_try" ] && MIX_BIN="$_try" && break
+done
+[ -z "$MIX_BIN" ] && { echo "ERROR: mix not found"; exit 1; }
 
 tg_send() {
     [ "$USE_TG" != "true" ] && return 0
-    local text="$1"
-    python3 - "$text" "$TG_TOKEN" "$TG_CHAT" << 'PYEOF'
+    python3 - "$1" "$TG_TOKEN" "$TG_CHAT" << 'PYEOF'
 import sys, json, urllib.request
-text, token, chat = sys.argv[1], sys.argv[2], sys.argv[3]
-payload = json.dumps({'chat_id': chat, 'text': text, 'parse_mode': 'Markdown'}).encode()
-req = urllib.request.Request(
-    f'https://api.telegram.org/bot{token}/sendMessage',
+payload = json.dumps({'chat_id': sys.argv[3], 'text': sys.argv[1], 'parse_mode': 'Markdown'}).encode()
+req = urllib.request.Request(f'https://api.telegram.org/bot{sys.argv[2]}/sendMessage',
     data=payload, headers={'Content-Type': 'application/json'})
 try: urllib.request.urlopen(req, timeout=10)
 except: pass
@@ -413,19 +411,14 @@ PYEOF
 
 tg_send_buttons() {
     [ "$USE_TG" != "true" ] && return 0
-    local text="$1"
-    python3 - "$text" "$TG_TOKEN" "$TG_CHAT" << 'PYEOF'
+    python3 - "$1" "$TG_TOKEN" "$TG_CHAT" << 'PYEOF'
 import sys, json, urllib.request
-text, token, chat = sys.argv[1], sys.argv[2], sys.argv[3]
-payload = json.dumps({
-    'chat_id': chat, 'text': text, 'parse_mode': 'Markdown',
+payload = json.dumps({'chat_id': sys.argv[3], 'text': sys.argv[1], 'parse_mode': 'Markdown',
     'reply_markup': {'inline_keyboard': [[
         {'text': '✅ Apply', 'callback_data': 'afk_yes'},
         {'text': '❌ Skip',  'callback_data': 'afk_no'}
-    ]]}
-}).encode()
-req = urllib.request.Request(
-    f'https://api.telegram.org/bot{token}/sendMessage',
+    ]]}}).encode()
+req = urllib.request.Request(f'https://api.telegram.org/bot{sys.argv[2]}/sendMessage',
     data=payload, headers={'Content-Type': 'application/json'})
 try: urllib.request.urlopen(req, timeout=10)
 except: pass
@@ -433,165 +426,105 @@ PYEOF
 }
 
 tg_poll() {
-    local timeout_secs="${1:-7200}"
-    local deadline=$(( $(date +%s) + timeout_secs ))
-    # Get current offset to skip stale callbacks
-    local init offset=0
-    init=$(curl -s --max-time 10 "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?limit=1&offset=-1" 2>/dev/null || echo '{"result":[]}')
-    offset=$(python3 -c "
-import json,sys
-r=json.loads(sys.argv[1]).get('result',[])
-print(r[-1].get('update_id',0)+1 if r else 0)" "$init" 2>/dev/null || echo 0)
-
+    local deadline=$(( $(date +%s) + ${1:-7200} ))
+    local offset=0
+    local init; init=$(curl -s --max-time 10 "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?limit=1&offset=-1" 2>/dev/null || echo '{"result":[]}')
+    offset=$(python3 -c "import json,sys; r=json.loads(sys.argv[1]).get('result',[]); print(r[-1].get('update_id',0)+1 if r else 0)" "$init" 2>/dev/null || echo 0)
     while [ "$(date +%s)" -lt "$deadline" ]; do
-        local resp
-        resp=$(curl -s --max-time 35 \
-            "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${offset}&timeout=30&allowed_updates=%5B%22callback_query%22%5D" \
-            2>/dev/null) || { sleep 5; continue; }
-        local result
-        result=$(python3 -c "
+        local resp; resp=$(curl -s --max-time 35 "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${offset}&timeout=30&allowed_updates=%5B%22callback_query%22%5D" 2>/dev/null) || { sleep 5; continue; }
+        local hit; hit=$(python3 -c "
 import json,sys
 try:
-    data=json.loads(sys.argv[1])
-    if not data.get('ok'): sys.exit(0)
-    for u in data.get('result',[]):
-        uid=u.get('update_id',0)
+    for u in json.loads(sys.argv[1]).get('result',[]):
         cb=u.get('callback_query',{})
         d=cb.get('data','')
         if d in ('afk_yes','afk_no'):
-            print(str(uid+1)+':'+cb.get('id','')+':'+d); break
+            print(str(u['update_id']+1)+':'+cb.get('id','')+':'+d); break
 except: pass
 " "$resp" 2>/dev/null || true)
-
-        if [ -n "$result" ]; then
-            local cb_id="${result#*:}"; cb_id="${cb_id%%:*}"
-            local answer="${result##*:}"
-            [ -n "$cb_id" ] && curl -s --max-time 5 -X POST \
-                "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery" \
-                -d "callback_query_id=${cb_id}" > /dev/null 2>&1 || true
-            printf '%s' "${answer#afk_}"; return 0
+        if [ -n "$hit" ]; then
+            local cb_id="${hit#*:}"; cb_id="${cb_id%%:*}"
+            [ -n "$cb_id" ] && curl -s --max-time 5 -X POST "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery" -d "callback_query_id=${cb_id}" >/dev/null 2>&1 || true
+            printf '%s' "${hit##*:afk_}"; return 0
         fi
     done
     printf 'timeout'
 }
 
 PROJECT="$(basename "$WORKDIR")"
-echo "  🌙 AFK worker started — project: $PROJECT"
 tg_send "🤖 *mix AFK started*
-📁 Project: \`${PROJECT}\`
-🕐 $(date '+%H:%M %Z')
-_Analysing codebase (read-only mode)..._"
+📁 \`${PROJECT}\`  🕐 $(date '+%H:%M %Z')
+_Analysing codebase..._"
 
-# Step 1: Run plan-only analysis
-echo "  Analysing (read-only)..."
-"$MIX_BIN" < "$PLAN_FILE" 2>&1 | tee "$LOG_FILE"
+# Run mix — it will write the plan to $PLAN_SAVE via bash tool
+echo "  Analysing..."
+mkdir -p "$(dirname "$PLAN_SAVE")"
+"$MIX_BIN" < "$PROMPT_FILE"
 
-# Step 2: Extract plan from log output (strip ANSI codes)
-PLAN=$(python3 - "$LOG_FILE" << 'PYEOF'
-import sys, re
-try:
-    text = open(sys.argv[1]).read()
-    ansi = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    text = ansi.sub('', text)
-    m = re.search(r'## AFK PLAN\n(.*?)(?:## END PLAN|\Z)', text, re.DOTALL)
-    if m:
-        print(m.group(1).strip()[:2800])
-    else:
-        # Fallback: last agent response block
-        parts = text.split('\u25c6 mix')
-        last = parts[-1].strip() if len(parts) > 1 else text[-2000:].strip()
-        print(last[:2800])
-except Exception as e:
-    print(f'(Error extracting plan: {e})')
-PYEOF
-)
+# Read whatever the agent wrote
+if [ -s "$PLAN_SAVE" ]; then
+    PLAN=$(cat "$PLAN_SAVE")
+else
+    PLAN="(Agent did not write a plan file — run /afk manually to debug)"
+    printf '%s\n' "$PLAN" > "$PLAN_SAVE"
+fi
 
-[ -z "$PLAN" ] && PLAN="(Agent produced no structured plan — check log: $LOG_FILE)"
-
-# Save plan to file
-{ echo "# AFK Plan — $(date '+%Y-%m-%d %H:%M')"; echo "## Project: $PROJECT"; echo ""; printf '%s\n' "$PLAN"; } > "$PLAN_SAVE"
 echo ""
 echo "  ── Plan saved to $PLAN_SAVE ──"
 
 if [ "$USE_TG" = "true" ]; then
-    # Step 3: Send to Telegram with buttons
     MSG="🗒 *AFK Plan — ${PROJECT}*
 
-${PLAN}
+${PLAN:0:3500}
+$([ ${#PLAN} -gt 3500 ] && echo '..._(truncated)_' || true)
 
 ---
-_Tap to approve or skip all changes_"
-    # Truncate if over Telegram limit
-    if [ ${#MSG} -gt 3900 ]; then
-        SHORT="${PLAN:0:2500}
-..._(truncated — full plan: \`~/.mix/afk-plan.md\`)_"
-        MSG="🗒 *AFK Plan — ${PROJECT}*
-
-${SHORT}
-
----
-_Tap to approve or skip_"
-    fi
+_✅ Apply  or  ❌ Skip_"
     tg_send_buttons "$MSG"
-    tg_send "⏳ _Waiting for your decision (2h timeout)..._"
+    tg_send "⏳ _Waiting up to 2h for your decision..._"
 
-    # Step 4: Poll for reply
     REPLY=$(tg_poll 7200)
-    echo "  Telegram reply: $REPLY"
-
     case "$REPLY" in
         yes)
-            tg_send "✅ *Approved! Applying plan...*"
+            tg_send "✅ *Approved — applying now...*"
             APPLY_PROMPT="$(cat "$APPLY_PREFIX_FILE")
-${PLAN}"
-            MIX_YOLO=1 "$MIX_BIN" <<< "$APPLY_PROMPT" 2>&1 | tee "${LOG_FILE%.log}-apply.log"
-            tg_send "✅ *Done applying!*
-Log: \`${LOG_FILE%.log}-apply.log\`
-Back at keyboard? Run \`/afk status\` in mix."
+$PLAN"
+            MIX_YOLO=1 "$MIX_BIN" <<< "$APPLY_PROMPT"
+            tg_send "✅ *Done!* Back at keyboard? Run \`/afk log\` in mix."
             ;;
         no)
-            tg_send "❌ *Skipped.*
-Plan saved: \`~/.mix/afk-plan.md\`
-Run \`/afk apply\` in mix when ready."
+            tg_send "❌ *Skipped.* Run \`/afk apply\` in mix when ready."
             ;;
         timeout)
-            tg_send "⏰ *Timed out* (2h without response).
-Plan saved: \`~/.mix/afk-plan.md\`
-Run \`/afk apply\` in mix when ready."
+            tg_send "⏰ *2h timeout.* Run \`/afk apply\` in mix when ready."
             ;;
     esac
 else
-    echo "  (No Telegram configured — plan saved to $PLAN_SAVE)"
-    echo "  Run /afk apply to execute, or review the plan first."
+    echo "  (No Telegram — run /afk apply to execute the plan)"
 fi
 
-# Notify the main terminal
-[ -n "$MY_TTY" ] && printf '\n  \033[38;5;82m✓ AFK done!\033[0m Log: %s\n' "$LOG_FILE" > "$MY_TTY" 2>/dev/null || true
-echo ""
-echo "[AFK finished. Press Enter]"
-read -r _
+[ -n "$MY_TTY" ] && printf '\n  \033[38;5;82m✓ AFK done!\033[0m\n' > "$MY_TTY" 2>/dev/null || true
+echo ""; echo "[AFK finished. Press Enter]"; read -r _
 AFK_WORKER_END
       chmod +x "$_worker_tmp"
 
       local _mytty; _mytty=$(tty 2>/dev/null || echo "")
       tmux new-window -n "mix-afk" \
-        "bash '$_worker_tmp' '$_plan_tmp' '$_apply_tmp' '$_afk_log' '$PWD' '$_mytty' '$_use_tg'; rm -f '$_plan_tmp' '$_apply_tmp' '$_worker_tmp'" \
+        "bash '$_worker_tmp' '$_prompt_tmp' '$_apply_tmp' '$_plan_save' '$PWD' '$_mytty' '$_use_tg'; rm -f '$_prompt_tmp' '$_apply_tmp' '$_worker_tmp'" \
         2>/dev/null
       if [ $? -eq 0 ]; then
-        MIX_AFK_LOG="$_afk_log"
         MIX_AFK_WIN="mix-afk"
         printf '  \033[38;5;99m🌙 AFK mode active\033[0m — working in background\n'
-        printf '  Log: %s\n' "$_afk_log"
         if [ "$_use_tg" = "true" ]; then
           printf '  Telegram: plan will be sent for approval\n'
         else
           printf '  \033[38;5;220m⚠ No Telegram configured.\033[0m Run \033[1m/afk setup\033[0m to enable phone approval.\n'
-          printf '  Plan will be saved to ~/.mix/afk-plan.md — run /afk apply to execute.\n'
+          printf '  Plan will be saved to %s — run /afk apply to execute.\n' "$_plan_save"
         fi
         printf '  Check back: /afk log   Stop: /afk stop\n'
       else
         echo "  Failed to spawn AFK worker."
-        rm -f "$_plan_tmp" "$_apply_tmp" "$_worker_tmp"
+        rm -f "$_prompt_tmp" "$_apply_tmp" "$_worker_tmp"
       fi
       ;;
     /spec*)
