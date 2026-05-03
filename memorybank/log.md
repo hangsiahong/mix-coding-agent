@@ -98,3 +98,9 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | bash patch_prompt.sh && rm patch_prompt.sh
 
 ## [2026-05-03] task | git diff src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_chang
+
+## [2026-05-03] task | cat index.html | grep -C 5 1368
+
+## [2026-05-03] task | find src -name '*.sh' | xargs wc -l | grep total
+
+## [2026-05-03] task | cat -n index.html | grep -C 5 1368
