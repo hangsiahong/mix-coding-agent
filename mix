@@ -116,6 +116,17 @@ MODE:deep — explain root cause before acting. justify why edit fixes the probl
 MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
   esac
 
+  # Inject SPEC.md context if present — gives agent full project spec every call
+  if [ -f "$WORKDIR/SPEC.md" ]; then
+    local _spec_content; _spec_content=$(head -200 "$WORKDIR/SPEC.md" 2>/dev/null)
+    base+="
+
+## PROJECT SPEC (SPEC.md)
+$_spec_content
+
+CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutates spec. /check reads drift (zero writes). Bug found → suggest: /spec bug: <cause>"
+  fi
+
   if [ "$CAVEMAN_MODE" = "off" ]; then
     printf '%s' "$base"
     return
@@ -745,8 +756,11 @@ process_tc() {
 $_logs"
           if [ "$FAIL_STREAK" -ge "$MAX_FAIL_STREAK" ]; then
             echo -e "    \033[1;33m⚠  $FAIL_STREAK consecutive failures — injecting fallback hint\033[0m"
+            local _rh="[RECOVERY HINT: $FAIL_STREAK consecutive failures. Try: different approach, check deps/permissions, simpler fallback, or tell user you're stuck."
+            [ -f "$WORKDIR/SPEC.md" ] && _rh+=" Root cause known? Suggest: /spec bug: <cause> to log §B entry + §V invariant."
+            _rh+="]"
             result="$result
-[RECOVERY HINT: $FAIL_STREAK consecutive failures. Required: try completely different approach, check deps/permissions, use simpler fallback, or tell user you're stuck.]"
+$_rh"
           fi
         else
           FAIL_STREAK=0
@@ -1028,7 +1042,8 @@ handle_cmd() {
       esac
       ;;
     /help)
-      echo "  /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /help  /exit"
+      echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
+      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /help  /exit"
       ;;
     /compact)
       local _cmsg_before
@@ -1070,6 +1085,48 @@ handle_cmd() {
           || echo "  Failed to spawn worker."
       fi
       ;;
+    /spec*)
+      local _sa="${1#/spec}"; _sa="${_sa# }"
+      local _si
+      if [ ! -f "$WORKDIR/SPEC.md" ]; then
+        _si="[/spec NEW] Create SPEC.md at $WORKDIR/SPEC.md. Idea: $_sa
+Steps: 1. §G: goal 1 line caveman. 2. §C: constraints bullets. 3. §I: external surfaces (cmd/api/file/env). 4. §V: invariants V1… numbered testable caveman, symbols → ∀ ∃ ! ⊥ ≠ ≤. 5. §T: pipe table id|status|task|cites all status='.'. 6. §B: header row only id|date|cause|fix.
+Format: drop articles/filler/aux verbs. Preserve code/paths verbatim.
+Write file. Show full content. Ask: 'spec OK? suggest edits or /build.'"
+      elif [[ "$_sa" == bug:* ]]; then
+        _si="[/spec BACKPROP] Bug: ${_sa#bug:}
+1. Parse bug. 2. Read code → root cause. 3. Draft V<next> invariant. 4. Append §B: B<n>|$(date +%Y-%m-%d)|<cause>|V<n>. 5. Append §V entry. 6. Update §T if behavior changes. 7. Show diff. Apply on OK."
+      elif [[ "$_sa" == amend* ]]; then
+        _si="[/spec AMEND] Target: $_sa. Read section. Show current. Ask what changes. Write. Show diff. Never rewrite sections not named."
+      elif [[ "$_sa" == from-code* ]]; then
+        _si="[/spec DISTILL] Infer SPEC.md from $WORKDIR codebase. §G from README/package.json, §C from stack, §I from public APIs/CLIs, §V from tests/assertions, §T one per TODO or missing test, §B empty. Flag uncertain with ?."
+      else
+        _si="[/spec] SPEC.md exists. Args: '${_sa:-(none)}'. Determine mode: section ref like §V.3 → AMEND; empty → ask user; description → ask clarification."
+      fi
+      run_agent "$_si"
+      ;;
+    /build*)
+      [ ! -f "$WORKDIR/SPEC.md" ] && { echo "  No SPEC.md — run /spec first."; return 0; }
+      local _ba="${1#/build}"; _ba="${_ba# }"
+      local _bi="[/build] Execute §T tasks in $WORKDIR/SPEC.md. Args: '${_ba:-(all . tasks)}'.
+Task select: §T.n=that task / --next=lowest . row / --all or empty=all . rows.
+Per task: 1. Cite §V + §I that apply. List files/tests. Name verify cmd. Show plan.
+2. Flip §T status . → ~ in SPEC.md. Implement. Run verify.
+   Pass → flip ~ → x. Commit: 'T<n>: <goal>'. Next.
+   Fail → backprop: (a) code bug=fix+retry (b) spec gap=run /spec bug: <cause> first.
+Write policy: only flip §T status. All other spec edits via /spec. No sub-agents."
+      run_agent "$_bi"
+      ;;
+    /check*)
+      [ ! -f "$WORKDIR/SPEC.md" ] && { echo "  No SPEC.md — run /spec first."; return 0; }
+      local _ca="${1#/check}"; _ca="${_ca# }"
+      local _ci="[/check] Drift report. Zero writes. Target: '${_ca:-(§V)}'.
+§V: per invariant grep/read code → HOLD / VIOLATE / UNVERIFIABLE + file:line.
+§I: per interface locate impl → MATCH / DRIFT / MISSING / EXTRA.
+§T: verify x rows have evidence → flag STALE. Note wip/todo.
+Report caveman grouped by severity. End with one-line remedy hints per class. Write nothing."
+      run_agent "$_ci"
+      ;;
     *) return 1 ;;
   esac
   return 0
@@ -1087,6 +1144,7 @@ _status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033
 [ "$AGENT_MODE"   != "fast" ] && _status_line+="   \033[0;36m◎ ${AGENT_MODE}\033[0m"
 [ -n "$ENV_INFO" ]            && _status_line+="   \033[0;90m[${ENV_INFO}]\033[0m"
 echo -e "$_status_line"
+echo -e "  \033[0;33m/spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]\033[0m"
 echo -e "  \033[0;33m/flush /compact /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /workers /exit\033[0m"
 echo ""
 
