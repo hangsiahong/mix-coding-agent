@@ -5,6 +5,12 @@ Update this file after every ingest or new page created.
 
 ---
 
+## pages
+
+| file | summary |
+|---|---|
+| why-minimal.md | Defense of "minimal" claim: zero framework, zero runtime, 3 deps, 5 tools, one file |
+
 ## solutions
 
 | file | summary |
