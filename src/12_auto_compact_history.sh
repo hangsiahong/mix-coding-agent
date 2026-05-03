@@ -75,6 +75,7 @@ for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
   | python3 -c '
 import json,sys
 lines=sys.stdin.read().strip().splitlines()
+if not lines: sys.exit(1)
 base=json.loads(lines[0])
 recent=json.loads(lines[1])
 print(json.dumps(base+recent))
