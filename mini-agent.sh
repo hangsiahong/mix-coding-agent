@@ -1,0 +1,777 @@
+#!/usr/bin/env bash
+# mini-agent.sh — Terminal coding agent via KConsole AI Gateway
+# https://ai.koompi.cloud/v1 — OpenAI-compatible
+# Dependencies: bash, curl, python3
+
+set -uo pipefail
+# NOTE: no `set -e` — we handle errors explicitly to keep the REPL alive
+
+# ─── Config ──────────────────────────────────────────────────────────────────
+API_KEY="${KCONSOLE_API_KEY:-kpi_41d45618c8cdbda4ebfa3fe41818816f263804feda3816d23093c49b33c8b55f}"
+BASE_URL="https://ai.koompi.cloud/v1"
+MODEL="${AGENT_MODEL:-glm-5}"
+HIST_FILE=".agent_history.json"
+MAX_TURNS="${MAX_TURNS:-25}"
+AUTO_YES="${AUTO_YES:-true}"   # yolo mode: auto-confirm all non-blocked commands
+CAVEMAN_MODE="${CAVEMAN_MODE:-full}"  # caveman: off | lite | full | ultra
+MAX_FAIL_STREAK="${MAX_FAIL_STREAK:-4}"  # consecutive bash failures before forced fallback hint
+FAIL_STREAK=0
+AGENT_MODE="${AGENT_MODE:-fast}"  # fast | deep | plan
+GIT_ENABLED=false
+TEST_CMD=""
+ENV_INFO=""
+_TOOLS_USED=0
+WORKDIR="$(pwd)"
+
+# ─── System Prompt (rebuilt on each call to pick up caveman mode changes) ────
+# Base prompt encodes Karpathy LLM-wiki pattern in caveman-compressed prose.
+build_system_prompt() {
+  # shellcheck disable=SC2016
+  local base
+  base="Terminal coding agent + wiki maintainer. Dir: $WORKDIR
+Tools: bash read_file edit_file list_files. Full absolute paths. edit_file: old_text must be unique.
+
+## TASK RULES
+- Brief explanation, then act. No throat-clearing.
+- Tool succeeded → move on. No repeats.
+- Valuable answer → file it (new wiki page). Don't let insight die in chat.
+- Concise final answer after done.
+- Bash failure ([FAILED exit=N]) = signal, not dead end. Diagnose, fix root cause, retry.
+- Same approach fails twice → try different tool, simpler command, or fallback strategy.
+- Never give up after 1 error. Junior devs persist. So do you.
+
+## WIKI PATTERN
+Three-layer architecture. Use when wiki/ exists or user asks to build/maintain knowledge base.
+
+LAYERS:
+  raw/       immutable sources. Read only, never modify.
+  wiki/      you own. LLM-maintained markdown. Compounding artifact — richer every session.
+  AGENTS.md  schema: wiki structure, conventions, domain rules. Co-evolve with user.
+
+KEY FILES (create if missing):
+  wiki/index.md  content catalog. Every page + one-line summary + link, grouped by category.
+                 Update on every ingest. Read first before any query.
+  wiki/log.md    append-only timeline. Format: ## [YYYY-MM-DD] ingest|query|lint | Title
+                 Parseable: grep '^## \[' wiki/log.md | tail -5
+
+OPS:
+  INGEST  new source arrives →
+            1. read source
+            2. extract key info, discuss takeaways
+            3. write wiki/sources/<slug>.md summary page
+            4. update/create entity + concept pages (1 source touches 10-15 pages)
+            5. update wiki/index.md
+            6. append entry to wiki/log.md
+
+  QUERY   user asks question →
+            1. read wiki/index.md → find relevant pages
+            2. read those pages → synthesize answer with citations
+            3. good answers = new wiki pages. File them. Exploration compounds.
+
+  LINT    (when asked) health-check wiki →
+            find: contradictions, stale claims newer sources supersede,
+            orphan pages (no inbound links), concepts mentioned but lacking own page,
+            missing cross-refs, data gaps worth a web search.
+
+HUMAN/AGENT SPLIT:
+  Human: curate sources, ask questions, think about meaning.
+  Agent: summarizing, cross-referencing, filing, bookkeeping, maintenance — everything else."
+
+  # Inject discovered environment
+  [ -n "$ENV_INFO" ]         && base+="
+ENV: $ENV_INFO"
+  [ -n "$TEST_CMD" ]         && base+="
+TESTS: run '$TEST_CMD' after edits that touch tested files."
+  [ "$GIT_ENABLED" = true ] && base+="
+GIT: repo active. edit_file auto-commits. Use git freely."
+  # Mode-specific reasoning
+  case "$AGENT_MODE" in
+    deep) base+="
+MODE:deep — explain root cause before acting. justify why edit fixes the problem. min necessary changes. double-check before edit_file." ;;
+    plan) base+="
+MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
+  esac
+
+  if [ "$CAVEMAN_MODE" = "off" ]; then
+    printf '%s' "$base"
+    return
+  fi
+
+  local cave_rules
+  case "$CAVEMAN_MODE" in
+    lite)
+      cave_rules='RESPONSE STYLE — caveman lite: Drop filler (just/really/basically/actually/simply) + hedging (sure/certainly/of course/happy to). Articles + full sentences OK. Professional, zero fluff.'
+      ;;
+    ultra)
+      cave_rules='RESPONSE STYLE — caveman ultra: Max compression. Abbreviate prose (DB/auth/cfg/req/res/fn/impl). Arrows for causality (X → Y). One word when enough. Fragments mandatory. Drop articles/conjunctions/pleasantries. Code symbols/fn names/error strings: NEVER abbreviate. Pattern: [thing] [action] [reason]. [next]. EXCEPTION: full sentences for security warnings + irreversible ops + ambiguous sequences.'
+      ;;
+    *) # full (default)
+      cave_rules='RESPONSE STYLE — caveman full: Terse like smart caveman. Drop: articles (a/an/the), filler, pleasantries, hedging. Fragments OK. Short synonyms (big not extensive, fix not "implement a solution for"). Technical terms exact. Code blocks unchanged. Errors quoted exact. Pattern: [thing] [action] [reason]. [next step]. NOT: "Sure! I would be happy to help. The issue is likely..." YES: "Bug in auth middleware. Token expiry check use < not <=. Fix:" EXCEPTION: full sentences for security warnings, irreversible action confirmations, or when compression creates ambiguity.'
+      ;;
+  esac
+
+  printf '%s\n\n%s' "$base" "$cave_rules"
+}
+
+# ─── Project-local extensions ────────────────────────────────────────────────
+# Load repo-specific tools/overrides, then user-global rc
+[ -f "$WORKDIR/.agent/rc.sh" ]    && source "$WORKDIR/.agent/rc.sh"
+[ -f "$HOME/.mini-agent/rc.sh" ]  && source "$HOME/.mini-agent/rc.sh"
+
+# ─── Pre-edit diff preview ──────────────────────────────────────────────────
+show_edit_diff() {
+  local targs="$1"
+  printf '%s' "$targs" | python3 -c '
+import json,sys,os,difflib
+d=json.load(sys.stdin)
+p,o,n=d.get("path","?"),d.get("old_text",""),d.get("new_text","")
+GRN,RED,DIM,RST="\033[0;32m","\033[0;31m","\033[0;90m","\033[0m"
+if not os.path.exists(p):
+    sys.stdout.write(DIM+"    (new file)\n"+RST)
+    for l in n.splitlines(): sys.stdout.write("    "+GRN+"+ "+l+RST+"\n")
+    sys.exit(0)
+content=open(p).read()
+if o not in content:
+    sys.stdout.write("    \033[1;31m(old_text not found — edit will fail)\033[0m\n")
+    sys.exit(0)
+diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),fromfile="before",tofile="after",n=2))
+if not diff:
+    sys.stdout.write(DIM+"    (no change)\n"+RST)
+for l in diff:
+    if l.startswith("+") and not l.startswith("+++"):
+        sys.stdout.write("    "+GRN+l.rstrip()+RST+"\n")
+    elif l.startswith("-") and not l.startswith("---"):
+        sys.stdout.write("    "+RED+l.rstrip()+RST+"\n")
+    else:
+        sys.stdout.write("    "+DIM+l.rstrip()+RST+"\n")
+' 2>/dev/null || echo -e "    \033[0;90m(diff unavailable)\033[0m"
+}
+
+# ─── Auto-read logs on bash failure ─────────────────────────────────────────
+auto_read_logs() {
+  local err="$1" log_ctx=""
+  # Extract file paths ending in .log/.err/.out mentioned in error
+  local paths
+  paths=$(printf '%s' "$err" | grep -oE '(/[^ :"]+\.(log|err|out)|[^ :"]+\.log)' | sort -u | head -3)
+  while IFS= read -r lp; do
+    [ -z "$lp" ] && continue
+    if [ -f "$lp" ]; then
+      log_ctx+="[auto-log: $lp (last 20 lines)]\n$(tail -20 "$lp" 2>/dev/null)\n"
+    fi
+  done <<< "$paths"
+  printf '%s' "$log_ctx"
+}
+
+# ─── Environment Detection ──────────────────────────────────────────
+detect_env() {
+  local info=""
+  GIT_ENABLED=false; TEST_CMD=""
+  if git -C "$WORKDIR" rev-parse --is-inside-work-tree 2>/dev/null | grep -q true; then
+    GIT_ENABLED=true
+    local _br; _br=$(git -C "$WORKDIR" branch --show-current 2>/dev/null || echo "?")
+    info+=" git:$_br"
+  fi
+  [ -f "$WORKDIR/package.json" ]   && info+=" node"
+  [ -f "$WORKDIR/go.mod" ]         && info+=" go"
+  [ -f "$WORKDIR/Cargo.toml" ]     && info+=" rust"
+  { [ -f "$WORKDIR/requirements.txt" ] || [ -f "$WORKDIR/pyproject.toml" ] \
+    || [ -f "$WORKDIR/setup.py" ]; }   && info+=" python"
+  { [ -f "$WORKDIR/Dockerfile" ] || [ -f "$WORKDIR/docker-compose.yml" ] \
+    || [ -f "$WORKDIR/docker-compose.yaml" ]; } && info+=" docker"
+  # Test runner detection
+  if [ -f "$WORKDIR/package.json" ]; then
+    local _pkgjson="$WORKDIR/package.json"
+    if python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if 'test' in d.get('scripts',{}) else 1)" "$_pkgjson" 2>/dev/null; then
+      TEST_CMD="npm test"; info+=" tests(npm)"
+    fi
+  elif [ -f "$WORKDIR/pytest.ini" ] || [ -f "$WORKDIR/conftest.py" ] || [ -f "$WORKDIR/setup.cfg" ]; then
+    TEST_CMD="pytest"; info+=" tests(pytest)"
+  fi
+  ENV_INFO="${info# }"  # trim leading space
+}
+detect_env
+
+# ─── Self-healing bash wrapper ───────────────────────────────────────────────
+run_with_heal() {
+  local cmd="$1" out rc
+  out=$(eval "$cmd" 2>&1); rc=$?
+  if [ $rc -ne 0 ]; then
+    # Permission denied → retry with sudo
+    if printf '%s' "$out" | grep -qiE 'permission denied|EACCES'; then
+      echo -e "    \033[0;90m↻ permission denied — retrying with sudo\033[0m"
+      out=$(sudo bash -c "$cmd" 2>&1); rc=$?
+    # npm/node not found → try npx or node prefix
+    elif printf '%s' "$out" | grep -qiE 'command not found|not found|No such file'; then
+      local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
+      if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
+        echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
+        out=$(eval "node_modules/.bin/$cmd" 2>&1); rc=$?
+      elif command -v npx >/dev/null 2>&1 && printf '%s' "$cmd" | grep -qE '^[a-z]'; then
+        echo -e "    \033[0;90m↻ not found — retrying via npx\033[0m"
+        out=$(eval "npx $cmd" 2>&1); rc=$?
+      fi
+    fi
+    [ $rc -ne 0 ] && out="[FAILED exit=$rc]
+$out"
+  fi
+  printf '%s' "$out"
+}
+
+# ─── Wiki solutions writer ────────────────────────────────────────────────────
+# Call after a successful task: write_wiki_solution "title" "problem" "fix" "cmd"
+write_wiki_solution() {
+  local title="$1" problem="$2" fix="$3" cmd="$4"
+  local sdir="$WORKDIR/wiki/solutions"
+  mkdir -p "$sdir" 2>/dev/null || return
+  local slug; slug=$(printf '%s' "$title" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')
+  local file="$sdir/${slug}.md"
+  if [ ! -f "$file" ]; then
+    printf '# Fix: %s
+Cause: %s
+Fix: %s
+Command: `%s`
+Date: %s
+' \
+      "$title" "$problem" "$fix" "$cmd" "$(date '+%Y-%m-%d')" > "$file"
+    echo -e "    \033[0;90m↳ wiki: $file\033[0m"
+  fi
+}
+
+# ─── Tools (OpenAI function calling) ────────────────────────────────────────
+TOOLS_JSON='[{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}}]'
+
+# ─── History ─────────────────────────────────────────────────────────────────
+HISTORY='[]'
+if [ -f "$HIST_FILE" ] && [ -s "$HIST_FILE" ]; then
+  _hist_tmp=$(cat "$HIST_FILE")
+  if python3 -c 'import json,sys;json.loads(sys.stdin.read())' <<< "$_hist_tmp" 2>/dev/null; then
+    HISTORY="$_hist_tmp"
+  else
+    echo "  Warning: history file corrupted, starting fresh."
+    rm -f "$HIST_FILE"
+  fi
+fi
+
+save_history() { printf '%s\n' "$HISTORY" > "$HIST_FILE"; }
+
+append_raw() {
+  local msg="$1"
+  if [ "$HISTORY" = "[]" ]; then HISTORY="[$msg]"
+  else HISTORY="${HISTORY%]},$msg]"; fi
+  save_history
+}
+
+append_text() {
+  local role="$1" content="$2"
+  local escaped
+  escaped=$(printf '%s' "$content" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')
+  append_raw "{\"role\":\"$role\",\"content\":$escaped}"
+}
+
+# ─── Tool Execution ─────────────────────────────────────────────────────────
+run_tool() {
+  local name="$1" args="$2" result=""
+  case "$name" in
+    bash)
+      local cmd
+      cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      result=$(eval "$cmd" 2>&1)
+      local _ec=$?
+      [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
+$result"
+      ;;
+    read_file)
+      local path
+      path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
+      result=$(cat "$path" 2>&1) || true
+      [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
+      ;;
+    edit_file)
+      printf '%s' "$args" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+open("/tmp/_ea_p","w").write(d["path"])
+open("/tmp/_ea_o","w").write(d["old_text"])
+open("/tmp/_ea_n","w").write(d["new_text"])
+' 2>/dev/null || { echo "Error: bad args"; return; }
+      local path old_text new_text
+      path=$(cat /tmp/_ea_p); old_text=$(cat /tmp/_ea_o); new_text=$(cat /tmp/_ea_n)
+      rm -f /tmp/_ea_p /tmp/_ea_o /tmp/_ea_n
+      [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
+      local count; count=$(grep -cF "$old_text" "$path" || true)
+      if [ "$count" -eq 0 ]; then echo "Error: old_text not found in $path"
+      elif [ "$count" -gt 1 ]; then echo "Error: old_text not unique ($count matches) in $path"
+      else
+        python3 -c "
+import sys
+p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
+c=open(p).read().replace(o,n,1)
+open(p,'w').write(c)
+print('Edited '+p)
+" "$path" "$old_text" "$new_text"
+      fi
+      return
+      ;;
+    list_files)
+      local path
+      path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      [ ! -d "$path" ] && { echo "Error: not a dir: $path"; return; }
+      result=$(ls -F --color=never "$path" 2>&1) || true
+      ;;
+    *) result="Unknown tool: $name" ;;
+  esac
+  [ -z "$result" ] && result="(no output)"
+  printf '%s' "$result"
+}
+
+# ─── Risk Scoring: BLOCKED | HIGH | MED | LOW <reason> ──────────────────────
+# Usage: read -r _risk _reason <<< "$(score_risk "$cmd")"
+score_risk() {
+  local c="$1"
+  # ── BLOCKED ─────────────────────────────────────────────────────
+  printf '%s' "$c" | grep -qF ':(){:|:&};:' \
+    && echo "BLOCKED fork-bomb" && return
+  printf '%s' "$c" | grep -qE 'dd .+of=/dev/[hs]d|mkfs\.' \
+    && echo "BLOCKED disk-wipe" && return
+  if printf '%s' "$c" | grep -qE '\brm\b.+-[^[:space:]]*[rR]'; then
+    printf '%s' "$c" | grep -qE '/(home|etc|usr|var|boot|root|bin|sbin|lib|sys|proc)' \
+      && echo "BLOCKED rm-rf-system" && return
+  fi
+  # ── HIGH ──────────────────────────────────────────────────────
+  printf '%s' "$c" | grep -qE '\|(bash|sh|python[0-9]?|node)\b' \
+    && echo "HIGH remote-exec" && return
+  printf '%s' "$c" | grep -qE 'git +push.+(-f|--force)\b' \
+    && echo "HIGH git-force-push" && return
+  printf '%s' "$c" | grep -qE '\brm\b.+-[^[:space:]]*[rR]' \
+    && echo "HIGH rm-recursive" && return
+  printf '%s' "$c" | grep -qE '> */[a-z]' \
+    && echo "HIGH system-write" && return
+  printf '%s' "$c" | grep -qE '\bsudo\b.+\b(rm|dd|mkfs)\b' \
+    && echo "HIGH sudo-destruct" && return
+  # ── MED ────────────────────────────────────────────────────────
+  printf '%s' "$c" | grep -qE '\b(npm|pip3?|yarn|pnpm|cargo) +(install|add|update|upgrade)\b' \
+    && echo "MED pkg-install" && return
+  printf '%s' "$c" | grep -qE '\bgit +(commit|push|reset|rebase|merge)\b' \
+    && echo "MED git-write" && return
+  printf '%s' "$c" | grep -qE '\brm\b' \
+    && echo "MED file-delete" && return
+  printf '%s' "$c" | grep -qE '\bmv\b +' \
+    && echo "MED file-move" && return
+  printf '%s' "$c" | grep -qE '\b(systemctl|service)\b.+(start|stop|restart)\b' \
+    && echo "MED service-ctrl" && return
+  printf '%s' "$c" | grep -qE ' >[^>]' \
+    && ! printf '%s' "$c" | grep -qE '^[[:space:]]*(cat|echo|printf|ls|find)\b' \
+    && echo "MED file-write" && return
+  # ── LOW ────────────────────────────────────────────────────────
+  echo "LOW ok"
+}
+
+# ─── Ask user for confirmation (reads from /dev/tty, not stdin) ─────────────
+confirm() {
+  local prompt="$1"
+  if [ "$AUTO_YES" = "true" ] || [ "$INTERACTIVE" = false ]; then return 0; fi
+  local answer
+  read -r -p "$prompt" answer < /dev/tty || true
+  case "$answer" in
+    n*|N*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+# ─── API ─────────────────────────────────────────────────────────────────────
+call_api() {
+  local payload
+  payload=$(printf '%s\n%s\n%s\n%s\n' \
+    "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+    "$TOOLS_JSON" \
+    "$HISTORY" \
+    "$MODEL" \
+  | python3 -c '
+import json,sys
+s=json.loads(sys.stdin.readline())
+t=json.loads(sys.stdin.readline())
+h=json.loads(sys.stdin.readline())
+m=sys.stdin.readline().strip()
+msg=[{"role":"system","content":s}]+h
+print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
+' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
+
+  local tmp; tmp=$(mktemp)
+  local code
+  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 120 \
+    "${BASE_URL}/chat/completions" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || true
+  local body; body=$(cat "$tmp"); rm -f "$tmp"
+  [ "$code" != "200" ] && { echo "FAIL:$code:$body"; return 1; }
+  printf '%s' "$body"
+}
+
+# ─── Response Parser ─────────────────────────────────────────────────────────
+# Returns lines:
+#   RAW:<base64 of assistant message object>
+#   TC:<name>|||<args_json>   per tool call
+#   TEXT:<content>            if plain text answer
+parse_resp() {
+  printf '%s' "$1" | python3 -c '
+import json,sys,base64
+d=json.load(sys.stdin)
+m=d["choices"][0]["message"]
+print("RAW:"+base64.b64encode(json.dumps(m).encode()).decode())
+if "tool_calls" in m and m["tool_calls"]:
+  for tc in m["tool_calls"]:
+    f=tc["function"]
+    print("TC:"+f["name"]+"|||"+f["arguments"])
+elif m.get("content"):
+  print("TEXT:"+m["content"])
+else:
+  print("TEXT:(empty)")
+' 2>/dev/null || echo "FAIL:parse"
+}
+
+# ─── Process one tool call ──────────────────────────────────────────────────
+process_tc() {
+  local tc_line="$1"
+  local rest="${tc_line#TC:}"
+  local tname="${rest%%|||*}"
+  local targs="${rest#*|||}"
+
+  echo -e "\033[0;33m  ▶ $tname\033[0m"
+
+  local result=""
+  case "$tname" in
+    bash)
+      local cmd
+      cmd=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || cmd="?"
+      echo -e "    \033[0;90m\$ $cmd\033[0m"
+      local _risk _reason
+      read -r _risk _reason <<< "$(score_risk "$cmd")"
+      # Risk label
+      case "$_risk" in
+        BLOCKED) echo -e "    \033[1;31m⛔  BLOCKED: $_reason\033[0m" ;;
+        HIGH)    echo -e "    \033[1;31m⚠   Risk: HIGH ($_reason)\033[0m" ;;
+        MED)     echo -e "    \033[1;33m◈   Risk: MED  ($_reason)\033[0m" ;;
+      esac
+      local _run=false
+      if [ "$_risk" = "BLOCKED" ]; then
+        result="Error: command blocked — $_reason."
+        FAIL_STREAK=$((FAIL_STREAK + 1))
+      elif [ "$_risk" = "HIGH" ]; then
+        local _ans=""
+        printf '    \033[1;31mType YES to confirm: \033[0m'
+        read -r _ans < /dev/tty 2>/dev/null || _ans=""
+        if [ "$_ans" = "YES" ]; then _run=true
+        else result="User declined (HIGH risk)."; FAIL_STREAK=0; fi
+      elif [ "$_risk" = "MED" ]; then
+        if confirm "    Run? [Y/n] "; then _run=true
+        else result="User declined."; FAIL_STREAK=0; fi
+      else
+        _run=true  # LOW: auto-run
+      fi
+      if [ "$_run" = true ]; then
+        _TOOLS_USED=$((_TOOLS_USED + 1))
+        result=$(run_with_heal "$cmd")
+        if [[ "$result" == "[FAILED"* ]]; then
+          FAIL_STREAK=$((FAIL_STREAK + 1))
+          echo -e "    \033[1;31m✗ failed (streak: $FAIL_STREAK/$MAX_FAIL_STREAK)\033[0m"
+          local _logs; _logs=$(auto_read_logs "$result")
+          [ -n "$_logs" ] && result="$result
+$_logs"
+          if [ "$FAIL_STREAK" -ge "$MAX_FAIL_STREAK" ]; then
+            echo -e "    \033[1;33m⚠  $FAIL_STREAK consecutive failures — injecting fallback hint\033[0m"
+            result="$result
+[RECOVERY HINT: $FAIL_STREAK consecutive failures. Required: try completely different approach, check deps/permissions, use simpler fallback, or tell user you're stuck.]"
+          fi
+        else
+          FAIL_STREAK=0
+        fi
+      fi
+      ;;
+    read_file)
+      local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
+      echo -e "    \033[0;90m📄 $p\033[0m"
+      result=$(run_tool read_file "$targs")
+      ;;
+    edit_file)
+      local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
+      echo -e "    \033[0;90m✏️  $p\033[0m"
+      # Git patch mode: snapshot before, stage after, show real git diff, rollback on decline
+      local _before_hash="none" _git_staged=""
+      if [ "$GIT_ENABLED" = true ]; then
+        # Ensure file is tracked so git diff works
+        git -C "$WORKDIR" add -N "$p" 2>/dev/null || true
+        _before_hash=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || echo "none")
+      fi
+      # Always show Python-computed diff first (works on new/untracked files too)
+      show_edit_diff "$targs"
+      if confirm "    Apply edit? [Y/n] "; then
+        result=$(run_tool edit_file "$targs")
+        FAIL_STREAK=0
+        _TOOLS_USED=$((_TOOLS_USED + 1))
+        if [[ "$result" == Edited* ]]; then
+          if [ "$GIT_ENABLED" = true ]; then
+            # Stage and show real git diff
+            git -C "$WORKDIR" add "$p" 2>/dev/null || true
+            local _gdiff
+            _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
+            [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
+            # Extract a one-line summary from the tool args
+            local _cmsg
+            _cmsg="agent: $(printf '%s' "$targs" | python3 -c \
+              'import json,sys; d=json.load(sys.stdin); lines=d.get("new_text","").strip().splitlines(); print("edit "+d.get("path","").split("/")[-1])' 2>/dev/null || echo "edit $(basename "$p")")"
+            if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
+              echo -e "    \033[0;90m↳ committed: $_cmsg\033[0m"
+              result="$result (committed)"
+            fi
+          fi
+          # Offer test run if test command configured
+          if [ -n "$TEST_CMD" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
+            echo -e "    \033[0;90m↳ $TEST_CMD...\033[0m"
+            local _tres; _tres=$(eval "$TEST_CMD" 2>&1 | tail -30) || true
+            printf '%s\n' "$_tres" | head -8 | while IFS= read -r _tl; do
+              echo -e "    \033[0;90m  $_tl\033[0m"
+            done
+            result="$result\n[TEST: $(printf '%s' "$_tres" | tail -3)]"
+          fi
+        fi
+      else
+        # Rollback: unstage
+        if [ "$GIT_ENABLED" = true ] && [ "$_before_hash" != "none" ]; then
+          git -C "$WORKDIR" checkout -- "$p" 2>/dev/null || true
+          echo -e "    \033[0;90m↳ rolled back (checkout --)\033[0m"
+        fi
+        result="User declined edit."
+      fi
+      ;;
+    list_files)
+      local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
+      echo -e "    \033[0;90m📁 $p\033[0m"
+      result=$(run_tool list_files "$targs")
+      ;;
+    *) result="Unknown: $tname" ;;
+  esac
+  [ -z "$result" ] && result="(no output)"
+
+  echo -e "    \033[0;36m→ ${result:0:300}\033[0m"
+  [ ${#result} -gt 300 ] && echo -e "    \033[0;90m  ... (${#result} bytes)\033[0m"
+
+  # Append tool result to history
+  local esc
+  esc=$(printf '%s' "$result" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || esc='"(error)"'
+  append_raw "{\"role\":\"tool\",\"content\":$esc}"
+}
+
+# ─── Lightweight planning call (plan mode) ───────────────────────────────────
+call_api_plan() {
+  local payload
+  payload=$(printf '%s\n%s\n%s\n' \
+    "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+    "$HISTORY" \
+    "$MODEL" \
+  | python3 -c '
+import json,sys
+s=json.loads(sys.stdin.readline())
+h=json.loads(sys.stdin.readline())
+m=sys.stdin.readline().strip()
+msg=[{"role":"system","content":s}]+h
+msg.append({"role":"user","content":"List your plan as a numbered list (3-7 steps) before acting. Be concise."})
+print(json.dumps({"model":m,"messages":msg}))
+' 2>/dev/null) || return 1
+  local tmp; tmp=$(mktemp)
+  local code
+  code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 30 \
+    "${BASE_URL}/chat/completions" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || true
+  local body; body=$(cat "$tmp"); rm -f "$tmp"
+  [ "$code" = "200" ] && printf '%s' "$body" | python3 -c \
+    'import json,sys; print(json.load(sys.stdin)["choices"][0]["message"].get("content",""))' 2>/dev/null || true
+}
+
+# ─── Agent Loop (one user turn → multi-turn tool use → final answer) ────────
+run_agent() {
+  local input="$1"
+  append_text "user" "$input"
+  _TOOLS_USED=0
+
+  # Plan mode: generate and show numbered plan, ask approval before tools
+  if [ "$AGENT_MODE" = "plan" ]; then
+    printf "\r\033[K  \033[1;35m📋 planning...\033[0m"
+    local _plan; _plan=$(call_api_plan) || true
+    if [ -n "$_plan" ]; then
+      echo -e "\r\033[K  \033[0;35m━━━ Plan ━━━\033[0m"
+      printf '  %s\n' "$_plan"
+      echo -e "  \033[0;35m━━━━━━━━━━━\033[0m"
+      local _pa; read -r -p $'  Proceed? [Y/n] ' _pa < /dev/tty 2>/dev/null || _pa="y"
+      if [[ "$_pa" == n* ]]; then echo "  Aborted."; return; fi
+    fi
+  fi
+
+  local turn=0
+  while [ "$turn" -lt "$MAX_TURNS" ]; do
+    turn=$((turn + 1))
+    printf "\r\033[K  \033[1;34m⏳ turn %d...\033[0m" "$turn"
+
+    local resp
+    resp=$(call_api) || { echo -e "\r\033[K  \033[1;31mAPI failed: ${resp#FAIL:}\033[0m"; break; }
+
+    [[ "$resp" == FAIL:* ]] && { echo -e "\r\033[K  \033[1;31m${resp#FAIL:}\033[0m"; break; }
+
+    local parsed
+    parsed=$(parse_resp "$resp")
+    [[ "$parsed" == "FAIL:"* ]] && { echo -e "\r\033[K  \033[1;31mParse error\033[0m"; break; }
+
+    # Add raw assistant message to history
+    local raw_b64
+    raw_b64=$(printf '%s' "$parsed" | grep '^RAW:' | head -1 | sed 's/^RAW://')
+    local raw_msg
+    raw_msg=$(printf '%s' "$raw_b64" | base64 -d 2>/dev/null) || raw_msg='{"role":"assistant","content":""}'
+    append_raw "$raw_msg"
+
+    # Process: tool calls or final text
+    local tc_lines text_line
+    tc_lines=$(printf '%s' "$parsed" | grep '^TC:' || true)
+    text_line=$(printf '%s' "$parsed" | grep '^TEXT:' || true)
+
+    if [ -n "$tc_lines" ]; then
+      echo -e "\r\033[K"  # clear "thinking" line
+      # Process each tool call individually (avoids stdin conflicts)
+      while IFS= read -r tc; do
+        [ -z "$tc" ] && continue
+        process_tc "$tc"
+      done <<< "$tc_lines"
+      # Loop continues — model will see tool results and respond
+    elif [ -n "$text_line" ]; then
+      local final="${text_line#TEXT:}"
+      echo -e "\r\033[K  \033[1;32m━━━ Agent ━━━\033[0m"
+      printf '  %s\n' "$final"
+      echo -e "  \033[1;32m━━━━━━━━━━━\033[0m"
+      break
+    else
+      echo -e "\r\033[K  \033[1;31mUnexpected response\033[0m"
+      break
+    fi
+  done
+
+  [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
+  # Auto-append to wiki/log.md if wiki exists and tools were used
+  if [ "$_TOOLS_USED" -gt 0 ] && [ -f "$WORKDIR/wiki/log.md" ]; then
+    printf '\n## [%s] task | %s\n' "$(date '+%Y-%m-%d')" "${input:0:80}" \
+      >> "$WORKDIR/wiki/log.md" 2>/dev/null || true
+  fi
+  # Auto wiki solution: if edit succeeded in git repo, ask model to summarize
+  # (lightweight: just look for the "committed" marker in history)
+  if [ "$_TOOLS_USED" -gt 0 ] && [ "$GIT_ENABLED" = true ] && \
+     [ -d "$WORKDIR/wiki" ] && printf '%s' "$HISTORY" | grep -q '"committed"'; then
+    local _slug; _slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
+    local _sfile="$WORKDIR/wiki/solutions/${_slug}.md"
+    if [ ! -f "$_sfile" ]; then
+      mkdir -p "$WORKDIR/wiki/solutions" 2>/dev/null || true
+      printf '# %s\nDate: %s\nInput: %s\n' \
+        "$_slug" "$(date '+%Y-%m-%d')" "${input:0:200}" > "$_sfile" 2>/dev/null || true
+      echo -e "  \033[0;90m✓ wiki/solutions/${_slug}.md\033[0m"
+    fi
+  fi
+}
+
+# ─── REPL Commands ──────────────────────────────────────────────────────────
+handle_cmd() {
+  case "$1" in
+    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /model)  echo "  Model: $MODEL" ;;
+    /model\ *) MODEL="${1#/model }"; echo "  Model → $MODEL" ;;
+    /history)
+      local n; n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || n="?"
+      echo "  $n messages in history"
+      ;;
+    /caveman)
+      echo "  Caveman mode: $CAVEMAN_MODE"
+      echo "  Usage: /caveman [off|lite|full|ultra]"
+      ;;
+    /caveman\ *)
+      local mode="${1#/caveman }"
+      case "$mode" in
+        off|lite|full|ultra)
+          CAVEMAN_MODE="$mode"
+          echo "  Caveman → $CAVEMAN_MODE"
+          ;;
+        *) echo "  Unknown mode: $mode. Use: off lite full ultra" ;;
+      esac
+      ;;
+    /mode)
+      echo "  Mode: $AGENT_MODE  (fast=just act | deep=reason-first | plan=show-plan+approve)"
+      ;;
+    /mode\ *)
+      local _m="${1#/mode }"
+      case "$_m" in
+        fast|deep|plan) AGENT_MODE="$_m"; echo "  Mode → $AGENT_MODE" ;;
+        *) echo "  Unknown. Use: fast deep plan" ;;
+      esac
+      ;;
+    /help)
+      echo "  /flush  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /help  /exit"
+      ;;
+    /yolo)
+      if [ "$AUTO_YES" = "true" ]; then
+        AUTO_YES=false; echo "  Yolo mode OFF — will prompt before each command."
+      else
+        AUTO_YES=true;  echo "  Yolo mode ON  — auto-confirming commands (guardrails active)."
+      fi
+      ;;
+    /exit)   echo "  Bye!"; exit 0 ;;
+    *)       return 1 ;;
+  esac
+  return 0
+}
+
+# ─── Banner ──────────────────────────────────────────────────────────────────
+echo ""
+echo -e "\033[1;35m  ┌─────────────────────────────────┐\033[0m"
+echo -e "\033[1;35m  │   Mini-Agent · KConsole AI       │\033[0m"
+echo -e "\033[1;35m  └─────────────────────────────────┘\033[0m"
+# build status line
+_status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033[0m"
+[ "$AUTO_YES" = "true" ]      && _status_line+="   \033[1;33m⚡ yolo\033[0m"
+[ "$CAVEMAN_MODE" != "off" ]  && _status_line+="   \033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m"
+[ "$AGENT_MODE"   != "fast" ] && _status_line+="   \033[0;36m◎ ${AGENT_MODE}\033[0m"
+[ -n "$ENV_INFO" ]            && _status_line+="   \033[0;90m[${ENV_INFO}]\033[0m"
+echo -e "$_status_line"
+echo -e "  \033[0;33m/flush /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /exit\033[0m"
+echo ""
+
+# ─── Main REPL ───────────────────────────────────────────────────────────────
+# Detect if we're interactive (tty) or piped
+if [ -t 0 ]; then
+  INTERACTIVE=true
+else
+  INTERACTIVE=false
+fi
+
+while true; do
+  if [ "$INTERACTIVE" = true ]; then
+    read -r -p $'\033[1;37m> \033[0m' INPUT < /dev/tty || break
+  else
+    # Piped mode: read from stdin, exit after one task
+    read -r INPUT || break
+    # In piped mode, auto-confirm everything
+    AUTO_YES=true
+  fi
+  INPUT="${INPUT#"${INPUT%%[![:space:]]*}"}"  # trim leading whitespace
+  INPUT="${INPUT%"${INPUT##*[![:space:]]}"}"  # trim trailing whitespace
+  [ -z "$INPUT" ] && continue
+
+  # Show truncated preview for long pastes
+  if [ ${#INPUT} -gt 200 ]; then
+    echo -e "  \033[0;90m[${#INPUT} chars] ${INPUT:0:120}...\033[0m"
+  fi
+
+  if handle_cmd "$INPUT"; then continue; fi
+  run_agent "$INPUT"
+  echo ""  # spacing before next prompt
+
+  # Piped mode: exit after processing one task
+  [ "$INTERACTIVE" = false ] && break
+done
