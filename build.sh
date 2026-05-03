@@ -27,10 +27,10 @@ cat \
     src/24_agent_loop_one_user_turn_multi_turn_tool_use_final_answer.sh \
     src/25_repl_commands.sh \
     src/26_banner.sh \
-    src/27_main_repl.sh > mix.compiled
+    > mix.compiled
 
-# Embed providers inline — they get sourced at runtime from PROVIDER_DIR
-# Since mix is a single-file binary, providers are appended directly
+# Embed providers BEFORE main loop — functions must be defined before `while true` starts
+# Otherwise the REPL can never find provider hooks like copilot_activate
 for pf in src/providers/*.sh; do
   [ -f "$pf" ] || continue
   echo "" >> mix.compiled
@@ -38,6 +38,9 @@ for pf in src/providers/*.sh; do
   echo "_EMBEDDED_PROVIDER_$(basename "$pf" .sh)=1" >> mix.compiled
   cat "$pf" >> mix.compiled
 done
+
+# Main REPL loop — MUST come last, since it blocks forever
+cat src/27_main_repl.sh >> mix.compiled
 
 cp mix.compiled mix
 chmod +x mix.compiled mix
