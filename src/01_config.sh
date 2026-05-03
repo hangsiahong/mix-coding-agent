@@ -54,6 +54,10 @@ MIX_PROVIDERS_DIR="${HOME}/.mix/providers"  # user-installed providers
 # Load provider if set and exists
 _load_provider() {
   local name="$1"
+  # Check if already loaded (embedded in compiled binary)
+  if type "${name}_activate" >/dev/null 2>&1; then
+    return 0
+  fi
   # Check: built-in > user-installed
   local pfile=""
   if [ -f "${PROVIDER_DIR}/${name}.sh" ]; then
