@@ -2,10 +2,10 @@
 # Usage: read -r _risk _reason <<< "$(score_risk "$cmd")"
 score_risk() {
   local c="$1"
-  # Strip heredoc body — only scan the command line before <<, not the body text
-  if printf '%s' "$c" | grep -q '<<'; then
-    c="$(printf '%s' "$c" | head -n1)"
-  fi
+  # Scan full command for blocked patterns, but use head for generic write detection
+  local c_head
+  c_head="$(printf '%s' "$c" | head -n1)"
+
   # ── BLOCKED ─────────────────────────────────────────────────────
   printf '%s' "$c" | grep -qF ':(){:|:&};:' \
     && echo "BLOCKED fork-bomb" && return
@@ -22,7 +22,7 @@ score_risk() {
     && echo "HIGH git-force-push" && return
   printf '%s' "$c" | grep -qE '\brm\b.+-[^[:space:]]*[rR]' \
     && echo "HIGH rm-recursive" && return
-  # Writes to system dirs are HIGH; writes within $WORKDIR are fine
+  # Writes to system dirs
   if printf '%s' "$c" | grep -v '>/dev/null' | grep -v '2>/dev/null' | grep -qE '> */(etc|usr|var|boot|root|bin|sbin|lib|proc|sys|dev)'; then
     echo "HIGH system-write" && return
   fi
@@ -39,8 +39,8 @@ score_risk() {
     && echo "MED file-move" && return
   printf '%s' "$c" | grep -qE '\b(systemctl|service)\b.+(start|stop|restart)\b' \
     && echo "MED service-ctrl" && return
-  printf '%s' "$c" | grep -qE ' >[^>]' \
-    && ! printf '%s' "$c" | grep -qE '^[[:space:]]*(cat|echo|printf|ls|find)\b' \
+  printf '%s' "$c_head" | grep -qE ' >[^>]' \
+    && ! printf '%s' "$c_head" | grep -qE '^[[:space:]]*(cat|echo|printf|ls|find)\b' \
     && echo "MED file-write" && return
   # ── LOW ────────────────────────────────────────────────────────
   echo "LOW ok"
