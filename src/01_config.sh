@@ -54,11 +54,11 @@ MIX_PROVIDERS_DIR="${HOME}/.mix/providers"  # user-installed providers
 # Load provider if set and exists
 _load_provider() {
   local name="$1"
-  # Check if already loaded (embedded in compiled binary)
+  # Check if already loaded (embedded in compiled binary or previously sourced)
   if type "${name}_activate" >/dev/null 2>&1; then
     return 0
   fi
-  # Check: built-in > user-installed
+  # Check: built-in files > user-installed files
   local pfile=""
   if [ -f "${PROVIDER_DIR}/${name}.sh" ]; then
     pfile="${PROVIDER_DIR}/${name}.sh"
@@ -68,6 +68,22 @@ _load_provider() {
   [ -z "$pfile" ] && return 1
   source "$pfile"
   return 0
+}
+
+# List available provider names (embedded + file-based)
+_list_providers() {
+  local -A _seen
+  # From embedded functions
+  while IFS= read -r _fn; do
+    local _pn="${_fn%_activate}"
+    [ "$_pn" != "$_fn" ] && [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
+  done < <(compgen -A function 2>/dev/null | grep '_activate$')
+  # From files
+  for f in "$PROVIDER_DIR"/*.sh "$MIX_PROVIDERS_DIR"/*.sh; do
+    [ -f "$f" ] || continue
+    local _pn="$(basename "$f" .sh)"
+    [ -z "${_seen[$_pn]:-}" ] && echo "$_pn" && _seen[$_pn]=1
+  done
 }
 
 # Auto-load provider at startup if AGENT_PROVIDER is set
