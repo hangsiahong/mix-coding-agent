@@ -144,7 +144,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /compact  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -264,6 +264,86 @@ handle_cmd() {
         tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
           && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
           || echo "  Failed to spawn subagent."
+      fi
+      ;;
+    /afk\ status|/afk\ log)
+      local _afklog="${MIX_AFK_LOG:-}"
+      if [ -z "$_afklog" ] || [ ! -f "$_afklog" ]; then
+        # find most recent afk log
+        _afklog=$(ls -t /tmp/mix-afk-*.log 2>/dev/null | head -1)
+      fi
+      if [ -z "$_afklog" ]; then
+        echo "  No AFK log found."
+      else
+        echo "  ── AFK log: $_afklog ──"
+        tail -40 "$_afklog"
+      fi
+      ;;
+    /afk\ stop)
+      if [ -n "${MIX_AFK_WIN:-}" ] && [ -n "$TMUX" ]; then
+        tmux kill-window -t "$MIX_AFK_WIN" 2>/dev/null && echo "  AFK worker stopped." || echo "  AFK window not found."
+        MIX_AFK_WIN=""
+      else
+        echo "  No tracked AFK window (kill manually: tmux kill-window -t mix-afk)"
+      fi
+      ;;
+    /afk*)
+      local _afk_hint="${1#/afk}"; _afk_hint="${_afk_hint# }"
+      local _afk_log="/tmp/mix-afk-$(date +%s).log"
+      local _afk_prompt
+      read -r -d '' _afk_prompt <<'AFKPROMPT'
+[AFK AUTOPILOT] You are running autonomously while the user is away. Work through this checklist — do as many items as you can, skipping items that don't apply or are already clean. Be proactive and make real changes. Log a summary when done.
+
+CHECKLIST (work top-down, commit small wins as you go):
+1. SCAN for TODO/FIXME/HACK/NOFIX comments in src/ — for each: attempt a real fix, then remove the comment if solved.
+2. BUGS: Read recent git log (last 10 commits) and any SPEC.md or README for known issues. Look for obvious logic bugs, off-by-ones, unquoted variables, missing error checks in shell scripts. Fix what you can.
+3. TESTS: If a TEST_CMD env var is set, run it and fix failures. If tests pass, note that.
+4. DEAD CODE: Look for functions defined but never called, variables set but unused, commented-out code blocks older than 2 weeks (via git blame). Remove or annotate.
+5. MEMORYBANK: If memorybank/log.md exists, append a brief entry: date, what was changed, what was found, reasoning. If memorybank/index.md is stale, update it.
+6. GLOBAL MEMORY: Use update_global_memory to record any useful patterns, conventions, or "aha" moments observed during this session.
+7. README/DOCS: If README.md or any .md doc is factually wrong (wrong command, wrong filename, outdated section), fix it.
+8. STYLE: In shell scripts, fix obvious style issues (e.g. missing quotes around variables in critical paths, inconsistent indentation) only if safe to do. Don't refactor just for aesthetics.
+9. SECURITY: Scan for obvious shell injection risks (e.g. unquoted $vars in eval or command substitution). Fix if found.
+10. BONUS: Do one surprising-but-useful thing: write a missing util, add a helpful alias, document a tricky piece of logic, or generate a quick health-check script.
+
+WHEN DONE: Write a brief AFK REPORT to memorybank/log.md (or stdout if not available) listing: items checked, items fixed, items skipped + why, and one recommendation for the user.
+
+Be decisive. Prefer doing over asking. If something is risky, skip it and note why in the report.
+AFKPROMPT
+
+      if [ -n "$_afk_hint" ]; then
+        _afk_prompt="$_afk_prompt
+
+USER HINT: $_afk_hint"
+      fi
+
+      if [ -n "$TMUX" ]; then
+        local _stmp _mytty
+        _stmp=$(mktemp -t mix-afk-XXXXXX)
+        _mytty=$(tty)
+        printf '%s\n' "$_afk_prompt" > "$_stmp"
+        tmux new-window -n "mix-afk" "bash -c 'cat $_stmp | mix 2>&1 | tee $_afk_log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ AFK done!\033[0m Log: $_afk_log\" > $_mytty; echo \"\"; echo \"[AFK finished. Press Enter]\"; read -r'" 2>/dev/null
+        if [ $? -eq 0 ]; then
+          MIX_AFK_LOG="$_afk_log"
+          MIX_AFK_WIN="mix-afk"
+          printf '  \033[38;5;99m🌙 AFK mode active\033[0m — working in background (tmux window: mix-afk)\n'
+          printf '  Log: %s\n' "$_afk_log"
+          printf '  Check back: /afk log   Stop early: /afk stop\n'
+        else
+          echo "  Failed to spawn AFK worker."
+        fi
+      else
+        # No tmux: offer to run inline
+        printf '  \033[38;5;220m⚠ Not in tmux — run AFK inline? This will block until done. [y/N] \033[0m'
+        local _yn
+        read -r _yn < /dev/tty
+        if [[ "$_yn" =~ ^[Yy]$ ]]; then
+          MIX_AFK_LOG="$_afk_log"
+          printf '  \033[38;5;99m🌙 AFK mode (inline)\033[0m — logging to %s\n' "$_afk_log"
+          run_agent "$_afk_prompt"
+        else
+          echo "  Aborted. Start tmux and try again for background mode."
+        fi
       fi
       ;;
     /spec*)
