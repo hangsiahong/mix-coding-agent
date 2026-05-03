@@ -253,8 +253,13 @@ $(cat "$_skill" 2>/dev/null)
 
 # ─── Project-local extensions ────────────────────────────────────────────────
 # Load repo-specific tools/overrides, then user-global rc
-[ -f "$WORKDIR/.agent/rc.sh" ]    && source "$WORKDIR/.agent/rc.sh"
-[ -f "$HOME/.mix/rc.sh" ]  && source "$HOME/.mix/rc.sh"
+if [ -f "$WORKDIR/.agent/rc.sh" ]; then
+  echo -e "  \033[0;33m⚠  Sourcing project rc: $WORKDIR/.agent/rc.sh\033[0m"
+  source "$WORKDIR/.agent/rc.sh"
+fi
+if [ -f "$HOME/.mix/rc.sh" ]; then
+  source "$HOME/.mix/rc.sh"
+fi
 
 # ─── Pre-edit diff preview ──────────────────────────────────────────────────
 show_edit_diff() {
@@ -987,14 +992,14 @@ process_tc() {
         printf '    \033[1;31mType YES to confirm: \033[0m'
         read -r _ans < /dev/tty 2>/dev/null || _ans=""
         if [ "$_ans" = "YES" ]; then _run=true
-        else result="User declined (HIGH risk)."; FAIL_STREAK=${FAIL_STREAK:-0}; fi
+        else result="User declined (HIGH risk)."; fi
       elif [ "$_risk" = "MED" ]; then
         if [ "$AGENT_MODE" = "yolo" ]; then
           _run=true
         elif confirm "    Run? [Y/n] "; then 
           _run=true
         else 
-          result="User declined."; FAIL_STREAK=${FAIL_STREAK:-0}; 
+          result="User declined.";
         fi
       else
         _run=true  # LOW: auto-run
