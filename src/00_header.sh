@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+
 # mix — super minimal terminal coding agent
 # https://ai.koompi.cloud/v1 — OpenAI-compatible
 # Dependencies: bash, curl, python3
