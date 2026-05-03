@@ -46,7 +46,7 @@ Use your existing Copilot subscription — no extra key needed.
 /model claude-sonnet-4.5   # pick one
 ```
 
-Supported models include: `gpt-4o`, `gpt-4.1`, `claude-sonnet-4.5`, `claude-opus-4.5`, `gemini-2.5-pro`, and more.
+Supported models include: `gpt-4o`, `gpt-4.1`, `claude-sonnet-4.6`, `claude-opus-4.7`, `gemini-3.1-pro-preview`, and more.
 
 To reset back to default:
 ```
