@@ -63,6 +63,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Or: tail -f /tmp/<name>.log (via another bash call)
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
+- REPL shortcuts: /worker <name> <cmd> to spawn, /workers to list
 
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
@@ -125,6 +126,16 @@ MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7)
 $_spec_content
 
 CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutates spec. /check reads drift (zero writes). Bug found → suggest: /spec bug: <cause>"
+  else
+    base+="
+
+## CAVEKIT (available — no SPEC.md yet)
+/spec <idea>       create SPEC.md (§G goal §C constraints §I interfaces §V invariants §T tasks §B bugs)
+/spec from-code    distill spec from existing codebase
+/spec bug: <desc>  backprop bug → §B entry + §V invariant
+/build [§T.n]      implement tasks from spec, flip status . → ~ → x, commit each
+/check [§V|§I|§T]  drift report — reads only, zero writes
+Suggest /spec when: new project, unclear scope, user describes features/constraints, or repeated direction-changes."
   fi
 
   if [ "$CAVEMAN_MODE" = "off" ]; then
