@@ -131,6 +131,7 @@ $_rh"
           echo -e "    \033[0;90m↳ rolled back (checkout --)\033[0m"
         fi
         result="User declined edit."
+        FAIL_STREAK=${FAIL_STREAK:-0}  # edit decline = ok, not a failure
       fi
       ;;
     list_files)
