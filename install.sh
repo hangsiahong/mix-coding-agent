@@ -91,52 +91,75 @@ setup_directories() {
   fi
 }
 
-# ── API key setup ─────────────────────────────────────────────────────────────
+# ── API key / provider setup ──────────────────────────────────────────────────
 setup_key() {
   echo ""
-  echo -e "${BOLD}  API key setup${RST}"
-  echo -e "  mix uses KConsole AI Gateway (https://ai.koompi.cloud)"
-  echo -e "  Get your free key at: ${CYN}https://ai.koompi.cloud${RST}"
+  echo -e "${BOLD}  Provider setup${RST}"
+  echo -e "  mix supports two providers:"
+  echo -e "    ${CYN}1) KConsole${RST}  — free API key from https://ai.koompi.cloud (default)"
+  echo -e "    ${CYN}2) Copilot${RST}   — use your existing GitHub Copilot subscription (no extra key)"
   echo ""
 
-  # Check if already set
-  if [ -n "${KCONSOLE_API_KEY:-}" ]; then
-    ok "KCONSOLE_API_KEY already set in environment"
-    return
+  local _choice=""
+  if [ -t 0 ]; then
+    printf "  Choose provider [1/2] (default: 1): "
+    read -r _choice </dev/tty || _choice=""
+    _choice="${_choice// /}"
   fi
 
-  # Interactive only
-  if [ -t 0 ]; then
-    printf "  Paste your API key (or press Enter to skip): "
-    read -r _key </dev/tty || _key=""
-    _key="${_key#"${_key%%[![:space:]]*}"}"  # trim
-    _key="${_key%"${_key##*[![:space:]]}"}"
-
-    if [ -n "$_key" ]; then
-      # detect shell profile
-      local profile=""
-      if echo "$SHELL" | grep -q fish; then
-        profile="$HOME/.config/fish/config.fish"
-        local fish_dir; fish_dir=$(dirname "$profile")
-        mkdir -p "$fish_dir"
-        printf '\nset -gx KCONSOLE_API_KEY "%s"\n' "$_key" >> "$profile"
-      elif [ -f "$HOME/.zshrc" ]; then
-        profile="$HOME/.zshrc"
-        printf '\nexport KCONSOLE_API_KEY="%s"\n' "$_key" >> "$profile"
-      else
-        profile="$HOME/.bashrc"
-        printf '\nexport KCONSOLE_API_KEY="%s"\n' "$_key" >> "$profile"
-      fi
-      ok "API key saved to $profile"
-      export KCONSOLE_API_KEY="$_key"
-    else
-      echo -e "  ${YLW}Skipped. Set it later:${RST}"
-      echo -e "      export KCONSOLE_API_KEY=your_key"
-    fi
+  if [ "$_choice" = "2" ]; then
+    # Copilot: save default, instruct login
+    mkdir -p "$HOME/.mix"
+    printf 'PROVIDER=copilot\nMODEL=gpt-4o\nBASE_URL=https://api.githubcopilot.com\n' > "$HOME/.mix/defaults"
+    ok "Provider set to: Copilot"
+    echo ""
+    echo -e "  ${YLW}Next step:${RST} run mix and authenticate:"
+    echo -e "      mix"
+    echo -e "      /provider copilot login"
+    echo -e "      /models"
+    echo -e "      /model claude-sonnet-4.5"
   else
-    # Non-interactive (piped)
-    echo -e "  ${YLW}Set your API key before running mix:${RST}"
-    echo -e "      export KCONSOLE_API_KEY=your_key"
+    # KConsole: check if already set
+    echo -e "  mix uses KConsole AI Gateway (https://ai.koompi.cloud)"
+    echo -e "  Get your free key at: ${CYN}https://ai.koompi.cloud${RST}"
+    echo ""
+
+    if [ -n "${KCONSOLE_API_KEY:-}" ]; then
+      ok "KCONSOLE_API_KEY already set in environment"
+      return
+    fi
+
+    if [ -t 0 ]; then
+      printf "  Paste your API key (or press Enter to skip): "
+      read -r _key </dev/tty || _key=""
+      _key="${_key#"${_key%%[![:space:]]*}"}"
+      _key="${_key%"${_key##*[![:space:]]}"}"
+
+      if [ -n "$_key" ]; then
+        local profile=""
+        if echo "$SHELL" | grep -q fish; then
+          profile="$HOME/.config/fish/config.fish"
+          local fish_dir; fish_dir=$(dirname "$profile")
+          mkdir -p "$fish_dir"
+          printf '\nset -gx KCONSOLE_API_KEY "%s"\n' "$_key" >> "$profile"
+        elif [ -f "$HOME/.zshrc" ]; then
+          profile="$HOME/.zshrc"
+          printf '\nexport KCONSOLE_API_KEY="%s"\n' "$_key" >> "$profile"
+        else
+          profile="$HOME/.bashrc"
+          printf '\nexport KCONSOLE_API_KEY="%s"\n' "$_key" >> "$profile"
+        fi
+        ok "API key saved to $profile"
+        export KCONSOLE_API_KEY="$_key"
+      else
+        echo -e "  ${YLW}Skipped. Set it later:${RST}"
+        echo -e "      export KCONSOLE_API_KEY=your_key"
+      fi
+    else
+      echo -e "  ${YLW}Set your API key before running mix:${RST}"
+      echo -e "      export KCONSOLE_API_KEY=your_key"
+      echo -e "  ${YLW}Or use Copilot:${RST} run mix then /provider copilot login"
+    fi
   fi
 }
 
