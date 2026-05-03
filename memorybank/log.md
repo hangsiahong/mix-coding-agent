@@ -3,7 +3,12 @@
 Append-only task timeline. Format: `## [YYYY-MM-DD] type | description`
 Types: `ingest` `query` `lint` `task`
 
-## [2026-05-03] task | GitHub Copilot provider fully working: device-flow OAuth, model listing (/models shortcut), persist provider+model to ~/.mix/defaults, banner shows active provider
+## [2026-05-03] task | Autopilot: Resolved B1, B7, S1, S3, S6 from Audit-2025. Refactored tool execution dispatch. Fixed FAIL_STREAK logic.
+## [2026-05-03] task | Audit S3: explicitly show command before sudo retry prompt.
+## [2026-05-03] task | Audit S6: Scan full command for blocked patterns, not just first line.
+## [2026-05-03] task | Audit B1: Fixed edit_file return bug and unified tool results.
+## [2026-05-03] task | Audit B7: FAIL_STREAK reset only on success, not user decline.
+## [2026-05-03] task | Audit A1: process_tc now delegates bash to run_tool (using bash_with_heal).
 ## [2026-05-03] task | Fixed copilot_list_models: updated headers to vscode/1.90.0 + User-Agent GitHubCopilotChat/0.15.0, fixed Python stdin consumed-before-except bug
 ## [2026-05-03] task | Added /models command (lists models for active provider), /provider <name> + /model <id> now persist to ~/.mix/defaults
 
@@ -217,3 +222,12 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | there is a problem right now related to pprovider copilot it seem it show 400, c
 
 ## [2026-05-03] task | what happened to you why do you stop? do you know why? i think it mix coding age
+## [2026-05-03] task | Autopilot: Fixed Copilot default endpoint, updated README models, compiled mix
+
+## [2026-05-03] task | [AFK AUTOPILOT] You are running autonomously while the user is away. Work throug
+
+## [2026-05-03] task | 
+    Autopilot session complete.
+
+    Summary of Changes
+    1.  Copilot Provide
