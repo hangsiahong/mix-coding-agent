@@ -24,8 +24,86 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
-    /model)  echo "  Model: $MODEL" ;;
+    /model)  echo "  Model: $MODEL | Provider: $PROVIDER | URL: $BASE_URL" ;;
     /model\ *) MODEL="${1#/model }"; echo "  Model → $MODEL" ;;
+    /provider)
+      echo "  Provider: $PROVIDER"
+      echo "  Base URL: $BASE_URL"
+      echo "  Model: $MODEL"
+      echo ""
+      echo "  Built-in providers:"
+      for f in "$PROVIDER_DIR"/*.sh; do
+        [ -f "$f" ] && echo "    - $(basename "$f" .sh)"
+      done
+      echo "  User providers (~/.mix/providers/):"
+      local _pcount=0
+      for f in "$MIX_PROVIDERS_DIR"/*.sh; do
+        if [ -f "$f" ]; then
+          echo "    - $(basename "$f" .sh)"
+          _pcount=$((_pcount + 1))
+        fi
+      done
+      [ "$_pcount" -eq 0 ] && echo "    (none — drop .sh files in ~/.mix/providers/)"
+      echo ""
+      echo "  Usage: /provider <name>        (activate provider)"
+      echo "         /provider <name> login   (run provider OAuth/login)"
+      echo "         /provider <name> models  (list available models)"
+      echo "         /provider default        (reset to default)"
+      ;;
+    /provider\ default)
+      PROVIDER="default"
+      BASE_URL="https://ai.koompi.cloud/v1"
+      if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+      MODEL="${AGENT_MODEL:-glm-5}"
+      echo "  Provider → default (koompi proxy)"
+      ;;
+    /provider\ *)
+      local _pargs="${1#/provider }"
+      local _pname="${_pargs%% *}"
+      local _paction="${_pargs#* }"
+      [ "$_paction" = "$_pname" ] && _paction=""
+
+      if [ "$_pname" = "default" ]; then
+        PROVIDER="default"
+        BASE_URL="https://ai.koompi.cloud/v1"
+        if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+        MODEL="${AGENT_MODEL:-glm-5}"
+        echo "  Provider → default (koompi proxy)"
+      elif _load_provider "$_pname"; then
+        case "$_paction" in
+          "")
+            # Activate
+            if type "${_pname}_activate" >/dev/null 2>&1; then
+              ${_pname}_activate
+            else
+              echo "  Provider $_pname loaded (no _activate hook found)"
+              echo "  Set BASE_URL, API_KEY, MODEL manually or define ${_pname}_activate()"
+            fi
+            ;;
+          login)
+            if type "${_pname}_login" >/dev/null 2>&1; then
+              ${_pname}_login
+            else
+              echo "  Provider $_pname has no login flow."
+            fi
+            ;;
+          models)
+            if type "${_pname}_list_models" >/dev/null 2>&1; then
+              ${_pname}_list_models
+            else
+              echo "  Provider $_pname has no models command."
+            fi
+            ;;
+          *)
+            echo "  Unknown action: $_paction"
+            echo "  Available: login, models, (empty=activate)"
+            ;;
+        esac
+      else
+        echo "  Provider not found: $_pname"
+        echo "  Checked: $PROVIDER_DIR/${_pname}.sh, $MIX_PROVIDERS_DIR/${_pname}.sh"
+      fi
+      ;;
     /history)
       local n; n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || n="?"
       echo "  $n messages in history"
