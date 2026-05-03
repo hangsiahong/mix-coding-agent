@@ -3,6 +3,12 @@
 Append-only task timeline. Format: `## [YYYY-MM-DD] type | description`
 Types: `ingest` `query` `lint` `task`
 
+## [2026-05-03] task | Copilot provider: full device-flow OAuth, token caching, model listing, streaming support
+## [2026-05-03] task | Robustness: 3-retry API loop, compact_history safety (no overwrite on failure), append_raw ARG_MAX bypass via stdin pipe
+## [2026-05-03] task | Fix B7: FAIL_STREAK no longer resets on user-declined HIGH/MED risk commands
+## [2026-05-03] task | Fix S4: warn before sourcing project-local .agent/rc.sh
+## [2026-05-03] task | All audit fixes: S1 (eval→bash-c), B1 (edit_file return), B2 (append_raw python3), B5 (chars/3), R1 (traps), R2 (mktemp), R4 (stdin pipe)
+
 ## [2025-05-23] ingest | Full codebase audit: security, bugs, robustness, architecture, UX
 
 ## [2026-05-03] task | grep -A 20 -B 5 'bash)' src/22_process_one_tool_call.sh
