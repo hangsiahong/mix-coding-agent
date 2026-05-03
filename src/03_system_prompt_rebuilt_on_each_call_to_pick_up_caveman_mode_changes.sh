@@ -16,12 +16,12 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Never give up after 1 error. Junior devs persist. So do you.
 
 ## WORKERS (tmux)
-- Spawn parallel task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
-- Read worker output: tmux capture-pane -p -t <name> (last screenful)
-- Or: tail -f /tmp/<name>.log (via another bash call)
+- Spawn parallel bash task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
+- Spawn parallel LLM subagent: REPL command /subagent <name> <task description> (logs to /tmp/<name>.log)
+- Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
-- REPL shortcuts: /worker <name> <cmd> to spawn, /workers to list
+- REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list
 
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.

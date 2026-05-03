@@ -21,9 +21,10 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","strea
   
   # Replacing curl with pure Python urllib.request for better connection handling
   # and resolving partial file/premature drop errors natively.
-  BASE_URL="$BASE_URL" API_KEY="$API_KEY" python3 -u -c '
+  BASE_URL="$BASE_URL" API_KEY="$API_KEY" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
 import json,sys,base64,os,urllib.request,urllib.error
-tty=open("/dev/tty","w") if os.path.exists("/dev/tty") else sys.stderr
+# If interactive=false, write to stderr so that pipes like `mix | tee` can log the streaming output
+tty=open("/dev/tty","w") if os.path.exists("/dev/tty") and os.environ.get("IS_INTERACTIVE") != "false" else sys.stderr
 
 url = os.environ.get("BASE_URL") + "/chat/completions"
 api_key = os.environ.get("API_KEY")
@@ -44,6 +45,12 @@ first=True
 is_done=False
 was_interrupted=False
 
+def kill_spinner():
+    spin_pid = os.environ.get("SPIN_PID")
+    if spin_pid:
+        try: os.kill(int(spin_pid), 15)
+        except: pass
+
 try:
     with urllib.request.urlopen(req, timeout=1800) as response:
         for line in response:
@@ -51,6 +58,7 @@ try:
             if not line: continue
             if not line.startswith("data: "):
                 if "error" in line.lower() and "{" in line:
+                    kill_spinner()
                     tty.write("\r\033[K    \033[38;5;196mAPI Error: " + line + "\033[0m\n")
                 continue
             
@@ -65,12 +73,17 @@ try:
             tok=delta.get("content") or ""
             if tok:
                 if first:
+                    kill_spinner()
                     tty.write("\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n    ")
                     tty.flush(); first=False
                 tok = tok.replace("\n", "\n    ")
                 tty.write(tok); tty.flush()
                 content.append(tok)
             for tc in delta.get("tool_calls",[]):
+                if first:
+                    kill_spinner()
+                    tty.write("\r\033[K")
+                    tty.flush(); first=False
                 i=tc.get("index",0)
                 if i not in tcs: tcs[i]={"id":"","name":"","args":""}
                 if tc.get("id"): tcs[i]["id"]+=tc["id"]
@@ -79,9 +92,11 @@ try:
                 if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
 except KeyboardInterrupt:
     was_interrupted=True
+    kill_spinner()
     tty.write("\n    \033[38;5;196m[Cancelled by User]\033[0m\n")
     tty.flush()
 except Exception as e:
+    kill_spinner()
     tty.write(f"\n    \033[38;5;196m[API Request Failed: {str(e)}]\033[0m\n")
     tty.flush()
 
@@ -91,6 +106,7 @@ if was_interrupted:
     sys.exit(0)
 
 if not is_done and not was_interrupted:
+    kill_spinner()
     tty.write("\n    \033[38;5;196m[Connection dropped prematurely by the API server]\033[0m")
     tty.flush()
     sys.stdout.write("FAIL:network_drop\n")

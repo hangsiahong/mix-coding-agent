@@ -34,7 +34,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /help  /exit"
+      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /help  /exit"
       ;;
     /compact)
       local _cmsg_before
@@ -74,6 +74,25 @@ handle_cmd() {
         tmux new-window -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
           && echo "  ↳ worker [$_wname] spawned" \
           || echo "  Failed to spawn worker."
+      fi
+      ;;
+    /subagent\ *)
+      local _sargs="${1#/subagent }"
+      local _sname="${_sargs%% *}"
+      local _stask="${_sargs#* }"
+      if [ -z "$TMUX" ]; then
+        echo "  Not in tmux — can't spawn subagent."
+      elif [ -z "$_sname" ] || [ "$_sname" = "$_sargs" ]; then
+        echo "  Usage: /subagent <name> <task>"
+      else
+        # Write task to a temp file to avoid quote escaping issues when passing to tmux
+        local _stmp _mytty
+        _stmp=$(mktemp)
+        _mytty=$(tty)
+        printf '%s\n' "$_stask" > "$_stmp"
+        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
+          && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
+          || echo "  Failed to spawn subagent."
       fi
       ;;
     /spec*)

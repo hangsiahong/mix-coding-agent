@@ -64,3 +64,9 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | now check our codebase and @index.html  and update the website make it non gener
 
 ## [2026-05-03] task | do mix coding agent have subagent? and parrell working?
+
+## [2026-05-03] task | did you get what the subagent search?
+
+## [2026-05-03] task | what is mix
+
+## [2026-05-03] task | do you like mix?

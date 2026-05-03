@@ -21,20 +21,16 @@ run_agent() {
   local turn=0
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
-    # Streaming: print a static dim line that Python's \r\033[K overwrites on first token.
-    # Non-streaming: use animated spinner (no race condition since no parallel tty writes).
-    if [ "$STREAM" = "true" ]; then
-      printf "\r\033[K    \033[0;90m⧖ mix (turn %d)...\033[0m" "$turn" >/dev/tty 2>/dev/null
-    else
-      start_spinner "turn $turn"
-    fi
+    # Always start animated spinner (Python will kill it before streaming first token)
+    start_spinner "mix (turn $turn)"
+    export SPIN_PID="$_SPIN_PID"
 
     local parsed
     if [ "$STREAM" = "true" ]; then
       parsed=$(call_api_stream)
       # If streaming drops prematurely, auto-fallback to non-streaming for this turn
       if [[ "$parsed" == FAIL:network_drop* ]]; then
-        echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
+        [ "$INTERACTIVE" = false ] && echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >&2 || echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
         start_spinner "turn $turn (non-streaming)"
         local resp
         resp=$(call_api)
@@ -44,7 +40,6 @@ run_agent() {
           break
         fi
         parsed=$(parse_resp "$resp")
-        stop_spinner
       fi
     else
       local resp
@@ -56,7 +51,7 @@ run_agent() {
       fi
       parsed=$(parse_resp "$resp")
     fi
-    [ "$STREAM" != "true" ] && stop_spinner
+    stop_spinner
 
     # If parsing somehow still resulted in a failure, abort
     [[ "$parsed" == FAIL:* ]] && { echo -e "  \033[1;31m${parsed#FAIL:}\033[0m"; break; }
@@ -74,7 +69,7 @@ run_agent() {
     text_line=$(printf '%s' "$parsed" | grep '^TEXT:' || true)
 
     if [ -n "$tc_lines" ]; then
-      printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
+      [ "$INTERACTIVE" = false ] && printf "\r\033[K" >&2 || printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
       # Process each tool call individually (avoids stdin conflicts)
       while IFS= read -r tc; do
         [ -z "$tc" ] && continue

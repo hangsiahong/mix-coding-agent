@@ -82,12 +82,12 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Never give up after 1 error. Junior devs persist. So do you.
 
 ## WORKERS (tmux)
-- Spawn parallel task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
-- Read worker output: tmux capture-pane -p -t <name> (last screenful)
-- Or: tail -f /tmp/<name>.log (via another bash call)
+- Spawn parallel bash task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
+- Spawn parallel LLM subagent: REPL command /subagent <name> <task description> (logs to /tmp/<name>.log)
+- Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
-- REPL shortcuts: /worker <name> <cmd> to spawn, /workers to list
+- REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list
 
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
@@ -521,7 +521,7 @@ score_risk() {
   printf '%s' "$c" | grep -qE '\brm\b.+-[^[:space:]]*[rR]' \
     && echo "HIGH rm-recursive" && return
   # Writes to system dirs are HIGH; writes within $WORKDIR are fine
-  if printf '%s' "$c" | grep -qE '> */(etc|usr|var|boot|root|bin|sbin|lib|proc|sys|dev)'; then
+  if printf '%s' "$c" | grep -v '>/dev/null' | grep -v '2>/dev/null' | grep -qE '> */(etc|usr|var|boot|root|bin|sbin|lib|proc|sys|dev)'; then
     echo "HIGH system-write" && return
   fi
   printf '%s' "$c" | grep -qE '\bsudo\b.+\b(rm|dd|mkfs)\b' \
@@ -632,9 +632,10 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","strea
   
   # Replacing curl with pure Python urllib.request for better connection handling
   # and resolving partial file/premature drop errors natively.
-  BASE_URL="$BASE_URL" API_KEY="$API_KEY" python3 -u -c '
+  BASE_URL="$BASE_URL" API_KEY="$API_KEY" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
 import json,sys,base64,os,urllib.request,urllib.error
-tty=open("/dev/tty","w") if os.path.exists("/dev/tty") else sys.stderr
+# If interactive=false, write to stderr so that pipes like `mix | tee` can log the streaming output
+tty=open("/dev/tty","w") if os.path.exists("/dev/tty") and os.environ.get("IS_INTERACTIVE") != "false" else sys.stderr
 
 url = os.environ.get("BASE_URL") + "/chat/completions"
 api_key = os.environ.get("API_KEY")
@@ -655,6 +656,12 @@ first=True
 is_done=False
 was_interrupted=False
 
+def kill_spinner():
+    spin_pid = os.environ.get("SPIN_PID")
+    if spin_pid:
+        try: os.kill(int(spin_pid), 15)
+        except: pass
+
 try:
     with urllib.request.urlopen(req, timeout=1800) as response:
         for line in response:
@@ -662,6 +669,7 @@ try:
             if not line: continue
             if not line.startswith("data: "):
                 if "error" in line.lower() and "{" in line:
+                    kill_spinner()
                     tty.write("\r\033[K    \033[38;5;196mAPI Error: " + line + "\033[0m\n")
                 continue
             
@@ -676,12 +684,17 @@ try:
             tok=delta.get("content") or ""
             if tok:
                 if first:
+                    kill_spinner()
                     tty.write("\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n    ")
                     tty.flush(); first=False
                 tok = tok.replace("\n", "\n    ")
                 tty.write(tok); tty.flush()
                 content.append(tok)
             for tc in delta.get("tool_calls",[]):
+                if first:
+                    kill_spinner()
+                    tty.write("\r\033[K")
+                    tty.flush(); first=False
                 i=tc.get("index",0)
                 if i not in tcs: tcs[i]={"id":"","name":"","args":""}
                 if tc.get("id"): tcs[i]["id"]+=tc["id"]
@@ -690,9 +703,11 @@ try:
                 if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
 except KeyboardInterrupt:
     was_interrupted=True
+    kill_spinner()
     tty.write("\n    \033[38;5;196m[Cancelled by User]\033[0m\n")
     tty.flush()
 except Exception as e:
+    kill_spinner()
     tty.write(f"\n    \033[38;5;196m[API Request Failed: {str(e)}]\033[0m\n")
     tty.flush()
 
@@ -702,6 +717,7 @@ if was_interrupted:
     sys.exit(0)
 
 if not is_done and not was_interrupted:
+    kill_spinner()
     tty.write("\n    \033[38;5;196m[Connection dropped prematurely by the API server]\033[0m")
     tty.flush()
     sys.stdout.write("FAIL:network_drop\n")
@@ -739,7 +755,7 @@ start_spinner() {
   local label="${1:-thinking}"
   (while :; do
     for f in '⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏'; do
-      printf "\r\033[K    \033[38;5;99m%s\033[0m \033[0;90m%s...\033[0m" "$f" "$label" >/dev/tty 2>/dev/null
+      [ "$INTERACTIVE" = false ] && printf "\r\033[K    \033[38;5;99m%s\033[0m \033[0;90m%s...\033[0m" "$f" "$label" >&2 || printf "\r\033[K    \033[38;5;99m%s\033[0m \033[0;90m%s...\033[0m" "$f" "$label" >/dev/tty 2>/dev/null
       sleep 0.08 2>/dev/null || sleep 1
     done
   done) &
@@ -748,7 +764,7 @@ start_spinner() {
 stop_spinner() {
   [ -n "$_SPIN_PID" ] && kill "$_SPIN_PID" 2>/dev/null && wait "$_SPIN_PID" 2>/dev/null
   _SPIN_PID=""
-  printf "\r\033[K" >/dev/tty 2>/dev/null
+  [ "$INTERACTIVE" = false ] && printf "\r\033[K" >&2 || printf "\r\033[K" >/dev/tty 2>/dev/null
 }
 
 # ─── Context window % bar ─────────────────────────────────────────────────────
@@ -1019,20 +1035,16 @@ run_agent() {
   local turn=0
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
-    # Streaming: print a static dim line that Python's \r\033[K overwrites on first token.
-    # Non-streaming: use animated spinner (no race condition since no parallel tty writes).
-    if [ "$STREAM" = "true" ]; then
-      printf "\r\033[K    \033[0;90m⧖ mix (turn %d)...\033[0m" "$turn" >/dev/tty 2>/dev/null
-    else
-      start_spinner "turn $turn"
-    fi
+    # Always start animated spinner (Python will kill it before streaming first token)
+    start_spinner "mix (turn $turn)"
+    export SPIN_PID="$_SPIN_PID"
 
     local parsed
     if [ "$STREAM" = "true" ]; then
       parsed=$(call_api_stream)
       # If streaming drops prematurely, auto-fallback to non-streaming for this turn
       if [[ "$parsed" == FAIL:network_drop* ]]; then
-        echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
+        [ "$INTERACTIVE" = false ] && echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >&2 || echo -e "    \033[0;90m↻ Retrying request without streaming...\033[0m" >/dev/tty 2>/dev/null
         start_spinner "turn $turn (non-streaming)"
         local resp
         resp=$(call_api)
@@ -1042,7 +1054,6 @@ run_agent() {
           break
         fi
         parsed=$(parse_resp "$resp")
-        stop_spinner
       fi
     else
       local resp
@@ -1054,7 +1065,7 @@ run_agent() {
       fi
       parsed=$(parse_resp "$resp")
     fi
-    [ "$STREAM" != "true" ] && stop_spinner
+    stop_spinner
 
     # If parsing somehow still resulted in a failure, abort
     [[ "$parsed" == FAIL:* ]] && { echo -e "  \033[1;31m${parsed#FAIL:}\033[0m"; break; }
@@ -1072,7 +1083,7 @@ run_agent() {
     text_line=$(printf '%s' "$parsed" | grep '^TEXT:' || true)
 
     if [ -n "$tc_lines" ]; then
-      printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
+      [ "$INTERACTIVE" = false ] && printf "\r\033[K" >&2 || printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
       # Process each tool call individually (avoids stdin conflicts)
       while IFS= read -r tc; do
         [ -z "$tc" ] && continue
@@ -1151,7 +1162,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /help  /exit"
+      echo "  agent:   /flush  /compact  /model [id]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /help  /exit"
       ;;
     /compact)
       local _cmsg_before
@@ -1191,6 +1202,25 @@ handle_cmd() {
         tmux new-window -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
           && echo "  ↳ worker [$_wname] spawned" \
           || echo "  Failed to spawn worker."
+      fi
+      ;;
+    /subagent\ *)
+      local _sargs="${1#/subagent }"
+      local _sname="${_sargs%% *}"
+      local _stask="${_sargs#* }"
+      if [ -z "$TMUX" ]; then
+        echo "  Not in tmux — can't spawn subagent."
+      elif [ -z "$_sname" ] || [ "$_sname" = "$_sargs" ]; then
+        echo "  Usage: /subagent <name> <task>"
+      else
+        # Write task to a temp file to avoid quote escaping issues when passing to tmux
+        local _stmp _mytty
+        _stmp=$(mktemp)
+        _mytty=$(tty)
+        printf '%s\n' "$_stask" > "$_stmp"
+        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
+          && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
+          || echo "  Failed to spawn subagent."
       fi
       ;;
     /spec*)
