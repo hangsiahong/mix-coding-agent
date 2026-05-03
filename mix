@@ -46,7 +46,7 @@ build_system_prompt() {
   # shellcheck disable=SC2016
   local base
   base="Terminal coding agent + wiki maintainer. Dir: $WORKDIR
-Tools: bash read_file edit_file list_files. Full absolute paths. edit_file: old_text must be unique.
+Tools: bash read_file create_file edit_file list_files search_files. Full absolute paths. edit_file: old_text must be unique (use create_file for new files only). search_files: regex grep across files.
 
 ## TASK RULES
 - Brief explanation, then act. No throat-clearing.
@@ -222,8 +222,13 @@ run_with_heal() {
   if [ $rc -ne 0 ]; then
     # Permission denied → retry with sudo
     if printf '%s' "$out" | grep -qiE 'permission denied|EACCES'; then
-      echo -e "    \033[0;90m↻ permission denied — retrying with sudo\033[0m"
-      out=$(sudo bash -c "$cmd" 2>&1); rc=$?
+      echo -e "    \033[0;90m↻ permission denied\033[0m"
+      local _sudo_ans=""
+      printf '    \033[1;33mRetry with sudo? [y/N] \033[0m'
+      read -r _sudo_ans < /dev/tty 2>/dev/null || _sudo_ans="n"
+      if [[ "$_sudo_ans" == [yY]* ]]; then
+        out=$(sudo bash -c "$cmd" 2>&1); rc=$?
+      fi
     # npm/node not found → try npx or node prefix
     elif printf '%s' "$out" | grep -qiE 'command not found|not found|No such file'; then
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
@@ -262,7 +267,7 @@ Date: %s
 }
 
 # ─── Tools (OpenAI function calling) ────────────────────────────────────────
-TOOLS_JSON='[{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}}]'
+TOOLS_JSON='[{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"create_file","description":"Create a new file with given content. Fails if file already exists — use edit_file to modify existing files.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"},"content":{"type":"string","description":"Full file content"}},"required":["path","content"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace in existing file. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}},{"type":"function","function":{"name":"search_files","description":"Search file contents by regex pattern (grep -rn). Returns matching lines with file:line context.","parameters":{"type":"object","properties":{"pattern":{"type":"string","description":"Regex search pattern"},"path":{"type":"string","description":"Absolute directory or file path to search in"}},"required":["pattern","path"]}}}]'
 
 # ─── History ─────────────────────────────────────────────────────────────────
 HISTORY='[]'
@@ -380,16 +385,17 @@ $result"
       [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
       ;;
     edit_file)
+      local _ea_dir; _ea_dir=$(mktemp -d)
       printf '%s' "$args" | python3 -c '
-import json,sys
-d=json.load(sys.stdin)
-open("/tmp/_ea_p","w").write(d["path"])
-open("/tmp/_ea_o","w").write(d["old_text"])
-open("/tmp/_ea_n","w").write(d["new_text"])
-' 2>/dev/null || { echo "Error: bad args"; return; }
+import json,sys,os
+d=json.load(sys.stdin);b=sys.argv[1]
+open(os.path.join(b,"p"),"w").write(d["path"])
+open(os.path.join(b,"o"),"w").write(d["old_text"])
+open(os.path.join(b,"n"),"w").write(d["new_text"])
+' "$_ea_dir" 2>/dev/null || { rm -rf "$_ea_dir"; echo "Error: bad args"; return; }
       local path old_text new_text
-      path=$(cat /tmp/_ea_p); old_text=$(cat /tmp/_ea_o); new_text=$(cat /tmp/_ea_n)
-      rm -f /tmp/_ea_p /tmp/_ea_o /tmp/_ea_n
+      path=$(cat "$_ea_dir/p"); old_text=$(cat "$_ea_dir/o"); new_text=$(cat "$_ea_dir/n")
+      rm -rf "$_ea_dir"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
       local count; count=$(grep -cF "$old_text" "$path" || true)
       if [ "$count" -eq 0 ]; then echo "Error: old_text not found in $path"
@@ -410,6 +416,32 @@ print('Edited '+p)
       path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       [ ! -d "$path" ] && { echo "Error: not a dir: $path"; return; }
       result=$(ls -F --color=never "$path" 2>&1) || true
+      ;;
+    create_file)
+      result=$(printf '%s' "$args" | python3 -c '
+import json,sys,os
+d=json.load(sys.stdin)
+p=d["path"]
+if os.path.exists(p):
+    print("Error: file already exists: "+p+" (use edit_file to modify)")
+    sys.exit(0)
+os.makedirs(os.path.dirname(p) or ".",exist_ok=True)
+open(p,"w").write(d["content"])
+print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
+' 2>/dev/null) || result="Error: bad args"
+      ;;
+    search_files)
+      local _sf_pat _sf_path
+      _sf_pat=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      _sf_path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      [ ! -e "$_sf_path" ] && { echo "Error: not found: $_sf_path"; return; }
+      result=$(grep -rn -E "$_sf_pat" "$_sf_path" \
+        --include='*.sh' --include='*.js' --include='*.ts' --include='*.jsx' --include='*.tsx' \
+        --include='*.py' --include='*.go' --include='*.rs' --include='*.md' \
+        --include='*.json' --include='*.yaml' --include='*.yml' \
+        --include='*.html' --include='*.css' --include='*.txt' --include='*.toml' \
+        2>/dev/null | head -60) || true
+      [ -z "$result" ] && result="(no matches for: $_sf_pat)"
       ;;
     *) result="Unknown tool: $name" ;;
   esac
@@ -752,7 +784,7 @@ $_logs"
             # Extract a one-line summary from the tool args
             local _cmsg
             _cmsg="agent: $(printf '%s' "$targs" | python3 -c \
-              'import json,sys; d=json.load(sys.stdin); lines=d.get("new_text","").strip().splitlines(); print("edit "+d.get("path","").split("/")[-1])' 2>/dev/null || echo "edit $(basename "$p")")"
+              'import json,sys; d=json.load(sys.stdin); print("edit "+d.get("path","").split("/")[-1])' 2>/dev/null || echo "edit $(basename "$p")")"
             if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
               echo -e "    \033[0;90m↳ committed: $_cmsg\033[0m"
               result="$result (committed)"
@@ -781,6 +813,39 @@ $_logs"
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
       echo -e "    \033[0;90m📁 $p\033[0m"
       result=$(run_tool list_files "$targs")
+      ;;
+    create_file)
+      local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
+      echo -e "    \033[0;90m📝 $p (new file)\033[0m"
+      printf '%s' "$targs" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c=d.get("content","")
+GRN,RST="\033[0;32m","\033[0m"
+lines=c.splitlines()
+for l in lines[:15]: sys.stdout.write("    "+GRN+"+ "+l+RST+"\n")
+if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" % (len(lines)-15))
+' 2>/dev/null
+      if confirm "    Create file? [Y/n] "; then
+        result=$(run_tool create_file "$targs")
+        _TOOLS_USED=$((_TOOLS_USED + 1))
+        FAIL_STREAK=0
+        if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
+          git -C "$WORKDIR" add "$p" 2>/dev/null || true
+          git -C "$WORKDIR" commit -m "agent: create $(basename "$p")" --quiet 2>/dev/null \
+            && echo -e "    \033[0;90m↳ committed: create $(basename "$p")\033[0m" \
+            && result="$result (committed)" || true
+        fi
+      else
+        result="User declined create."
+        FAIL_STREAK=0
+      fi
+      ;;
+    search_files)
+      local spat; spat=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || spat="?"
+      local sdir; sdir=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || sdir="?"
+      echo -e "    \033[0;90m🔍 /$spat/ in $sdir\033[0m"
+      result=$(run_tool search_files "$targs")
       ;;
     *) result="Unknown: $tname" ;;
   esac
@@ -969,7 +1034,7 @@ handle_cmd() {
       local _cmsg_before
       _cmsg_before=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _cmsg_before="0"
       if [ "$_cmsg_before" -lt 4 ] 2>/dev/null; then
-        echo "  History too short to compact ($_{cmsg_before} msgs)."
+        echo "  History too short to compact ($_cmsg_before msgs)."
       else
         local _saved="$MAX_HIST_MSGS"; MAX_HIST_MSGS=0; compact_history; MAX_HIST_MSGS="$_saved"
       fi
