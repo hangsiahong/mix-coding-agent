@@ -255,7 +255,7 @@ copilot_list_models() {
   api_token=$(copilot_get_api_token) || return 1
 
   local resp
-  resp=$(curl -s "https://api.githubcopilot.com/models" \
+  resp=$(curl -s "https://api.individual.githubcopilot.com/models" \
     -H "Authorization: Bearer $api_token" \
     -H "Accept: application/json" \
     -H "Editor-Version: vscode/1.90.0" \
