@@ -136,7 +136,7 @@ tailwind.config = {
   <!-- Stats row -->
   <div class="animate-fade-up delay-700 flex flex-wrap justify-center gap-8 mt-12 text-center">
     <div class="group cursor-default">
-      <div class="text-2xl font-black bg-gradient-to-br from-accent to-accent-blue bg-clip-text text-transparent">&lt;1K</div>
+      <div class="text-2xl font-black bg-gradient-to-br from-accent to-accent-blue bg-clip-text text-transparent">~1.3K</div>
       <div class="text-dim text-[0.6rem] uppercase tracking-[0.15em] mt-1">Lines of Code</div>
     </div>
     <div class="group cursor-default">
@@ -171,15 +171,22 @@ tailwind.config = {
       { cls: 'prompt', text: '$ ' },
       { cls: 'cmd', text: 'wc -l mix' }
     ]},
-    { type: 'out', text: '1069 mix' },
+    { type: 'out', text: '1259 mix' },
     { type: 'row', parts: [
       { cls: 'prompt', text: '$ ' },
-      { cls: 'cmd', text: './mix "build a REST API"' }
+      { cls: 'cmd', text: './mix "fix the auth middleware"' }
     ]},
-    { type: 'out', text: '▸ streaming tokens... ▸ writing server.py... ▸ running tests... ✓ done' },
+    { type: 'out', text: '▸ streaming tokens... ▸ reading src/auth.js... ▸ patch applied ✓' },
+    { type: 'out', text: '▸ risk: LOW → auto-run ▸ git committed' },
     { type: 'row', parts: [
       { cls: 'prompt', text: '$ ' },
-      { cls: 'cmd', text: 'echo "that\'s it. that\'s the agent."' }
+      { cls: 'cmd', text: './mix "add rate limiting"' }
+    ]},
+    { type: 'out', text: '▸ streaming tokens... ▸ writing rate_limit.py... ▸ tests pass ✓' },
+    { type: 'out', text: '▸ risk: MED → sudo apt install → [Y/n] Y ▸ filed to memorybank/' },
+    { type: 'row', parts: [
+      { cls: 'prompt', text: '$ ' },
+      { cls: 'cmd', text: 'echo "that''s it. that''s the agent."' }
     ]},
     { type: 'out', text: "that's it. that's the agent." },
     { type: 'cursor-row', parts: [
