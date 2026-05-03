@@ -57,7 +57,7 @@ process_tc() {
       fi
       if [ "$_run" = true ]; then
         _TOOLS_USED=$((_TOOLS_USED + 1))
-        result=$(run_with_heal "$cmd")
+        result=$(run_tool bash "$targs")
         if [[ "$result" == "[FAILED"* ]]; then
           FAIL_STREAK=$((FAIL_STREAK + 1))
           echo -e "    \033[1;31m✗ failed (streak: $FAIL_STREAK/$MAX_FAIL_STREAK)\033[0m"
@@ -73,7 +73,7 @@ $_logs"
 $_rh"
           fi
         else
-          FAIL_STREAK=${FAIL_STREAK:-0}
+          FAIL_STREAK=0
         fi
       fi
       ;;
