@@ -15,7 +15,8 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
-| mix-coding-agent-architecture.md | Subagent/parallel architecture: tmux workers, no LLM-in-LLM | |
+| mix-coding-agent-architecture.md | Subagent/parallel architecture: tmux workers, no LLM-in-LLM |
+| copilot-provider.md | GitHub Copilot provider: device-flow OAuth, token cache, model list, streaming | |
 
 ## sources
 
