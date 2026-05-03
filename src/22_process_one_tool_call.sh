@@ -173,12 +173,14 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
       local sdir; sdir=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || sdir="?"
       echo -e "    \033[0;90m🔍 /$spat/ in $sdir\033[0m"
       result=$(run_tool search_files "$targs")
+      FAIL_STREAK=0
       ;;
     update_global_memory)
       local _gm_act; _gm_act=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("action","append"))' 2>/dev/null) || _gm_act="append"
       local _gm_txt; _gm_txt=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || _gm_txt="?"
       echo -e "    \033[0;90m🧠 global memory ($_gm_act): ${_gm_txt:0:60}\033[0m"
       result=$(run_tool update_global_memory "$targs")
+      FAIL_STREAK=0
       ;;
     *) result="Unknown: $tname" ;;
   esac
