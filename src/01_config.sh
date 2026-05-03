@@ -43,3 +43,36 @@ _TOOLS_USED=0
 ACTIVE_SKILLS=""
 WORKDIR="$(pwd)"
 
+# ─── Provider system ─────────────────────────────────────────────────────────
+# Provider = pluggable API backend. Default is openai-compatible (koompi proxy).
+# Providers live in src/providers/<name>.sh and override auth/headers/endpoints.
+# Activated via: /provider <name>  or  AGENT_PROVIDER=<name>
+PROVIDER="${AGENT_PROVIDER:-default}"
+PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers"
+MIX_PROVIDERS_DIR="${HOME}/.mix/providers"  # user-installed providers
+
+# Load provider if set and exists
+_load_provider() {
+  local name="$1"
+  # Check: built-in > user-installed
+  local pfile=""
+  if [ -f "${PROVIDER_DIR}/${name}.sh" ]; then
+    pfile="${PROVIDER_DIR}/${name}.sh"
+  elif [ -f "${MIX_PROVIDERS_DIR}/${name}.sh" ]; then
+    pfile="${MIX_PROVIDERS_DIR}/${name}.sh"
+  fi
+  [ -z "$pfile" ] && return 1
+  source "$pfile"
+  return 0
+}
+
+# Auto-load provider at startup if AGENT_PROVIDER is set
+if [ "$PROVIDER" != "default" ]; then
+  if _load_provider "$PROVIDER"; then
+    # If provider exports an _activate function, call it (non-interactive mode)
+    if type "${PROVIDER}_activate" >/dev/null 2>&1; then
+      ${PROVIDER}_activate 2>/dev/null || true
+    fi
+  fi
+fi
+
