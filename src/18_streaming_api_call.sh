@@ -17,27 +17,41 @@ msg=[{"role":"system","content":s}]+h
 print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
+  # Resolve API key — provider may override
+  local _api_key="$API_KEY"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+    local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+    [ -n "$_pkey" ] && _api_key="$_pkey"
+  fi
+
+  # Resolve extra headers from provider (JSON string)
+  local _extra_headers="{}"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+    local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+    [ -n "$_ph" ] && _extra_headers="$_ph"
+  fi
+
   local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
   
-  # Replacing curl with pure Python urllib.request for better connection handling
-  # and resolving partial file/premature drop errors natively.
-  BASE_URL="$BASE_URL" API_KEY="$API_KEY" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
+  BASE_URL="$BASE_URL" API_KEY="$_api_key" EXTRA_HEADERS="$_extra_headers" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
 import json,sys,base64,os,urllib.request,urllib.error
-# If interactive=false, write to stderr so that pipes like `mix | tee` can log the streaming output
 tty=open("/dev/tty","w") if os.path.exists("/dev/tty") and os.environ.get("IS_INTERACTIVE") != "false" else sys.stderr
 
 url = os.environ.get("BASE_URL") + "/chat/completions"
 api_key = os.environ.get("API_KEY")
 payload = sys.stdin.read().encode("utf-8")
 
-req = urllib.request.Request(
-    url, 
-    data=payload, 
-    headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-)
+# Build headers: base + provider extras
+hdrs = {
+    "Authorization": f"Bearer {api_key}",
+    "Content-Type": "application/json"
+}
+try:
+    extra = json.loads(os.environ.get("EXTRA_HEADERS","{}"))
+    hdrs.update(extra)
+except: pass
+
+req = urllib.request.Request(url, data=payload, headers=hdrs)
 
 content=[]
 tcs={}
