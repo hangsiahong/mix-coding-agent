@@ -83,36 +83,122 @@ if [ "$INTERACTIVE" = true ]; then
   # Hook TAB directly inside Readline for read -e
   bind -x '"\t": _mix_bind_tab' 2>/dev/null || true
 
-  # Hook Ctrl+V to paste image from clipboard
-  _mix_paste_image() {
+  # Enable bracketed paste for safe multiline pasting
+  bind 'set enable-bracketed-paste on' 2>/dev/null || true
+
+  # Hook the terminal's bracketed paste (Right Click / Ctrl+Shift+V)
+  _mix_bracketed_paste() {
+    local raw_paste=""
+    local ch=""
+    # 201~ is the end bracket for bracketed paste
+    while IFS= read -r -s -d '' -n 1 ch < /dev/tty || [ -n "$ch" ]; do
+      raw_paste+="$ch"
+      if [[ "$raw_paste" == *$'\e[201~' ]]; then
+        raw_paste="${raw_paste%$'\e[201~'}"
+        break
+      fi
+    done
+    
+    if [ -n "$raw_paste" ]; then
+      local total_lines
+      total_lines=$(printf '%s\n' "$raw_paste" | wc -l)
+      if [ "$total_lines" -gt 5 ] || [ "${#raw_paste}" -gt 250 ]; then
+        local pid="bp_$(date +%s%N)"
+        local dir="/tmp/mix-clipboard"
+        mkdir -p "$dir"
+        printf '%s' "$raw_paste" > "$dir/txt_$pid.txt"
+        local insert="[paste _$pid: $total_lines lines] "
+        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
+        READLINE_POINT=$((READLINE_POINT + ${#insert}))
+      else
+        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${raw_paste}${READLINE_LINE:$READLINE_POINT}"
+        READLINE_POINT=$((READLINE_POINT + ${#raw_paste}))
+      fi
+    fi
+  }
+
+  # Hook Ctrl+V to paste media (image or text) from system clipboard (if available)
+  _mix_paste_media() {
     local dir="/tmp/mix-clipboard"
     mkdir -p "$dir"
     local f="$dir/img_$(date +%s).png"
     local has_img=false
+    local has_txt=false
+    local txt=""
 
-    if command -v wl-paste >/dev/null 2>&1 && wl-paste -l 2>/dev/null | grep -q image; then
-      wl-paste -t image/png > "$f" 2>/dev/null && has_img=true
-    elif command -v xclip >/dev/null 2>&1 && xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -q image; then
-      xclip -selection clipboard -t image/png -o > "$f" 2>/dev/null && has_img=true
+    if command -v wl-paste >/dev/null 2>&1; then
+      if wl-paste -l 2>/dev/null | grep -qE 'image/(png|jpeg|jpg)'; then
+        wl-paste -t image/png > "$f" 2>/dev/null && has_img=true
+      fi
+      if [ "$has_img" = false ]; then
+        txt=$(wl-paste -n 2>/dev/null) && [ -n "$txt" ] && has_txt=true
+      fi
+    elif command -v xclip >/dev/null 2>&1; then
+      if xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -qE 'image'; then
+        xclip -selection clipboard -t image/png -o > "$f" 2>/dev/null && has_img=true
+      fi
+      if [ "$has_img" = false ]; then
+        txt=$(xclip -selection clipboard -o 2>/dev/null) && [ -n "$txt" ] && has_txt=true
+      fi
     elif command -v osascript >/dev/null 2>&1; then
+      # macOS
       osascript -e "try" -e "write (the clipboard as «class PNGf») to (open for access POSIX file \"$f\" with write permission)" -e "end try" >/dev/null 2>&1
-      [ -s "$f" ] && has_img=true
+      if [ -s "$f" ]; then
+        has_img=true
+      else
+        txt=$(pbpaste 2>/dev/null) && [ -n "$txt" ] && has_txt=true
+      fi
     fi
 
     if [ "$has_img" = true ]; then
       local insert="[image: $f] "
       READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
       READLINE_POINT=$((READLINE_POINT + ${#insert}))
+    elif [ "$has_txt" = true ]; then
+      local total_lines
+      total_lines=$(printf '%s\n' "$txt" | wc -l)
+      if [ "$total_lines" -gt 5 ] || [ "${#txt}" -gt 250 ]; then
+        local pid=$(date +%s%N)
+        printf '%s' "$txt" > "$dir/txt_$pid.txt"
+        local insert="[paste _$pid: $total_lines lines] "
+        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
+        READLINE_POINT=$((READLINE_POINT + ${#insert}))
+      else
+        # Small text, just insert it normally
+        READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${txt}${READLINE_LINE:$READLINE_POINT}"
+        READLINE_POINT=$((READLINE_POINT + ${#txt}))
+      fi
     else
       # Just warn inline, will not mess up prompt entirely
-      echo -e "\n  \033[0;90m(No image found in clipboard or missing xclip/wl-paste)\033[0m"
+      echo -e "\n  \033[0;90m(Clipboard empty or unable to read)\033[0m"
     fi
+  }
+
+  # Ctrl+E — open editor (vim) to edit current input line
+  _mix_edit_prompt() {
+    local tmpf="/tmp/mix-prompt-$$.md"
+    printf '%s\n' "$READLINE_LINE" > "$tmpf"
+    local editor="${EDITOR:-vim}"
+    # Save cursor, clear line, move to col 0 so editor renders cleanly
+    tput sc 2>/dev/null
+    $editor "$tmpf" < /dev/tty > /dev/tty 2>&1
+    tput rc 2>/dev/null
+    local edited
+    edited="$(cat "$tmpf")"
+    rm -f "$tmpf"
+    # Strip trailing newline vim adds
+    edited="${edited%$'\n'}"
+    READLINE_LINE="$edited"
+    READLINE_POINT=${#READLINE_LINE}
   }
 
   # Unbind lnext (literal next) from Ctrl+V so readline can receive it natively
   stty lnext undef 2>/dev/null || true
 
-  bind -x '"\C-v": _mix_paste_image' 2>/dev/null || true
+  bind -x '"\C-v": _mix_paste_media' 2>/dev/null || true
+  bind -x '"\C-e": _mix_edit_prompt' 2>/dev/null || true
+  bind '"\e[200~": ""' # disable default bracketed paste start
+  bind -x '"\e[200~": _mix_bracketed_paste' 2>/dev/null || true
 fi
 
 while true; do
@@ -141,6 +227,21 @@ while true; do
   fi
 
   if handle_cmd "$INPUT"; then continue; fi
+  
+  # Check if handle_cmd modified INPUT (like /paste does)
+  if [[ "$INPUT" == *"[paste_"* ]]; then
+    INPUT=$(printf '%s' "$INPUT" | python3 -c '
+import sys, re
+out = sys.stdin.read()
+def repl(m):
+    try:
+        return open("/tmp/mix-clipboard/txt_" + m.group(1) + ".txt").read()
+    except:
+        return m.group(0)
+print(re.sub(r"\[paste _([a-zA-Z0-9_]+): [^\]]+\]", repl, out), end="")
+')
+  fi
+
   run_agent "$INPUT"
   echo ""  # spacing before next prompt
 
