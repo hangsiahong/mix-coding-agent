@@ -55,14 +55,14 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .section-title em{font-style:normal;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .section-title::after{content:'';display:block;width:40px;height:2px;background:var(--accent);margin:.8rem auto 0;border-radius:1px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
-.card{padding:1.5rem;position:relative;overflow:hidden;border-radius:12px;background:var(--surface);border:1px solid var(--border);transition:all .35s cubic-bezier(.25,.8,.25,1)}
+.card{padding:1.5rem 1.5rem 1.5rem 1.8rem;position:relative;overflow:hidden;border-radius:12px;background:var(--surface);border:1px solid var(--border);transition:all .35s cubic-bezier(.25,.8,.25,1)}
 .card:hover{transform:translateY(-4px);border-color:rgba(0,255,170,.15)}
 .card::before{content:'';position:absolute;top:0;left:0;width:3px;height:0;background:linear-gradient(180deg,var(--accent),var(--accent2));transition:height .35s cubic-bezier(.25,.8,.25,1);border-radius:0 0 2px 0}
 .card:hover::before{height:100%}
-.card .icon{font-size:1.6rem;margin-bottom:.8rem;display:inline-block;transition:transform .3s}
-.card:hover .icon{transform:scale(1.2) rotate(-5deg)}
 .card h3{color:var(--fg);font-size:.88rem;margin-bottom:.5rem;font-weight:600;letter-spacing:.02em}
 .card p{color:#6a6a8a;font-size:.75rem;line-height:1.7}
+.card .tag{display:inline-block;font-size:.6rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:.8rem;padding:2px 8px;border:1px solid var(--border);border-radius:4px;transition:color .3s,border-color .3s}
+.card:hover .tag{color:var(--accent);border-color:rgba(0,255,170,.2)}
 .card:nth-child(1){background:linear-gradient(135deg,rgba(0,255,170,.03),transparent)}
 .card:nth-child(2){background:linear-gradient(135deg,rgba(255,45,106,.03),transparent)}
 .card:nth-child(2)::before{background:linear-gradient(180deg,var(--accent2),#ff8800)}
@@ -86,7 +86,7 @@ canvas#particles{position:fixed;inset:0;z-index:0;pointer-events:none}
   <div class="hero-content">
     <div class="logo">mix</div>
     <div class="tagline">the minimal coding agent</div>
-    <div class="loc">1069 lines of bash <span>&nbsp;</span></div>
+    <div class="loc">&lt;1k lines of bash <span>&nbsp;</span></div>
   </div>
   <div class="term-wrap">
     <div class="term">
@@ -96,20 +96,44 @@ canvas#particles{position:fixed;inset:0;z-index:0;pointer-events:none}
   </div>
 </section>
 <section class="stats">
-  <div class="stat"><div class="num" data-count="1069">0</div><div class="label">Lines of Code</div></div>
-  <div class="stat"><div class="num" data-count="3">0</div><div class="label">Dependencies</div></div>
-  <div class="stat"><div class="num" data-count="0">0</div><div class="label">npm Packages</div></div>
-  <div class="stat"><div class="num" data-count="100">0</div><div class="label">% You Own</div></div>
+  <div class="stat"><div class="num">&lt;1K</div><div class="label">Lines of Code</div></div>
+  <div class="stat"><div class="num">3</div><div class="label">Dependencies</div></div>
+  <div class="stat"><div class="num">0</div><div class="label">npm Packages</div></div>
+  <div class="stat"><div class="num">100%</div><div class="label">You Own</div></div>
 </section>
 <section class="features">
   <div class="section-title">Why <em>minimal</em> beats complex</div>
   <div class="grid">
-    <div class="card"><div class="icon">⚡</div><h3>Streaming REPL</h3><p>Tokens stream live. No waiting. See output as the model thinks. Zero latency UI.</p></div>
-    <div class="card"><div class="icon">🛡️</div><h3>Safety Gate</h3><p>Risk scoring on every command. Block dangerous ops. Auto-confirm safe ones.</p></div>
-    <div class="card"><div class="icon">🧠</div><h3>Wiki Pattern</h3><p>Three-layer memory: raw → LLM-maintained wiki → agent schema. Knowledge compounds across sessions.</p></div>
-    <div class="card"><div class="icon">🔧</div><h3>Zero Config</h3><p>bash, curl, python3. That's it. No node_modules. No pip install. Runs anywhere in 2 seconds.</p></div>
-    <div class="card"><div class="icon">📝</div><h3>Caveman Mode</h3><p>Compressed output. No filler. Maximum signal per token. Every interaction faster.</p></div>
-    <div class="card"><div class="icon">🔒</div><h3>Full Control</h3><p>No telemetry. No cloud. Your key, your machine, your rules.</p></div>
+    <div class="card">
+      <h3>Streaming REPL</h3>
+      <p>Tokens stream live. No waiting. See output as the model thinks. Zero latency UI.</p>
+      <span class="tag">core</span>
+    </div>
+    <div class="card">
+      <h3>Safety Gate</h3>
+      <p>Risk scoring on every command. Block dangerous ops. Auto-confirm safe ones.</p>
+      <span class="tag">security</span>
+    </div>
+    <div class="card">
+      <h3>Wiki Pattern</h3>
+      <p>Three-layer memory: raw → LLM-maintained wiki → agent schema. Knowledge compounds across sessions.</p>
+      <span class="tag">memory</span>
+    </div>
+    <div class="card">
+      <h3>Zero Config</h3>
+      <p>bash, curl, python3. That's it. No node_modules. No pip install. Runs anywhere in 2 seconds.</p>
+      <span class="tag">portable</span>
+    </div>
+    <div class="card">
+      <h3>Caveman Mode</h3>
+      <p>Compressed output. No filler. Maximum signal per token. Every interaction faster.</p>
+      <span class="tag">ux</span>
+    </div>
+    <div class="card">
+      <h3>Full Control</h3>
+      <p>No telemetry. No cloud. Your key, your machine, your rules.</p>
+      <span class="tag">privacy</span>
+    </div>
   </div>
 </section>
 <footer>
@@ -160,12 +184,6 @@ canvas#particles{position:fixed;inset:0;z-index:0;pointer-events:none}
     else{ci=0;li++;setTimeout(type,280)}
   }
   setTimeout(type,1200);
-})();
-(function(){
-  const io=new IntersectionObserver(entries=>{
-    entries.forEach(e=>{if(e.isIntersecting){const el=e.target,target=+el.dataset.count;let cur=0;const step=Math.max(1,Math.floor(target/40));const timer=setInterval(()=>{cur+=step;if(cur>=target){cur=target;clearInterval(timer)}el.textContent=cur},30);io.unobserve(el)}})
-  },{threshold:.5});
-  document.querySelectorAll('[data-count]').forEach(el=>io.observe(el));
 })();
 </script>
 </body>
