@@ -40,3 +40,11 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-03] task | create a website html in /tmp/index.html make it really fancy but fast
 
 ## [2026-05-03] task | copy the html file to this dir instead, i like the website so keep it
+
+## [2026-05-03] task | my laptop fan is running so loud? can you check our process, what is it? that ma
+
+## [2026-05-03] task | bash -n /home/jiren/projects/funs/building/agent/mix && echo "OK"
+
+## [2026-05-03] task | bash -n /home/jiren/projects/funs/building/agent/mix 2>&1; echo "exit:$?"
+
+## [2026-05-03] task | bash --norc --noprofile -n /home/jiren/projects/funs/building/agent/mix; echo "s
