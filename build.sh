@@ -27,6 +27,7 @@ cat \
     src/24_agent_loop_one_user_turn_multi_turn_tool_use_final_answer.sh \
     src/25_repl_commands.sh \
     src/26_banner.sh \
+    src/28_update_global_memory.sh \
     > mix.compiled
 
 # Embed providers BEFORE main loop — functions must be defined before `while true` starts
