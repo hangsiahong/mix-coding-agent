@@ -156,7 +156,7 @@ if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" 
       if confirm "    Create file? [Y/n] "; then
         result=$(run_tool create_file "$targs")
         _TOOLS_USED=$((_TOOLS_USED + 1))
-        FAIL_STREAK=${FAIL_STREAK:-0}
+        FAIL_STREAK=0
         if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
           git -C "$WORKDIR" add "$p" 2>/dev/null || true
           git -C "$WORKDIR" commit -m "agent: create $(basename "$p")" --quiet 2>/dev/null \
