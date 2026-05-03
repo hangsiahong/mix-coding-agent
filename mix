@@ -26,6 +26,20 @@ ENV_INFO=""
 _TOOLS_USED=0
 WORKDIR="$(pwd)"
 
+# ─── Tmux bootstrap ──────────────────────────────────────────────
+# Auto-launch or attach a project-scoped tmux session.
+# Bypass with: MIX_NO_TMUX=1 mix
+if [ -z "$TMUX" ] && [ -t 0 ] && [ "${MIX_NO_TMUX:-}" != "1" ] \
+   && command -v tmux >/dev/null 2>&1; then
+  _MIX_SESSION="mix-$(basename "$WORKDIR")"
+  if tmux has-session -t "$_MIX_SESSION" 2>/dev/null; then
+    printf "  \033[0;90m↳ attaching tmux: %s\033[0m\n" "$_MIX_SESSION"
+    exec tmux attach-session -t "$_MIX_SESSION"
+  else
+    exec tmux new-session -s "$_MIX_SESSION" "$0" "$@"
+  fi
+fi
+
 # ─── System Prompt (rebuilt on each call to pick up caveman mode changes) ────
 # Base prompt encodes Karpathy LLM-wiki pattern in caveman-compressed prose.
 build_system_prompt() {
@@ -42,6 +56,13 @@ Tools: bash read_file edit_file list_files. Full absolute paths. edit_file: old_
 - Bash failure ([FAILED exit=N]) = signal, not dead end. Diagnose, fix root cause, retry.
 - Same approach fails twice → try different tool, simpler command, or fallback strategy.
 - Never give up after 1 error. Junior devs persist. So do you.
+
+## WORKERS (tmux)
+- Spawn parallel task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
+- Read worker output: tmux capture-pane -p -t <name> (last screenful)
+- Or: tail -f /tmp/<name>.log (via another bash call)
+- Kill worker: tmux kill-window -t <name>
+- List workers: tmux list-windows
 
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
@@ -819,7 +840,13 @@ run_agent() {
   local turn=0
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
-    start_spinner "turn $turn"
+    # Streaming: print a static dim line that Python's \r\033[K overwrites on first token.
+    # Non-streaming: use animated spinner (no race condition since no parallel tty writes).
+    if [ "$STREAM" = "true" ]; then
+      printf "\r\033[K  \033[0;90m⧖ turn %d...\033[0m" "$turn" >/dev/tty 2>/dev/null
+    else
+      start_spinner "turn $turn"
+    fi
 
     local parsed
     if [ "$STREAM" = "true" ]; then
@@ -834,7 +861,7 @@ run_agent() {
       fi
       parsed=$(parse_resp "$resp")
     fi
-    stop_spinner
+    [ "$STREAM" != "true" ] && stop_spinner
 
     [[ "$parsed" == FAIL:* ]] && { echo -e "  \033[1;31m${parsed#FAIL:}\033[0m"; break; }
 
@@ -948,8 +975,31 @@ handle_cmd() {
         AUTO_YES=true;  echo "  Yolo mode ON  — auto-confirming commands (guardrails active)."
       fi
       ;;
-    /exit)   echo "  Bye!"; exit 0 ;;
-    *)       return 1 ;;
+    /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
+             exit 0 ;;
+    /workers)
+      if [ -z "$TMUX" ]; then
+        echo "  Not in tmux."
+      else
+        echo "  Windows in this session:"
+        tmux list-windows -F '    #I: #W  (#F)' 2>/dev/null || echo "  (none)"
+      fi
+      ;;
+    /worker\ *)
+      local _wargs="${1#/worker }"
+      local _wname="${_wargs%% *}"
+      local _wcmd="${_wargs#* }"
+      if [ -z "$TMUX" ]; then
+        echo "  Not in tmux — can't spawn worker."
+      elif [ -z "$_wname" ] || [ "$_wname" = "$_wargs" ]; then
+        echo "  Usage: /worker <name> <command>"
+      else
+        tmux new-window -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
+          && echo "  ↳ worker [$_wname] spawned" \
+          || echo "  Failed to spawn worker."
+      fi
+      ;;
+    *) return 1 ;;
   esac
   return 0
 }
@@ -966,13 +1016,16 @@ _status_line="  model  \033[1;36m${MODEL}\033[0m   dir  \033[0;90m${WORKDIR}\033
 [ "$AGENT_MODE"   != "fast" ] && _status_line+="   \033[0;36m◎ ${AGENT_MODE}\033[0m"
 [ -n "$ENV_INFO" ]            && _status_line+="   \033[0;90m[${ENV_INFO}]\033[0m"
 echo -e "$_status_line"
-echo -e "  \033[0;33m/flush /compact /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /exit\033[0m"
+echo -e "  \033[0;33m/flush /compact /model [id] /caveman [off|lite|full|ultra] /mode [fast|deep|plan] /yolo /workers /exit\033[0m"
 echo ""
 
-# tmux: rename window + initial status
+# tmux: rename window + initial status bar
 if [ -n "$TMUX" ]; then
+  _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
   tmux rename-window "mix" 2>/dev/null || true
   tmux_update
+  echo -e "  \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd> to spawn agents  │  /workers to list\033[0m"
+  echo ""
 fi
 
 # ─── Main REPL ───────────────────────────────────────────────────────────────
