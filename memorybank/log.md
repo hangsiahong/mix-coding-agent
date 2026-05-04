@@ -113,3 +113,11 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | please continue
 
 ## [2026-05-04] task | continue
+
+## [2026-05-04] task | is everything is good? commit everything and push for me
+
+## [2026-05-04] feature | Edit Failure Suggestions — [SUGGESTION] context on edit mismatch, eliminates re-read turn
+## [2026-05-04] feature | Smart Bash Truncation — 50/50 head+tail + error extraction from middle section
+## [2026-05-04] feature | Token Tracking — session counters, ctx_bar stats line, /stats command
+## [2026-05-04] feature | /undo (git revert HEAD), /stash (git stash), /stats REPL commands
+## [2026-05-04] ingest | Memorybank update — 3 new solution pages (edit-suggestions, smart-bash-truncation, token-tracking), updated architecture/tools-reference/repl-commands/index
