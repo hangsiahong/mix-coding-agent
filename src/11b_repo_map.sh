@@ -41,6 +41,7 @@ _REPO_MAP_SKIP_DIRS=(
   .nuxt target .gradle .idea .vscode .cache .tox .mypy_cache
   .pytest_cache coverage htmlcov .sass-cache bower_components
   vendor/bundle .mix .agent .terraform .terragrunt-cache
+  .worktrees .turbo .vercel .contentlayer .docusaurus
 )
 
 _build_skip_find() {
