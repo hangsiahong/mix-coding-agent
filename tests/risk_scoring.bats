@@ -204,18 +204,16 @@ setup() {
     [ "$output" = "LOW ok" ]
 }
 
-@test "score_risk rates redirect to /dev/null as HIGH (known issue: space before /dev/null bypasses exclusion)" {
-    # The system-write check excludes '>/dev/null' but not '> /dev/null' (with space).
-    # This test documents the current behavior.
+@test "score_risk rates redirect to /dev/null (with space) as LOW" {
+    # > /dev/null now correctly excluded from system-write check
     run score_risk 'some_command > /dev/null 2>&1'
-    [ "${output%% *}" = "HIGH" ]
+    [ "$output" = "LOW ok" ]
 }
 
-@test "score_risk rates no-space redirect to /dev/null as MED file-write (known issue: safe redirect still triggers)" {
-    # >/dev/null is excluded from system-write but still triggers MED file-write
-    # because some_command isn't in the safe-write whitelist (cat|echo|printf|ls|find)
+@test "score_risk rates no-space redirect to /dev/null as LOW" {
+    # >/dev/null excluded from both system-write and MED file-write checks
     run score_risk 'some_command >/dev/null 2>&1'
-    [ "${output%% *}" = "MED" ]
+    [ "$output" = "LOW ok" ]
 }
 
 @test "score_risk rates echo redirect to /dev/null as LOW (safe write command)" {
