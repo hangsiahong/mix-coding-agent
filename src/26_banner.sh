@@ -1,3 +1,31 @@
+# ─── Sandbox startup detection (must run before banner so 🔒 shows) ─────────
+# Parse --sandbox flag
+for _arg in "$@"; do
+  if [ "$_arg" = "--sandbox" ]; then
+    if [ -d "${HOME}/.mix/sandbox-rootfs" ]; then
+      SANDBOX_ENABLED=true
+    else
+      if [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
+        _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
+          echo -e "  \033[1;31m✗\033[0m --sandbox: failed to unpack rootfs. Run /sandbox setup."
+      else
+        echo -e "  \033[1;31m✗\033[0m --sandbox: rootfs not found. Run /sandbox setup first."
+      fi
+    fi
+  fi
+done
+# Auto-enable from .mix/sandbox marker file
+if [ "$SANDBOX_ENABLED" != "true" ] && [ -f "${WORKDIR:-$PWD}/.mix/sandbox" ]; then
+  if [ -d "${HOME}/.mix/sandbox-rootfs" ]; then
+    SANDBOX_ENABLED=true
+  elif [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
+    _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
+      echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but failed to unpack rootfs. Run /sandbox setup."
+  else
+    echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but rootfs not installed. Run /sandbox setup."
+  fi
+fi
+
 # ─── Banner ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m \033[0;90m· minimal coding agent\033[0m"

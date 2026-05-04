@@ -100,7 +100,7 @@ Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (
 ### If a tool or command is missing
 Do NOT try apk add inside the bash tool — it will fail (no network).
 Instead, STOP and tell the user:
-  "Package '<name>' is not installed in the sandbox. Please run: /sandbox install <name>"
+  \"Package PKG is not installed in the sandbox. Please run: /sandbox install PKG\"
 The user runs /sandbox install from the REPL (outside the sandbox), which has network access.
 After they confirm it is installed, retry the bash command.
 
