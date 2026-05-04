@@ -56,7 +56,7 @@ cache = json.loads(sys.argv[1])
 cache.pop(sys.argv[2], None)
 print(json.dumps(cache))
 ' "$_FILE_CACHE" "$_fp" 2>/dev/null) || return
-  _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
+  _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//;s/ *$//')
 }
 
 # Validate cache entries — remove stale (externally modified) files
