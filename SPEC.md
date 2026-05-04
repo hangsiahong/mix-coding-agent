@@ -56,12 +56,12 @@ Save session state on exit and restore it on next startup via `/resume`, elimina
 
 ## §T Tasks
 1. [x] Create `src/11c_session.sh` with session_save, session_load, session_clear
-2. [x] Add `session_load()` call to startup (after src/11b_repo_map.sh in build order)
+2. [x] Add `session_load()` call to startup (in src/07_environment_detection.sh)
 3. [x] Add `session_save()` to EXIT trap in src/27_main_repl.sh
 4. [x] Add `/resume` command to src/25_repl_commands.sh
 5. [x] Startup message: "Previous session (Xh ago). /resume to restore."
-6. [x] Add `.agent/` to .gitignore if not present
-7. [x] Add bats tests for session functions
+6. [x] Add `.agent/` to .gitignore
+7. [x] Add bats tests for session functions (27 tests)
 8. [x] Update build.sh to include new file
 9. [x] Rebuild and verify
 
