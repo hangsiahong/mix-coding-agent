@@ -65,6 +65,15 @@ To reset back to default:
 /provider default
 ```
 
+## CLI Flags
+
+| Flag | What it does |
+|---|---|
+| `--self-test` | Check dependencies (python3, curl) and exit. Prints `OK` or `FAIL:...` |
+| `--doctor` | Start in doctor mode — shows crash log, repair hints |
+| `--version` | Print version and exit |
+| `--sandbox` | Enable sandbox for all bash tool calls |
+
 ## Config Settings
 
 Export these in your shell profile if you want to change defaults:
