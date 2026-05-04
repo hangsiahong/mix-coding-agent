@@ -40,6 +40,13 @@ $out"
 $(printf '%s\n' "$out" | tail -n 100)"
   fi
 
+  # Inject failure diagnostics if command failed
+  if [[ "$out" == "[FAILED"* ]]; then
+    local _diag; _diag=$(diagnose_failure "$cmd" "$out" "$rc" 2>/dev/null) || true
+    [ -n "$_diag" ] && out="$out
+$_diag"
+  fi
+
   printf '%s' "$out"
 }
 
