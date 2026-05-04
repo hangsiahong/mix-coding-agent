@@ -226,7 +226,7 @@ session_clear() {
 
 # Show startup hint if session available
 session_hint() {
-  if [ "$_SESSION_AVAILABLE" = true ] && [ "$INTERACTIVE" = true ]; then
+  if [ "$_SESSION_AVAILABLE" = true ] && [ "${INTERACTIVE:-false}" = true ]; then
     echo -e "  \033[0;90mPrevious session found (${_SESSION_RESTORE_AGE}h ago). /resume to restore.\033[0m"
   fi
 }
