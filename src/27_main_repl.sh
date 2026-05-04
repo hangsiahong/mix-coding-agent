@@ -21,7 +21,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
+        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
