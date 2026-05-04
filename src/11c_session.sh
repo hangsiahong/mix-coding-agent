@@ -115,6 +115,9 @@ if age_h > 168:  # 7 days
     sys.exit(3)  # too old
 
 # Output restorable fields as tab-separated
+fc = s.get("file_cache", {})
+if isinstance(fc, dict):
+    fc = json.dumps(fc)
 print("\t".join([
     s.get("env_info", ""),
     str(s.get("git_enabled", False)),
@@ -126,7 +129,7 @@ print("\t".join([
     s.get("agent_mode", "fast"),
     str(s.get("auto_yes", False)),
     s.get("active_skills", ""),
-    s.get("file_cache", "{}"),
+    fc,
     s.get("file_cache_order", ""),
     s.get("repo_map", ""),
     s.get("repo_map_mtimes", ""),
