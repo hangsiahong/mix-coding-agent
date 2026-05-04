@@ -36,6 +36,37 @@ if [ "$INTERACTIVE" = true ]; then
       for s in "${sfiles[@]}"; do
         [[ "$s" == "$word"* ]] && matches+=("$s")
       done
+    elif [[ "$pre" == "/provider "* ]]; then
+      local _pnames; _pnames=$(_list_providers 2>/dev/null)
+      _pnames+=" default"
+      while IFS= read -r _pn; do
+        [ -n "$_pn" ] && [[ "$_pn" == "$word"* ]] && matches+=("$_pn")
+      done <<< "$_pnames"
+    elif [[ "$pre" == "/ext "* ]]; then
+      local _ext_words="load unload create reload list"
+      for _ew in $_ext_words; do
+        [[ "$_ew" == "$word"* ]] && matches+=("$_ew")
+      done
+    elif [[ "$pre" == "/ext load "* ]] || [[ "$pre" == "/ext unload "* ]]; then
+      local _enames=""
+      for f in ~/.mix/extensions/*.sh .mix/extensions/*.sh; do
+        [ -f "$f" ] && _enames+="$(basename "$f" .sh) "
+      done
+      for _en in $_enames; do
+        [[ "$_en" == "$word"* ]] && matches+=("$_en")
+      done
+    elif [[ "$pre" == "/caveman "* ]]; then
+      for _cm in off lite full ultra; do
+        [[ "$_cm" == "$word"* ]] && matches+=("$_cm")
+      done
+    elif [[ "$pre" == "/mode "* ]]; then
+      for _mm in fast deep plan; do
+        [[ "$_mm" == "$word"* ]] && matches+=("$_mm")
+      done
+    elif [[ "$pre" == "/verify "* ]]; then
+      for _vm in on off; do
+        [[ "$_vm" == "$word"* ]] && matches+=("$_vm")
+      done
     elif [[ "$word" == @* ]]; then
       local q="${word#@}"
 
