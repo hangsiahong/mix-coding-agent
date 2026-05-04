@@ -31,7 +31,7 @@
 | 21_tmux_status_updater.sh | 22 | tmux_update(): refreshes tmux status bar with context % |
 | 22_process_one_tool_call.sh | 200 | process_tc(): UX layer per tool — risk scoring, confirmation, diff preview, git commit, test runner. Delegates to run_tool() for execution |
 | 23_plan_mode.sh | 28 | call_api_plan(): lightweight planning call, shows numbered plan, asks approval |
-| 24_agent_loop.sh | 126 | run_agent(): main loop. compact → plan → multi-turn tool use with 3x API retry. Auto-appends to memorybank log + auto-creates solution files |
+| 24_agent_loop.sh | 170 | run_agent(): main loop. Parallel read-only tools via batch dir + append_raw_nosave. compact → plan → multi-turn tool use with 3x API retry. Auto-appends to memorybank log + auto-creates solution files |
 | 25_repl_commands.sh | 602 | handle_cmd(): 25+ slash commands. Cavekit (/spec, /build, /check). AFK mode. Workers/subagents. Provider/model switching. Skills. Paste. Undo. |
 | 26_banner.sh | 29 | Startup banner |
 | 27_main_repl.sh | 223 | Main REPL. Interactive (readline with tab-complete, Ctrl+V paste, Ctrl+E editor) + piped mode. EXIT trap cleans spinners + /tmp/mix-*. SIGINT cancels turn. |
