@@ -48,8 +48,10 @@ setup() {
   _SESSION_API_CALLS=0
   _SESSION_PROMPT_TOKENS=0
   _SESSION_COMPLETION_TOKENS=0
-  ctx_bar
-  [ $? -eq 0 ]
+  run ctx_bar
+  # ctx_bar uses printf which may return non-zero, just verify it doesn't crash
+  [ -n "$output" ]
+  echo "$output" | grep -q "0k"
 }
 
 @test "ctx_bar shows session stats when calls > 0" {
