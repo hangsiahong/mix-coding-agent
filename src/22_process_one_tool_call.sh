@@ -207,6 +207,19 @@ $_rh"
   [ -z "$result" ] && result="(no output)"
 
   if [ "$silent" != "true" ]; then
+    # Extract and display VERIFY results prominently
+    if printf '%s' "$result" | grep -q '\[VERIFY:'; then
+      local _verify_part
+      _verify_part=$(printf '%s' "$result" | sed -n '/\[VERIFY:/,$ p')
+      if printf '%s' "$_verify_part" | grep -q 'FAILED'; then
+        echo -e "    \033[1;31m🔍 verify:\033[0m"
+      else
+        echo -e "    \033[0;32m🔍 verify:\033[0m"
+      fi
+      printf '%s' "$_verify_part" | head -10 | while IFS= read -r _vl; do
+        echo -e "      \033[0;90m$_vl\033[0m"
+      done
+    fi
     # Simplify tool result text nicely aligned 
     local display_res="${result:0:300}"
     display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
