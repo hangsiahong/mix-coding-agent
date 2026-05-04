@@ -59,3 +59,6 @@ User input → append_text("user") → [plan mode?] → while turns < MAX_TURNS 
 - **3x API retry with streaming fallback**: network drop → retry without streaming → retry → fail
 - **Batch history I/O**: parallel tool results appended in-memory via append_raw_nosave(), flushed once per batch to disk
 - **MAX_TURNS=100**: up from 30. Supports longer agent sessions without premature cutoff
+- **Edit failure suggestions**: [SUGGESTION] context on edit mismatch eliminates re-read turn
+- **Smart bash truncation**: 50/50 head/tail + error extraction preserves diagnostic signal from middle
+- **Token tracking**: session counters for prompt/completion tokens, displayed in ctx_bar and /stats
