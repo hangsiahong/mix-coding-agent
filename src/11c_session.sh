@@ -90,10 +90,10 @@ session_load() {
     return 1
   }
 
-  # Read session into variables via python3 (write to temp file for safety)
+  # Read session into variables via python3 (write to temp JSON for safe parsing)
   local _sess_tmp; _sess_tmp=$(mktemp -t mix-sess-load-XXXXXX)
   python3 -c '
-import json, sys, os, time
+import json, sys
 
 with open(sys.argv[1]) as f:
     s = json.load(f)
@@ -106,42 +106,41 @@ if s.get("version") != 1:
 saved_cwd = s.get("cwd", "")
 cur_cwd = sys.argv[2]
 if saved_cwd and not (cur_cwd == saved_cwd or cur_cwd.startswith(saved_cwd + "/")):
-    sys.exit(2)  # different project
+    sys.exit(2)
 
 # Age check
+import time
 ts = s.get("timestamp", 0)
 age_h = (time.time() - ts) / 3600
-if age_h > 168:  # 7 days
-    sys.exit(3)  # too old
+if age_h > 168:
+    sys.exit(3)
 
-# Serialize file_cache back to JSON string
+# Write a flat JSON with all restore fields
 fc = s.get("file_cache", {})
 if isinstance(fc, dict):
     fc = json.dumps(fc)
-
-# Write fields to temp file, one per line (safe for values with special chars)
-fields = [
-    s.get("env_info", ""),
-    str(s.get("git_enabled", False)),
-    s.get("git_branch", ""),
-    s.get("provider", "default"),
-    s.get("model", ""),
-    s.get("base_url", ""),
-    s.get("caveman_mode", "full"),
-    s.get("agent_mode", "fast"),
-    str(s.get("auto_yes", False)),
-    s.get("active_skills", ""),
-    fc,
-    s.get("file_cache_order", ""),
-    s.get("repo_map", ""),
-    s.get("repo_map_mtimes", ""),
-    str(s.get("repo_map_time", 0)),
-    s.get("last_input", ""),
-    f"{age_h:.1f}"
-]
-# Use null byte as delimiter (field separator) — safe for any content
-sys.stdout.write("\0".join(fields))
-' "$_SESSION_FILE" "$WORKDIR" > "$_sess_tmp" 2>/dev/null || {
+flat = {
+    "env_info": s.get("env_info", ""),
+    "git_enabled": str(s.get("git_enabled", False)),
+    "git_branch": s.get("git_branch", ""),
+    "provider": s.get("provider", "default"),
+    "model": s.get("model", ""),
+    "base_url": s.get("base_url", ""),
+    "caveman_mode": s.get("caveman_mode", "full"),
+    "agent_mode": s.get("agent_mode", "fast"),
+    "auto_yes": str(s.get("auto_yes", False)),
+    "active_skills": s.get("active_skills", ""),
+    "file_cache": fc,
+    "file_cache_order": s.get("file_cache_order", ""),
+    "repo_map": s.get("repo_map", ""),
+    "repo_map_mtimes": s.get("repo_map_mtimes", ""),
+    "repo_map_time": str(s.get("repo_map_time", 0)),
+    "last_input": s.get("last_input", ""),
+    "age_h": f"{age_h:.1f}"
+}
+with open(sys.argv[3], "w") as f:
+    json.dump(flat, f)
+' "$_SESSION_FILE" "$WORKDIR" "$_sess_tmp" 2>/dev/null || {
     local _rc=$?
     rm -f "$_sess_tmp"
     [ "$_rc" = "2" ] && echo "  Session from different project, skipping."
@@ -149,13 +148,25 @@ sys.stdout.write("\0".join(fields))
     return 1
   }
 
-  # Parse null-delimited output
-  local _sess_data; _sess_data=$(cat "$_sess_tmp")
+  # Parse fields from flat JSON
+  _s_env_info=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['env_info'])" 2>/dev/null)
+  _s_git_enabled=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['git_enabled'])" 2>/dev/null)
+  _s_git_branch=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['git_branch'])" 2>/dev/null)
+  _s_provider=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['provider'])" 2>/dev/null)
+  _s_model=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['model'])" 2>/dev/null)
+  _s_base_url=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['base_url'])" 2>/dev/null)
+  _s_caveman=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['caveman_mode'])" 2>/dev/null)
+  _s_agent_mode=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['agent_mode'])" 2>/dev/null)
+  _s_auto_yes=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['auto_yes'])" 2>/dev/null)
+  _s_skills=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['active_skills'])" 2>/dev/null)
+  _s_file_cache=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['file_cache'])" 2>/dev/null)
+  _s_file_cache_order=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['file_cache_order'])" 2>/dev/null)
+  _s_repo_map=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['repo_map'])" 2>/dev/null)
+  _s_repo_map_mtimes=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['repo_map_mtimes'])" 2>/dev/null)
+  _s_repo_map_time=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['repo_map_time'])" 2>/dev/null)
+  _s_last_input=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['last_input'])" 2>/dev/null)
+  _s_age_h=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['age_h'])" 2>/dev/null)
   rm -f "$_sess_tmp"
-
-  IFS=$'\0' read -r _s_env_info _s_git_enabled _s_git_branch _s_provider _s_model _s_base_url \
-    _s_caveman _s_agent_mode _s_auto_yes _s_skills _s_file_cache _s_file_cache_order \
-    _s_repo_map _s_repo_map_mtimes _s_repo_map_time _s_last_input _s_age_h <<< "$_sess_data"
 
   # Store for lazy restore (don't apply until /resume)
   _SESSION_RESTORE_ENV="$_s_env_info"
