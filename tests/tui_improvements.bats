@@ -18,9 +18,8 @@ setup() {
 @test "spinner default color is purple" {
   ACTIVE_SKILLS=""
   start_spinner "thinking"
-  # Verify PID is set
   [ -n "$_SPIN_PID" ]
-  kill "$_SPIN_PID" 2>/dev/null; wait "$_SPIN_PID" 2>/dev/null
+  { kill "$_SPIN_PID" 2>/dev/null && wait "$_SPIN_PID" 2>/dev/null; } || true
   _SPIN_PID=""
 }
 
@@ -28,7 +27,7 @@ setup() {
   ACTIVE_SKILLS=""
   start_spinner "mix (turn 1 retry 2)"
   [ -n "$_SPIN_PID" ]
-  kill "$_SPIN_PID" 2>/dev/null; wait "$_SPIN_PID" 2>/dev/null
+  { kill "$_SPIN_PID" 2>/dev/null && wait "$_SPIN_PID" 2>/dev/null; } || true
   _SPIN_PID=""
 }
 
@@ -36,7 +35,7 @@ setup() {
   ACTIVE_SKILLS=""
   start_spinner "error recovery"
   [ -n "$_SPIN_PID" ]
-  kill "$_SPIN_PID" 2>/dev/null; wait "$_SPIN_PID" 2>/dev/null
+  { kill "$_SPIN_PID" 2>/dev/null && wait "$_SPIN_PID" 2>/dev/null; } || true
   _SPIN_PID=""
 }
 
