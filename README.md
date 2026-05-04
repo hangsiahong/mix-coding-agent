@@ -118,6 +118,7 @@ Type these inside the mix prompt:
 | `/verify` | Show auto-verify status |
 | `/afk setup` | Configure Telegram notifications for long-running tasks |
 | `/reload` | Rebuild from source, version, and restart (uses versioning + health gate) |
+| `/refresh` | Invalidate repo map (forces rebuild) |
 | `/sandbox` | Show sandbox status |
 | `/sandbox on` | Enable sandbox for all bash tool calls |
 | `/sandbox off` | Disable sandbox |
