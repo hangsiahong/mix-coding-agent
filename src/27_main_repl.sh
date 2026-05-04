@@ -1,6 +1,3 @@
-# Initialize session vars
-_SESSION_AVAILABLE=false
-export _SESSION_AVAILABLE
 if [ -t 0 ]; then
   INTERACTIVE=true
 else
