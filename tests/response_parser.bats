@@ -3,6 +3,7 @@
 # Pure function: takes JSON string → returns RAW/TC/TEXT lines
 
 setup() {
+    PROJECT_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     source "$PROJECT_ROOT/src/17_response_parser.sh"
 }
 
