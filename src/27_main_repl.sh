@@ -169,7 +169,18 @@ fi
 
 while true; do
   if [ "$INTERACTIVE" = true ]; then
-    read -e -r -p $'\001\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
+    # Format skills for display: just basename, comma separated, limited length
+    _skill_status=""
+    if [ -n "$ACTIVE_SKILLS" ]; then
+      _s_names=""
+      for _s in $ACTIVE_SKILLS; do
+        _bn=$(basename "$_s" .md)
+        _s_names+="${_bn},"
+      done
+      _skill_status="\033[0;90m(${_s_names%,})\033[0m "
+    fi
+
+    read -e -r -p $'\001'"$_skill_status"$'\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
       # If interrupted by SIGINT (read returns >128 status code), just continue the loop
       if [ $? -gt 128 ]; then
         continue
