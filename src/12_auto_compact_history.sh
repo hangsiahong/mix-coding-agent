@@ -63,11 +63,15 @@ for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
 
   local summary
   summary=$(python3 -c 'import json;print(json.load(open(sys.argv[1]))["choices"][0]["message"]["content"])' "$_resp_tmp" 2>/dev/null)
-  rm -f "$_resp_tmp"
   if [ -z "$summary" ]; then
+    # Diagnostic: show raw response for debugging
+    local _raw_preview; _raw_preview=$(head -c 500 "$_resp_tmp" 2>/dev/null)
+    rm -f "$_resp_tmp"
     printf "\r\033[K  \033[0;33m↻ compact failed: empty summary\033[0m\n"
+    printf "  \033[0;90mAPI response (first 500 chars): %s\033[0m\n" "$_raw_preview"
     return
   fi
+  rm -f "$_resp_tmp"
 
   # Keep last 10 messages verbatim
   local recent
