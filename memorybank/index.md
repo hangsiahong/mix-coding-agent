@@ -27,6 +27,9 @@ Update this file after every ingest or new page created.
 | tool_feedback_system.md | Enhanced TUI tool execution system with professional icons and resilience strategies |
 | workers-and-parallelism.md | tmux workers vs subagents, limitations, source references |
 | parallel-tool-batching.md | Parallel read-only tools via batch dir, append_raw_nosave, single disk flush, TUI de-duplication |
+| edit-suggestions.md | [SUGGESTION] context on edit_file failure. Shows surrounding lines. Model self-corrects in 1 turn without re-read |
+| smart-bash-truncation.md | 50/50 head+tail + error extraction from truncated middle. [KEY ERRORS] section preserves diagnostics |
+| token-tracking.md | Session token counters (prompt/completion/calls). ctx_bar stats line. /stats REPL command |
 
 ## sources
 
