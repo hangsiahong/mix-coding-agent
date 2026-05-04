@@ -43,7 +43,7 @@ print(json.dumps(cache))
   rm -f "$_ctmp"
 
   # Update access order: remove existing entry, append to end
-  _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//')
+  _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | grep -v '^$' | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
   _FILE_CACHE_ORDER="${_FILE_CACHE_ORDER:+$_FILE_CACHE_ORDER }$_fp"
 }
 
