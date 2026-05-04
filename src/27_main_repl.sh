@@ -227,6 +227,7 @@ print(re.sub(r"\[paste _([a-zA-Z0-9_]+): [^\]]+\]", repl, out), end="")
   fi
 
   run_agent "$INPUT"
+  _LAST_INPUT="$INPUT"
   echo ""  # spacing before next prompt
 
   # Piped mode: exit after processing one task
