@@ -11,6 +11,7 @@ handle_cmd() {
     echo "  Use /help to see available commands."
     return 0
   fi
+  case "$1" in
     /paste)
       local dir="/tmp/mix-clipboard"
       mkdir -p "$dir"
