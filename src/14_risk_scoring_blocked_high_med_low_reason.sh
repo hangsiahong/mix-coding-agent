@@ -39,7 +39,7 @@ score_risk() {
     && echo "MED file-move" && return
   printf '%s' "$c" | grep -qE '\b(systemctl|service)\b.+(start|stop|restart)\b' \
     && echo "MED service-ctrl" && return
-  printf '%s' "$c_head" | grep -qE ' >[^>]' \
+  printf '%s' "$c_head" | grep -vE '>\s*/dev/null' | grep -qE ' >[^>]' \
     && ! printf '%s' "$c_head" | grep -qE '^[[:space:]]*(cat|echo|printf|ls|find)\b' \
     && echo "MED file-write" && return
   # ── LOW ────────────────────────────────────────────────────────
