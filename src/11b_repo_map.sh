@@ -141,7 +141,7 @@ ${_collapsed}"
       done
 
       if [ -n "$_pat" ]; then
-        _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -30 | sed 's/^/  /')
+        _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -20 | sed 's/^/  /')
       fi
     fi
 
