@@ -24,6 +24,7 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /models)
       if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
         ${PROVIDER}_list_models
