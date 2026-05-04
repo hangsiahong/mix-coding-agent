@@ -43,7 +43,7 @@ $out"
       | head -20) || true
     local _tail_part; _tail_part=$(printf '%s\n' "$out" | tail -n $_tail_n)
     out="$(printf '%s\n' "$out" | head -n $_head_n)
-... ($((total_lines - _head_n - _tail_n)) lines truncated. ${total_lines} total) ..."
+  ┊ ... showing first ${_head_n} + last ${_tail_n} of ${total_lines} lines ($((total_lines - _head_n - _tail_n)) omitted) ... ┊"
     if [ -n "$_middle_errors" ]; then
       out="$out
 [KEY ERRORS from truncated section:]
