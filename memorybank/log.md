@@ -196,3 +196,5 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | update our mix skill also so it know how to help user build the extension for mi
 
 ## [2026-05-04] task | commit and push
+
+## [2026-05-04] task | check the script install, help me check make sure when user install the mix, it 
