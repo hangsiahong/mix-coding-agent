@@ -82,15 +82,40 @@ ensure_path() {
 # ── Directory setup ───────────────────────────────────────────────────────────
 setup_directories() {
   local mix_dir="$HOME/.mix"
-  local skills_dir="$mix_dir/skills"
-  mkdir -p "$skills_dir"
-  ok "skill directory: $skills_dir"
+
+  # Core directories
+  mkdir -p "$mix_dir"
+  mkdir -p "$mix_dir/skills"
+  mkdir -p "$mix_dir/extensions"
+  mkdir -p "$mix_dir/providers"
+  ok "directories: $mix_dir/{skills,extensions,providers}"
+
+  # Seed global memory if missing
+  if [ ! -f "$mix_dir/memory.md" ]; then
+    printf '# Global Memory\n\n' > "$mix_dir/memory.md"
+    ok "created: memory.md"
+  fi
 
   # Download starter skill if not already present
-  local skill_file="$skills_dir/mix.md"
+  local skill_file="$mix_dir/skills/mix.md"
   if [ ! -f "$skill_file" ]; then
     if curl -fsSL "$REPO/skills/mix.md" -o "$skill_file" 2>/dev/null; then
       ok "installed skill: mix.md"
+    fi
+  else
+    # Update to latest if user allows (non-interactive: skip)
+    local _latest=""
+    _latest=$(curl -fsSL "$REPO/skills/mix.md" 2>/dev/null) || true
+    if [ -n "$_latest" ] && [ "$_latest" != "$(cat "$skill_file")" ]; then
+      if [ -t 0 ]; then
+        printf "  Update mix.md skill to latest? [Y/n] "
+        local _ans=""
+        read -r _ans </dev/tty || _ans=""
+        if [[ "$_ans" != [nN]* ]]; then
+          printf '%s' "$_latest" > "$skill_file"
+          ok "updated skill: mix.md"
+        fi
+      fi
     fi
   fi
 }
