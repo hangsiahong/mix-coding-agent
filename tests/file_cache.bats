@@ -83,8 +83,7 @@ setup() {
     file_cache_put "$_tmpfile" "to delete"
     [[ "$_FILE_CACHE" == *"to delete"* ]]
 
-    run file_cache_del "$_tmpfile"
-    [ "$status" -eq 0 ]
+    file_cache_del "$_tmpfile"
     [[ "$_FILE_CACHE" != *"to delete"* ]]
     [[ "$_FILE_CACHE_ORDER" != *"$_tmpfile"* ]]
 
