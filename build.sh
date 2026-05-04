@@ -24,6 +24,7 @@ cat \
     src/09_wiki_solutions_writer.sh \
     src/10_tools_openai_function_calling.sh \
     src/11_history.sh \
+    src/11b_repo_map.sh \
     src/12_auto_compact_history.sh \
     src/13_tool_execution.sh \
     src/14_risk_scoring_blocked_high_med_low_reason.sh \
