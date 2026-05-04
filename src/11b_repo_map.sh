@@ -79,7 +79,7 @@ build_repo_map() {
 
   local _new_mtimes=""
   local _file_count=0
-  local _token_budget=4500  # ~1500 tokens, at 3 chars/token
+  local _token_budget=4800  # ~1600 tokens, at 3 chars/token
   local _chars_used=0
 
   # File tree: collapse into top-level dirs when >60 files
