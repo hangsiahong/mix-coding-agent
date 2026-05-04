@@ -1052,7 +1052,7 @@ for i in range(len(lines)):
         if segment.rstrip()==o.rstrip():
             match_line=i+1
             break
-diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),fromfile="before (line %d)"%match_line,tofile="after",n=2))
+diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),fromfile="before (line %d)"%match_line,tofile="after",n=3))
 if not diff:
     sys.stdout.write(DIM+"    (no change)\n"+RST)
 for l in diff:
@@ -1062,6 +1062,14 @@ for l in diff:
         sys.stdout.write("    "+RED+l.rstrip()+RST+"\n")
     else:
         sys.stdout.write("    "+DIM+l.rstrip()+RST+"\n")
+# Show context lines from original file around the edit
+if match_line > 0:
+    ctx_start=max(0,match_line-2)
+    ctx_end=min(len(lines),match_line+len(old_lines)+1)
+    sys.stdout.write(DIM+"    ┄ context (lines %d-%d of %d)\n"% (ctx_start+1, ctx_end, len(lines))+RST)
+    for i in range(ctx_start, ctx_end):
+        marker = GRN+"▸"+RST if i >= match_line-1 and i < match_line-1+len(old_lines) else " "
+        sys.stdout.write("    %s %s%d: %s%s\n" % (marker, DIM, i+1, RST, lines[i]))
 ' 2>/dev/null || echo -e "    \033[0;90m(diff unavailable)\033[0m"
 }
 
@@ -1394,7 +1402,7 @@ $out"
       | head -20) || true
     local _tail_part; _tail_part=$(printf '%s\n' "$out" | tail -n $_tail_n)
     out="$(printf '%s\n' "$out" | head -n $_head_n)
-... ($((total_lines - _head_n - _tail_n)) lines truncated. ${total_lines} total) ..."
+  ┊ ... showing first ${_head_n} + last ${_tail_n} of ${total_lines} lines ($((total_lines - _head_n - _tail_n)) omitted) ... ┊"
     if [ -n "$_middle_errors" ]; then
       out="$out
 [KEY ERRORS from truncated section:]
@@ -2921,13 +2929,23 @@ if full:
         rendered_lines.append(line)
     # Count lines streamed so we can erase them
     raw_display = "".join(content)
+    # Use a safe over-count: count newlines in streamed content + header + indent lines
+    # Each streamed line has "    " prefix but wraps differently than rendered.
+    # Strategy: move up generously, clear to bottom, reprint. Over-erase is safe.
     streamed_line_count = raw_display.count("\n") + 2  # +2 for header line + last line
-    # Move cursor up and erase, then reprint
-    tty.write(f"\033[{streamed_line_count}A\033[J")
-    tty.write("  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n")
-    for rl in rendered_lines:
-        tty.write("    " + rl + "\n")
-    tty.flush()
+    # For short responses (<8 lines), skip re-render entirely — raw stream is readable
+    if streamed_line_count <= 8:
+        # Just ensure we end on a clean newline
+        tty.write("\n")
+        tty.flush()
+    else:
+        # Move up with extra margin to handle wrapping safely
+        safe_count = streamed_line_count + 4
+        tty.write(f"\033[{safe_count}A\033[J")
+        tty.write("  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n")
+        for rl in rendered_lines:
+            tty.write("    " + rl + "\n")
+        tty.flush()
 msg={"role":"assistant","content":full}
 if tcs:
     msg["tool_calls"]=[{"id":tcs[i]["id"],"type":"function",
@@ -2961,6 +2979,9 @@ start_spinner() {
   elif [[ "$ACTIVE_SKILLS" == *"security-hardener"* ]]; then color="38;5;208m" # orange
   elif [[ "$ACTIVE_SKILLS" == *"architect-evaluator"* ]]; then color="38;5;51m" # cyan
   elif [[ "$ACTIVE_SKILLS" == *"minimalist-refactor"* ]]; then color="38;5;82m" # green
+  # State-based colors: retry → orange, error recovery → red
+  elif [[ "$label" == *"retry"* ]]; then color="38;5;208m" # orange
+  elif [[ "$label" == *"error"* ]] || [[ "$label" == *"recovery"* ]]; then color="38;5;196m" # red
   fi
 
   (while :; do
@@ -3015,9 +3036,14 @@ tmux_update() {
     branch_str=" #[fg=white]|#[fg=cyan]$(git -C "$WORKDIR" branch --show-current 2>/dev/null)"
   local mode_str=""
   [ "$AGENT_MODE" != "fast" ] && mode_str=" #[fg=white]|#[fg=magenta]${AGENT_MODE}"
+  # Active tool indicator — shows if spinner is running
+  local tool_str=""
+  if [ -n "$_SPIN_PID" ] && kill -0 "$_SPIN_PID" 2>/dev/null; then
+    tool_str=" #[fg=white]|#[fg=yellow]⟳"
+  fi
   tmux set-option -gq status-right-length 100 2>/dev/null
   tmux set-option -gq status-right \
-    " #[fg=white,bold]mix#[nobold] #[fg=cyan]${MODEL}${branch_str}${mode_str} #[fg=white]| ctx ${ctx_color}${pct}%#[fg=white] #[default]" \
+    " #[fg=white,bold]mix#[nobold] #[fg=cyan]${MODEL}${branch_str}${mode_str}${tool_str} #[fg=white]| ctx ${ctx_color}${pct}%#[fg=white] #[default]" \
     2>/dev/null || true
 }
 
@@ -3081,6 +3107,7 @@ process_tc() {
       elif [ "$_risk" = "MED" ]; then
         if [ "$AUTO_YES" = "true" ]; then
           _run=true
+          [ "$silent" != "true" ] && echo -e "    \033[1;33m◈   Risk: MED  ($_reason) \033[0;90m[yolo: auto-confirmed]\033[0m"
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
         elif confirm "    Run? [Y/n] "; then
@@ -3328,11 +3355,14 @@ run_agent() {
   fi
 
   local turn=0
+  # Show context bar before first turn so user sees budget early
+  ctx_bar
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
     # Always start animated spinner (Python will kill it before streaming first token)
     start_spinner "mix (turn $turn)"
     export SPIN_PID="$_SPIN_PID"
+    tmux_update   # show ⟳ in tmux status while thinking
 
     local parsed
     local _api_attempt _api_max_retries=3
@@ -3475,6 +3505,8 @@ run_agent() {
       done
 
       rm -rf "$_batch_dir"
+      # Turn progress indicator — shows where we are in the agent loop
+      echo -e "    \033[0;90m⤷ turn $turn · $_TOOLS_USED tools · ~$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) / 1000 ))k tokens\033[0m"
       # Loop continues — model will see tool results and respond
     elif [ -n "$text_line" ]; then
       # streaming already printed content live to /dev/tty; skip reprint
@@ -3794,9 +3826,18 @@ handle_cmd() {
       _ext_list
       ;;
     /help)
-      echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  testing: /test [init|generate|run|coverage]  — /test init to scaffold from scratch"
-      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /resume  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /config  /ext [load|unload|create|reload|list]  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo -e "  \033[1;37m─── mix commands ───\033[0m"
+      echo ""
+      echo -e "  \033[1;36mSession\033[0m    /flush  /resume  /refresh  /cache [clear]  /stats  /history"
+      echo -e "  \033[1;36mSafety\033[0m     /undo  /stash  /yolo  /verify [on|off]"
+      echo -e "  \033[1;36mConfig\033[0m     /model [id]  /models  /provider [name|login|models|default]  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /config"
+      echo -e "  \033[1;36mCavekit\033[0m    /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
+      echo -e "  \033[1;36mTesting\033[0m    /test [init|generate|run|coverage]"
+      echo -e "  \033[1;36mWorkers\033[0m    /worker <name> <cmd>  /subagent <name> <task>  /workers  /afk [hint|log|stop|setup|apply]"
+      echo -e "  \033[1;36mSkills\033[0m     /skill <name>  /skills  /ext [load|unload|create|reload|list]"
+      echo ""
+      echo -e "  \033[0;90mShortcuts:  Tab=autocomplete  Ctrl+E=editor  Ctrl+V=paste\033[0m"
+      echo -e "  \033[0;90mPiped mode: echo \"task\" | mix\033[0m"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -4921,6 +4962,7 @@ else
   echo -e "    \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
 fi
 echo -e "    \033[0;90mcommands: /flush /refresh /compact /model [id] /models /caveman /mode /yolo /workers /exit\033[0m"
+echo -e "    \033[0;90mshortcuts: Tab=complete  Ctrl+E=editor  Ctrl+V=paste  /help=all commands\033[0m"
 echo ""
 
 # tmux: rename window + initial status bar
@@ -4969,6 +5011,37 @@ if [ "$INTERACTIVE" = true ]; then
       sfiles+=("clear")
       for s in "${sfiles[@]}"; do
         [[ "$s" == "$word"* ]] && matches+=("$s")
+      done
+    elif [[ "$pre" == "/provider "* ]]; then
+      local _pnames; _pnames=$(_list_providers 2>/dev/null)
+      _pnames+=" default"
+      while IFS= read -r _pn; do
+        [ -n "$_pn" ] && [[ "$_pn" == "$word"* ]] && matches+=("$_pn")
+      done <<< "$_pnames"
+    elif [[ "$pre" == "/ext "* ]]; then
+      local _ext_words="load unload create reload list"
+      for _ew in $_ext_words; do
+        [[ "$_ew" == "$word"* ]] && matches+=("$_ew")
+      done
+    elif [[ "$pre" == "/ext load "* ]] || [[ "$pre" == "/ext unload "* ]]; then
+      local _enames=""
+      for f in ~/.mix/extensions/*.sh .mix/extensions/*.sh; do
+        [ -f "$f" ] && _enames+="$(basename "$f" .sh) "
+      done
+      for _en in $_enames; do
+        [[ "$_en" == "$word"* ]] && matches+=("$_en")
+      done
+    elif [[ "$pre" == "/caveman "* ]]; then
+      for _cm in off lite full ultra; do
+        [[ "$_cm" == "$word"* ]] && matches+=("$_cm")
+      done
+    elif [[ "$pre" == "/mode "* ]]; then
+      for _mm in fast deep plan; do
+        [[ "$_mm" == "$word"* ]] && matches+=("$_mm")
+      done
+    elif [[ "$pre" == "/verify "* ]]; then
+      for _vm in on off; do
+        [[ "$_vm" == "$word"* ]] && matches+=("$_vm")
       done
     elif [[ "$word" == @* ]]; then
       local q="${word#@}"
@@ -5163,6 +5236,8 @@ print(re.sub(r"\[paste _([a-zA-Z0-9_]+): [^\]]+\]", repl, out), end="")
   run_agent "$INPUT"
   _LAST_INPUT="$INPUT"
   echo ""  # spacing before next prompt
+  echo -e "  \033[0;90m───────────────────────────────────────────────────\033[0m"  # turn separator
+  echo ""
 
   # Piped mode: exit after processing one task
   [ "$INTERACTIVE" = false ] && break

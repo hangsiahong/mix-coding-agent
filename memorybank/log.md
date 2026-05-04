@@ -204,3 +204,7 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 ## [2026-05-04] task | merge this to master
 
 ## [2026-05-04] task | /home/jiren/.local/bin/mix: line 1119: session_hint: command not found
+
+## [2026-05-04] task | reasoning with yourself about mix-coding-agent
+
+## [2026-05-04] task | check for tui improvement, and tell me what should we improve on?
