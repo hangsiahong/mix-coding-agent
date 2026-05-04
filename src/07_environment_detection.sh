@@ -23,6 +23,10 @@ detect_env() {
   elif [ -f "$WORKDIR/pytest.ini" ] || [ -f "$WORKDIR/conftest.py" ] || [ -f "$WORKDIR/setup.cfg" ]; then
     TEST_CMD="pytest"; info+=" tests(pytest)"
   fi
+  # Linter/tool detection (for auto-verify)
+  command -v shellcheck >/dev/null 2>&1 && info+=" shellcheck"
+  command -v ruff >/dev/null 2>&1 && info+=" ruff"
+  command -v mypy >/dev/null 2>&1 && info+=" mypy"
   ENV_INFO="${info# }"  # trim leading space
 }
 detect_env
