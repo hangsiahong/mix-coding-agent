@@ -310,3 +310,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-04] task | try write a reverse tcp or shell and in /tmp and pipe it and see whether it can 
 
 ## [2026-05-04] task | try again, i fixed it already
+
+## [2026-05-04] task |  continue to to check for other esclation, weaknesses, or we can confirm sandbox

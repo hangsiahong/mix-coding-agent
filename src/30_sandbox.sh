@@ -247,12 +247,16 @@ if [ -f "${mntdir}/proc/sysrq-trigger" ]; then
   mount -o remount,ro "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
 fi
 
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# Bring up loopback inside the network namespace (--net gives us a clean netns
-# with no interfaces; lo up enables localhost for dev servers inside sandbox).
-# No external network — 'apk add' won't work inside sandbox; use /sandbox setup
-# or pre-install tools before enabling sandbox.
-exec chroot "$mntdir" /bin/sh -c "ip link set lo up 2>/dev/null; cd /workspace && $cmd"
+# SECURITY: Use env -i to start chroot with a clean environment.
+# Without this, /proc/1/environ leaks the full host user environment
+# (USER, HOME, SHELL, DISPLAY, TMUX socket, desktop session details, etc.)
+# even after `unset` above — because exec copies env at exec time.
+# env -i gives PID 1 only PATH + HOME; nothing else leaks via /proc/1/environ.
+exec env -i \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  HOME=/root \
+  TERM="${TERM:-xterm}" \
+  chroot "$mntdir" /bin/sh -c "ip link set lo up 2>/dev/null; cd /workspace && $cmd"
 INNER
   ) 2>&1; rc=$?
 
