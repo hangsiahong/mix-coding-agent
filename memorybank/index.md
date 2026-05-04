@@ -9,7 +9,7 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
-| architecture.md | Full component map: 29 source files, 2735 lines, data flow, key design decisions |
+| architecture.md | Full component map: 38 source files, ~5240 lines, data flow, key design decisions |
 | why-minimal.md | Defense of minimal claim: zero framework, line budget breakdown, dependency comparison |
 | security.md | Security posture: all 4 critical audit issues resolved, risk scoring system, known limitations |
 | tools-reference.md | 7 tools (bash/read/edit/create/list/search/global_memory), 4-strategy edit_file, parallel batching for read-only tools, processing pipeline |
