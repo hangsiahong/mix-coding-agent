@@ -12,15 +12,41 @@ trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 
 # ─── Autocomplete ─────────────────────────────────────────────
 
 if [ "$INTERACTIVE" = true ]; then
+  _TAB_IDX=0
+  _TAB_LAST_WORD=""
+  _TAB_LAST_PRE=""
+  _TAB_STATE_FILE=$(mktemp -t mix-tab-XXXXXX 2>/dev/null) || _TAB_STATE_FILE="/tmp/mix-tab-$$"
+  printf '%s\n' "0" "" "" "" > "$_TAB_STATE_FILE"
+
   _mix_bind_tab() {
     local cur="${READLINE_LINE:0:$READLINE_POINT}"
     local word="${cur##* }"
     local pre="${cur:0:$((READLINE_POINT - ${#word}))}"
     local matches=()
 
-    if [[ "$word" == /* ]]; then
+    # Tab cycle state — 4 lines: idx | original_query | last_filled | pre
+    # Stored in file because bind -x may run in subshell (globals unreliable)
+    local _tidx=0 _tquery="" _tcand="" _tpre=""
+    if [ -f "$_TAB_STATE_FILE" ]; then
+      { IFS= read -r _tidx; IFS= read -r _tquery; IFS= read -r _tcand; IFS= read -r _tpre; } < "$_TAB_STATE_FILE"
+    fi
+    _tidx="${_tidx:-0}"
+
+    # Determine if we're continuing a cycle or starting fresh.
+    # Continuing: the current readline word equals the last filled candidate,
+    # and pre hasn't changed. This means user just pressed Tab again without typing.
+    local match_word="$word"
+    if [[ "$_tcand" == "$word" && "$_tpre" == "$pre" && -n "$_tquery" ]]; then
+      match_word="$_tquery"   # rebuild matches against the original query
+    else
+      # User typed something new — reset cycle state
+      _tidx=0; _tquery="$word"; _tcand=""; _tpre="$pre"
+      match_word="$word"
+    fi
+
+    if [[ "$match_word" == /* ]]; then
         for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/sandbox" "/sandbox install" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
-        [[ "$c" == "$word"* ]] && matches+=("$c")
+        [[ "$c" == "$match_word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
       local sfiles=()
@@ -32,18 +58,18 @@ if [ "$INTERACTIVE" = true ]; then
       fi
       sfiles+=("clear")
       for s in "${sfiles[@]}"; do
-        [[ "$s" == "$word"* ]] && matches+=("$s")
+        [[ "$s" == "$match_word"* ]] && matches+=("$s")
       done
     elif [[ "$pre" == "/provider "* ]]; then
       local _pnames; _pnames=$(_list_providers 2>/dev/null)
       _pnames+=" default"
       while IFS= read -r _pn; do
-        [ -n "$_pn" ] && [[ "$_pn" == "$word"* ]] && matches+=("$_pn")
+        [ -n "$_pn" ] && [[ "$_pn" == "$match_word"* ]] && matches+=("$_pn")
       done <<< "$_pnames"
     elif [[ "$pre" == "/ext "* ]]; then
       local _ext_words="load unload create reload list"
       for _ew in $_ext_words; do
-        [[ "$_ew" == "$word"* ]] && matches+=("$_ew")
+        [[ "$_ew" == "$match_word"* ]] && matches+=("$_ew")
       done
     elif [[ "$pre" == "/ext load "* ]] || [[ "$pre" == "/ext unload "* ]]; then
       local _enames=""
@@ -51,22 +77,27 @@ if [ "$INTERACTIVE" = true ]; then
         [ -f "$f" ] && _enames+="$(basename "$f" .sh) "
       done
       for _en in $_enames; do
-        [[ "$_en" == "$word"* ]] && matches+=("$_en")
+        [[ "$_en" == "$match_word"* ]] && matches+=("$_en")
       done
     elif [[ "$pre" == "/caveman "* ]]; then
       for _cm in off lite full ultra; do
-        [[ "$_cm" == "$word"* ]] && matches+=("$_cm")
+        [[ "$_cm" == "$match_word"* ]] && matches+=("$_cm")
       done
     elif [[ "$pre" == "/mode "* ]]; then
       for _mm in fast deep plan; do
-        [[ "$_mm" == "$word"* ]] && matches+=("$_mm")
+        [[ "$_mm" == "$match_word"* ]] && matches+=("$_mm")
       done
     elif [[ "$pre" == "/verify "* ]]; then
       for _vm in on off; do
-        [[ "$_vm" == "$word"* ]] && matches+=("$_vm")
+        [[ "$_vm" == "$match_word"* ]] && matches+=("$_vm")
       done
-    elif [[ "$word" == @* ]]; then
-      local q="${word#@}"
+    elif [[ "$match_word" == @* ]]; then
+      local q="${match_word#@}"
+
+      # Special context shortcuts — always offered when query matches
+      for _ctx in "git:diff" "git:log" "git:status" "memory"; do
+        [[ "$_ctx" == "$q"* ]] && matches+=("@$_ctx")
+      done
 
       # If the query itself starts with a dot, allow matching dotfiles. Otherwise hide them.
       local dotfile_filter
@@ -86,24 +117,144 @@ if [ "$INTERACTIVE" = true ]; then
     fi
 
     if (( ${#matches[@]} == 1 )); then
+      # Single match — reset cycle state, fill with trailing space (or / for dirs)
       local new_word="${matches[0]}"
-
-      # Determine if a directory to add suffix
-      # We check the raw path by removing @ if present
       local raw_path="${new_word#@}"
-      if [[ -d "$raw_path" && ! "$raw_path" == */ ]]; then
+      if [[ -d "$raw_path" && ! "$new_word" == */ ]]; then
         new_word="$new_word/"
       elif [[ ! "$new_word" == */ ]]; then
         new_word="$new_word "
       fi
-
+      printf '%s\n' "0" "" "" "" > "$_TAB_STATE_FILE"
       READLINE_LINE="${pre}${new_word}${READLINE_LINE:$READLINE_POINT}"
       READLINE_POINT=$((${#pre} + ${#new_word}))
     elif (( ${#matches[@]} > 1 )); then
+      # ── Step 1: try to extend to the longest common prefix ────────────
+      local common="${matches[0]}"
+      for m in "${matches[@]:1}"; do
+        local new_common=""
+        local i=0
+        while (( i < ${#common} && i < ${#m} )) && [[ "${common:$i:1}" == "${m:$i:1}" ]]; do
+          new_common+="${common:$i:1}"
+          (( i++ )) || true
+        done
+        common="$new_common"
+      done
+      # If common prefix is longer than what's typed, fill it in and save it as new query
+      if [[ ${#common} -gt ${#match_word} ]]; then
+        READLINE_LINE="${pre}${common}${READLINE_LINE:$READLINE_POINT}"
+        READLINE_POINT=$((${#pre} + ${#common}))
+        # Save common as both query AND candidate — next Tab will continue cycling from here
+        printf '%s\n' "0" "$common" "$common" "$pre" > "$_TAB_STATE_FILE"
+        return 0
+      fi
+
+      # ── Step 2: no more common prefix — show menu first, then cycle ────
+      if (( _tidx == 0 )); then
+        # First Tab on this set of matches: show menu, next Tab fills first match
+        printf '%s\n' "1" "$_tquery" "$_tquery" "$pre" > "$_TAB_STATE_FILE"
+        # fall through to menu display below
+      else
+        # Subsequent Tabs: fill match[_tidx-1]
+        local cand="${matches[$(( _tidx - 1 ))]}"
+        local raw_path="${cand#@}"
+        if [[ -d "$raw_path" && ! "$cand" == */ ]]; then cand="$cand/"; fi
+        READLINE_LINE="${pre}${cand}${READLINE_LINE:$READLINE_POINT}"
+        READLINE_POINT=$((${#pre} + ${#cand}))
+        # When last match filled, wrap to 0 so next Tab shows menu again
+        local next_tidx=$(( _tidx < ${#matches[@]} ? _tidx + 1 : 0 ))
+        printf '%s\n' "$next_tidx" "$_tquery" "$cand" "$pre" > "$_TAB_STATE_FILE"
+        return 0
+      fi
+
       echo ""
-      # Print nicely formatted
-      printf "%s\t" "${matches[@]}"
-      echo ""
+      if [[ "${matches[0]}" == /* ]]; then
+        # ── Slash command menu ─────────────────────────────────────────
+        declare -A _cmd_desc=(
+          ["/flush"]="clear history"          ["/undo"]="undo last edit"
+          ["/stash"]="stash/pop context"      ["/stats"]="token + cost stats"
+          ["/refresh"]="rebuild repo map"     ["/resume"]="reload last session"
+          ["/cache"]="show file cache"        ["/verify"]="auto-verify on/off"
+          ["/model"]="switch model"           ["/provider"]="switch provider"
+          ["/history"]="show history"         ["/caveman"]="caveman mode"
+          ["/mode"]="fast/deep/plan"          ["/yolo"]="toggle auto-confirm"
+          ["/config"]="show config"           ["/ext"]="manage extensions"
+          ["/workers"]="list workers"         ["/worker"]="spawn worker"
+          ["/subagent"]="run subagent"        ["/skill"]="load skill"
+          ["/skills"]="list skills"           ["/sandbox"]="sandbox control"
+          ["/sandbox install"]="  ↳ install pkg into sandbox"
+          ["/spec"]="spec-driven dev"        ["/build"]="run build tasks"
+          ["/check"]="check spec"            ["/test"]="run tests"
+          ["/help"]="all commands"           ["/exit"]="quit"
+        )
+        local _bar="────────────────────────────────────────────────────"
+        echo -e "  \033[0;90m┌─ commands ${_bar:0:41}┐\033[0m"
+        for m in "${matches[@]}"; do
+          local desc="${_cmd_desc[$m]:-}"
+          # indent sub-commands (those with spaces like "/sandbox install")
+          if [[ "$m" == *" "* ]]; then
+            printf "  \033[0;90m│\033[0m  \033[0;90m%-26s %s\033[0m\n" "$m" "$desc"
+          else
+            printf "  \033[0;90m│\033[0m  \033[1;37m%-26s\033[0m \033[0;90m%s\033[0m\n" "$m" "$desc"
+          fi
+        done
+        echo -e "  \033[0;90m└─${_bar:0:50}┘\033[0m"
+      elif [[ "${matches[0]}" == @* ]]; then
+        # ── File/context menu ──────────────────────────────────────────
+        # Separate special shortcuts from regular files
+        local special=() regular=()
+        for m in "${matches[@]}"; do
+          local raw="${m#@}"
+          if [[ "$raw" == git:* || "$raw" == "memory" ]]; then
+            special+=("$m")
+          else
+            regular+=("$m")
+          fi
+        done
+        local _bar="────────────────────────────────────────────────────"
+        echo -e "  \033[0;90m┌─ context + files ${_bar:0:34}┐\033[0m"
+        # Special shortcuts section
+        if (( ${#special[@]} > 0 )); then
+          echo -e "  \033[0;90m│  context shortcuts:\033[0m"
+          for m in "${special[@]}"; do
+            local raw="${m#@}"
+            local sdesc=""
+            case "$raw" in
+              git:diff)   sdesc="staged + unstaged changes" ;;
+              git:log)    sdesc="recent commit history" ;;
+              git:status) sdesc="working tree status" ;;
+              memory)     sdesc="global agent memory" ;;
+            esac
+            printf "  \033[0;90m│\033[0m  \033[1;33m%-22s\033[0m \033[0;90m%s\033[0m\n" "$m" "$sdesc"
+          done
+          (( ${#regular[@]} > 0 )) && echo -e "  \033[0;90m│  files:\033[0m"
+        fi
+        # Regular files — 2-column layout
+        local col_w=26 cols=2 i=0
+        for m in "${regular[@]}"; do
+          local raw="${m#@}"
+          local label
+          if [[ -d "$raw" ]]; then
+            label="\033[1;34m${m}/\033[0m"
+          else
+            # dim directories in path, highlight filename
+            local dir part; dir=$(dirname "$raw"); part=$(basename "$raw")
+            if [[ "$dir" == "." ]]; then
+              label="\033[0;37m${m}\033[0m"
+            else
+              label="\033[0;90m@${dir}/\033[0m\033[0;37m${part}\033[0m"
+            fi
+          fi
+          if (( i % cols == 0 )); then printf "  \033[0;90m│\033[0m  "; fi
+          printf "%-$((col_w + 20))b" "$label"
+          (( i++ )) || true
+          (( i % cols == 0 )) && echo ""
+        done
+        (( i % cols != 0 )) && echo ""
+        echo -e "  \033[0;90m└─${_bar:0:50}┘\033[0m"
+      else
+        printf "  %s\n" "${matches[@]}"
+      fi
     fi
   }
 
@@ -247,6 +398,27 @@ while true; do
   fi
 
   if handle_cmd "$INPUT"; then continue; fi
+
+  # Expand @context shortcuts before sending to LLM
+  # @git:diff, @git:log, @git:status → inline content block
+  # @memory → inject ~/.mix/memory.md
+  if [[ "$INPUT" == *"@git:diff"* ]]; then
+    local _gd; _gd=$(cd "${WORKDIR:-$PWD}" && git diff 2>/dev/null | head -200) || _gd="(no diff)"
+    INPUT="${INPUT//@git:diff/$'\n```diff\n'"${_gd}"$'\n```'}"
+  fi
+  if [[ "$INPUT" == *"@git:log"* ]]; then
+    local _gl; _gl=$(cd "${WORKDIR:-$PWD}" && git log --oneline -20 2>/dev/null) || _gl="(no log)"
+    INPUT="${INPUT//@git:log/$'\n```\n'"${_gl}"$'\n```'}"
+  fi
+  if [[ "$INPUT" == *"@git:status"* ]]; then
+    local _gs; _gs=$(cd "${WORKDIR:-$PWD}" && git status 2>/dev/null) || _gs="(no status)"
+    INPUT="${INPUT//@git:status/$'\n```\n'"${_gs}"$'\n```'}"
+  fi
+  if [[ "$INPUT" == *"@memory"* ]]; then
+    local _gm_file="${HOME}/.mix/memory.md"
+    local _gm_content; _gm_content=$([ -f "$_gm_file" ] && cat "$_gm_file" || echo "(memory empty)")
+    INPUT="${INPUT//@memory/$'\n```\n'"${_gm_content}"$'\n```'}"
+  fi
 
   # Resolve paste tokens back to full text before sending to LLM
   if [[ "$INPUT" == *"[paste _"* ]]; then

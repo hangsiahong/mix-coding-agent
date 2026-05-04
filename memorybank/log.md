@@ -328,3 +328,9 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | diff it and see what is it and understood and then commit and push it
 
 ## [2026-05-05] task | try again one more time
+
+## [2026-05-05] task | you already commit and push?
+
+## [2026-05-05] task | mix coding agent build it tho, you know like the say, who born first, egg or hen
+
+## [2026-05-05] task | you dont understand, im talking about, when we build the first prototype of the 
