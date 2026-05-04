@@ -367,3 +367,13 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | commit and push
 
 ## [2026-05-05] task | is our global memory is working
+
+## [2025-06-10] feature | Versioned Builds + Self-Heal System (8 tasks, all complete)
+- `--self-test` flag: checks python3+curl, prints OK/FAIL
+- Versioned binary storage: `~/.mix/versions/<epoch>.bin` + `current`/`last_good` symlinks
+- Thin wrapper: `~/.local/bin/mix` (~30 lines), health-checks current (3s), falls back to last_good --doctor
+- `build.sh` rewrite: injects MIX_VERSION, health gate, rotate symlinks, auto-prune (keep 5)
+- `--doctor` mode: crash log excerpt + repair hints
+- `/reload` integration: rebuilds via build.sh, detects self-test failures
+- `install.sh` update: 4-stage pipeline (download → health_check → version_install → install_wrapper)
+- Pushed to origin/refactor.
