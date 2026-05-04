@@ -65,6 +65,21 @@ Every tool call goes through:
 - Write tools (`bash`, `edit_file`, `create_file`) remain sequential after parallel batch finishes.
 - Sequential tools use `silent` flag to skip redundant UI output when part of a multi-tool turn.
 
+## Edit Failure Suggestions (src/13_tool_execution.sh)
+
+When `edit_file` fails, inline Python `suggest_context()` returns surrounding context in the error:
+- **old_text not found**: searches for first line in file, shows 5 surrounding lines with line numbers. Falls back to first 5 lines of file.
+- **old_text not unique**: shows all match locations (up to 3) with surrounding lines.
+- `[SUGGESTION]` prefix in tool result. Model self-corrects in 1 turn without separate `read_file`.
+- Purple `💡 suggestion:` indicator in TUI (src/22_process_one_tool_call.sh).
+- **Key bug**: `suggest_context()` must be defined before calls in inline Python (Python executes `def` at runtime).
+
+## Smart Bash Truncation (src/08_self_healing_bash_wrapper.sh)
+
+Large bash outputs (>200 lines) truncated with **50/50 head+tail** + error extraction from middle:
+- `grep -iE '(error|fail|warn|exception|fatal|traceback)'` from truncated section, capped at 20 lines.
+- `[KEY ERRORS from truncated section]` section preserves diagnostic signal.
+
 ## Repo Map (src/11b_repo_map.sh)
 
 **The single highest-impact feature.** Generates a compressed structural map of the codebase injected into every system prompt.
