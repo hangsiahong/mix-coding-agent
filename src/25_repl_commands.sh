@@ -3,7 +3,12 @@ handle_cmd() {
   # Extensions get first crack at commands
   _ext_dispatch_cmd "$1" && return 0
 
-  case "$1" in
+  # Catch-all: check if it looks like a slash command but not matched
+  if [[ "$1" == /* ]]; then
+    echo -e "  \033[1;31m✗ Unknown command:\033[0m $1"
+    echo "  Use /help to see available commands."
+    return 0
+  fi
     /paste)
       local dir="/tmp/mix-clipboard"
       mkdir -p "$dir"
