@@ -14,7 +14,7 @@ t=json.loads(sys.stdin.readline())
 h=json.loads(sys.stdin.readline())
 m=sys.stdin.readline().strip()
 msg=[{"role":"system","content":s}]+h
-print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True}))
+print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True,"stream_options":{"include_usage":True}}))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
   # Resolve API key — provider may override
@@ -58,6 +58,7 @@ tcs={}
 first=True
 is_done=False
 was_interrupted=False
+usage={}
 
 def kill_spinner():
     spin_pid = os.environ.get("SPIN_PID")
@@ -82,6 +83,7 @@ try:
                 break
             try: obj=json.loads(d)
             except: continue
+            if obj.get("usage"): usage=obj["usage"]
             ch=obj.get("choices",[{}])[0]
             delta=ch.get("delta",{})
             tok=delta.get("content") or ""
@@ -203,6 +205,8 @@ if full:
     sys.stdout.write("TEXT:"+full+"\n")
 elif not tcs:
     sys.stdout.write("TEXT:(empty)\n")
+if usage:
+    sys.stdout.write("USAGE:"+str(usage.get("prompt_tokens",0))+":"+str(usage.get("completion_tokens",0))+"\n")
 sys.stdout.flush()
 ' <<< "$payload" > "$tmp_out"
 
