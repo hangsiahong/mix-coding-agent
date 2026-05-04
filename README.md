@@ -216,3 +216,23 @@ src/
 ├── 29_telegram.sh            # Telegram notification integration
 └── providers/copilot.sh      # GitHub Copilot provider
 ```
+
+## How It Grew
+
+It started with a simple idea: a minimal terminal coding agent, one bash script, under 400 lines. Just enough to talk to an LLM, run some tools, edit some files. Clean. Small. Done by lunch.
+
+Then we finished the first working version and started actually *using* it. And we made the mistake of asking it to improve itself.
+
+Mix couldn't stop.
+
+"Hey, add a repo map." 400 lines → 800. "Auto-verify edits." 800 → 1200. "What about session persistence?" 1200 → 1800. "Extensions would be nice." 1800 → 2600. "Can it run tests?" 2600 → 3400. "Self-healing bash?" "Streaming?" "Tab completion?" "Copilot provider?" Each feature sounded small. Each one wasn't.
+
+We'd tell it to stop. It would — for about five minutes. Then we'd hit a friction point and think "this would be way easier if..." and suddenly there's another 300 lines and a whole subsystem nobody planned for.
+
+The memorybank. The spec-driven build system. The paste manager. The file cache that survives compaction. The extension hooks. The risk scoring. Telegram notifications for when a long task finishes. None of these were in the original plan. All of them felt obvious *in hindsight*.
+
+Now it's ~4700 lines. A single bash file. No modules, no imports, just `cat src/*.sh > mix` and pray the load-bearing concatenation order is correct. And somehow it works.
+
+I know I shouldn't have done it like this.
+
+But here we are.
