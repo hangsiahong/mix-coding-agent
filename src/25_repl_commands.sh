@@ -237,10 +237,38 @@ handle_cmd() {
         *) echo "  Unknown. Use: fast deep plan" ;;
       esac
       ;;
+    /ext)
+      if [ -z "$_MIX_EXTENSIONS_LOADED" ]; then
+        echo -e "  \033[0;90mNo extensions loaded.\033[0m"
+        echo "  Usage: /ext load <name>   /ext unload <name>   /ext create <name>   /ext reload   /ext list"
+        echo "  Drop .sh files in ~/.mix/extensions/ or .mix/extensions/"
+      else
+        echo -e "  \033[1;37mExtensions:\033[0m"
+        _ext_list
+      fi
+      ;;
+    /ext\ load\ *)
+      local _ename="${1#/ext load }"
+      _ext_load_one "$_ename"
+      ;;
+    /ext\ unload\ *)
+      local _ename="${1#/ext unload }"
+      _ext_unload "$_ename"
+      ;;
+    /ext\ create\ *)
+      local _ename="${1#/ext create }"
+      _ext_create "$_ename"
+      ;;
+    /ext\ reload)
+      _ext_reload
+      ;;
+    /ext\ list)
+      _ext_list
+      ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
       echo "  testing: /test [init|generate|run|coverage]  — /test init to scaffold from scratch"
-      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /resume  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /config  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /resume  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /config  /ext [load|unload|create|reload|list]  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
