@@ -57,6 +57,7 @@ process_tc() {
       elif [ "$_risk" = "MED" ]; then
         if [ "$AUTO_YES" = "true" ]; then
           _run=true
+          [ "$silent" != "true" ] && echo -e "    \033[1;33m◈   Risk: MED  ($_reason) \033[0;90m[yolo: auto-confirmed]\033[0m"
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
         elif confirm "    Run? [Y/n] "; then
