@@ -3,6 +3,8 @@
 
 setup() {
   load test_helper
+  INTERACTIVE=false
+  export INTERACTIVE
   source "$PROJECT_ROOT/src/19_spinner_background_process.sh"
   source "$PROJECT_ROOT/src/20_context_window_bar.sh"
   source "$PROJECT_ROOT/src/21_tmux_status_updater.sh"
