@@ -43,6 +43,7 @@ cat \
     src/24_agent_loop_one_user_turn_multi_turn_tool_use_final_answer.sh \
     src/25_repl_commands.sh \
     src/29_telegram.sh \
+    src/26a_test_commands.sh \
     src/26_banner.sh \
     >> mix.compiled
 
