@@ -106,3 +106,5 @@ Types: `ingest` `query` `lint` `task`
 
 ## [2026-05-04] task | okay continue
 ## [2026-05-04] feature | File Content Cache — session-scoped cache surviving compaction
+
+## [2026-05-04] task | after everything we know about mix coding agent, what is the one things that we 

@@ -487,6 +487,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 ## TASK RULES
 - Brief explanation, then act. No throat-clearing.
 - Tool succeeded → move on. No repeats.
+- After edit_file/create_file: auto-verify runs syntax+lint+typecheck. [VERIFY: FAILED] in result = fix before proceeding. Don't ignore verify failures.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.
 - After completing a non-trivial task (bug fix, new feature, architecture decision), proactively write findings to memorybank/solutions/ and update memorybank/log.md if they exist. Don't wait to be asked.
 - If history is getting long, proactively save key findings to memorybank before they get compacted away.
@@ -722,6 +723,10 @@ detect_env() {
   elif [ -f "$WORKDIR/pytest.ini" ] || [ -f "$WORKDIR/conftest.py" ] || [ -f "$WORKDIR/setup.cfg" ]; then
     TEST_CMD="pytest"; info+=" tests(pytest)"
   fi
+  # Linter/tool detection (for auto-verify)
+  command -v shellcheck >/dev/null 2>&1 && info+=" shellcheck"
+  command -v ruff >/dev/null 2>&1 && info+=" ruff"
+  command -v mypy >/dev/null 2>&1 && info+=" mypy"
   ENV_INFO="${info# }"  # trim leading space
 }
 detect_env
@@ -1481,6 +1486,9 @@ print('Error: old_text not found in '+p)
       if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
         local _new_content; _new_content=$(cat "$path" 2>/dev/null) || true
         [ -n "$_new_content" ] && file_cache_put "$path" "$_new_content" 2>/dev/null || true
+        # Auto-verify: syntax/lint/typecheck
+        local _vout; _vout=$(auto_verify "$path" 2>/dev/null) || true
+        [ -n "$_vout" ] && result+="$_vout"
       fi
       ;;
     list_files)
@@ -1507,6 +1515,9 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
         _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
         _cfc=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["content"])' 2>/dev/null)
         [ -n "$_cfp" ] && [ -n "$_cfc" ] && file_cache_put "$_cfp" "$_cfc" 2>/dev/null || true
+        # Auto-verify: syntax/lint/typecheck
+        local _vout; _vout=$(auto_verify "$_cfp" 2>/dev/null) || true
+        [ -n "$_vout" ] && result+="$_vout"
       fi
       ;;
     search_files)
@@ -1566,6 +1577,207 @@ print("Global memory updated.")
   printf '%s' "$result"
 }
 
+# ─── Auto-Verify (post-edit verification) ────────────────────────────────────
+# After edit_file/create_file succeeds, auto-run verification:
+#   1. Syntax check (file-type specific, fast)
+#   2. Type check (if typechecker available)
+#   3. Lint (if linter configured)
+#   4. Tests (if test runner detected + file is in test scope)
+#
+# Results appended to tool result so model sees them immediately.
+# Controlled by AUTO_VERIFY env var (default: on).
+# Toggle: /verify [on|off] in REPL.
+
+AUTO_VERIFY="${AUTO_VERIFY:-on}"
+
+# Map file extension → verification commands
+# Returns: lines of "CHECK|<label>|<command>" or empty
+_get_verify_cmds() {
+  local file="$1"
+  local ext="${file##*.}"
+  local base="${file##*/}"
+
+  case "$ext" in
+    sh|bash)
+      # shellcheck (static analysis)
+      command -v shellcheck >/dev/null 2>&1 && echo "CHECK|shellcheck|shellcheck -f gcc -S warning '$file' 2>&1 | head -20"
+      # bash -n (syntax check)
+      echo "CHECK|syntax|bash -n '$file' 2>&1"
+      ;;
+    py)
+      # python syntax check
+      echo "CHECK|syntax|python3 -c 'import py_compile; py_compile.compile(\"$file\", doraise=True)' 2>&1"
+      # ruff (fast linter)
+      command -v ruff >/dev/null 2>&1 && echo "CHECK|ruff|ruff check '$file' 2>&1 | head -20"
+      # mypy (type check) — only if mypy.ini or pyproject.toml config exists
+      if [ -f "$WORKDIR/mypy.ini" ] || [ -f "$WORKDIR/pyproject.toml" ]; then
+        command -v mypy >/dev/null 2>&1 && echo "CHECK|mypy|mypy '$file' --no-error-summary 2>&1 | head -15"
+      fi
+      ;;
+    js|ts|jsx|tsx)
+      local _has_node=true
+      command -v node >/dev/null 2>&1 || _has_node=false
+      # Syntax check via node --check (JS only)
+      if [ "$_has_node" = true ] && [ "$ext" = "js" ]; then
+        echo "CHECK|syntax|node --check '$file' 2>&1"
+      fi
+      # ESLint if available
+      if [ -f "$WORKDIR/node_modules/.bin/eslint" ]; then
+        echo "CHECK|eslint|node_modules/.bin/eslint --no-error-on-unmatched-pattern '$file' 2>&1 | head -20"
+      fi
+      # TypeScript: tsc --noEmit for .ts/.tsx
+      if [ "$ext" = "ts" ] || [ "$ext" = "tsx" ]; then
+        if [ -f "$WORKDIR/node_modules/.bin/tsc" ]; then
+          echo "CHECK|tsc|node_modules/.bin/tsc --noEmit --pretty false 2>&1 | grep -F '$file' | head -15"
+        fi
+      fi
+      ;;
+    rs)
+      # cargo check (fast, catches type errors)
+      if [ -f "$WORKDIR/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
+        echo "CHECK|cargo-check|cargo check --message-format=short 2>&1 | tail -20"
+      fi
+      ;;
+    go)
+      # go vet + go build
+      if [ -f "$WORKDIR/go.mod" ] && command -v go >/dev/null 2>&1; then
+        echo "CHECK|go-vet|go vet ./... 2>&1 | head -15"
+        echo "CHECK|go-build|go build ./... 2>&1 | head -15"
+      fi
+      ;;
+    rb)
+      # ruby -c (syntax)
+      command -v ruby >/dev/null 2>&1 && echo "CHECK|syntax|ruby -c '$file' 2>&1"
+      ;;
+    java)
+      # javac syntax
+      command -v javac >/dev/null 2>&1 && echo "CHECK|syntax|javac -d /tmp -sourcepath '$WORKDIR' '$file' 2>&1 | head -15"
+      ;;
+    c|cpp|cc|cxx|h|hpp)
+      # gcc/clang syntax check
+      local _compiler=""
+      command -v g++ >/dev/null 2>&1 && _compiler="g++"
+      command -v clang++ >/dev/null 2>&1 && _compiler="clang++"
+      if [ -n "$_compiler" ]; then
+        echo "CHECK|syntax|$_compiler -fsyntax-only -std=c++17 '$file' 2>&1 | head -15"
+      fi
+      ;;
+  esac
+
+  # ── Project-level test run (only if file is NOT a test file itself) ────
+  # Heuristic: test files match *test*, *spec*, *_test.*, *Test.*
+  local _is_test=false
+  printf '%s' "$base" | grep -qiE '(test|spec)' && _is_test=true
+
+  if [ "$_is_test" = false ] && [ -n "$TEST_CMD" ]; then
+    # Only run tests if the edited file could affect tests
+    # For now: always offer if TEST_CMD is set and file isn't a test
+    case "$TEST_CMD" in
+      npm\ test|npm\ test\ *)
+        # Only for JS/TS files
+        case "$ext" in js|ts|jsx|tsx|json)
+          echo "CHECK|tests|$TEST_CMD 2>&1 | tail -25"
+          ;;
+        esac
+        ;;
+      pytest|pytest\ *)
+        # Only for Python files
+        case "$ext" in py)
+          echo "CHECK|tests|$TEST_CMD 2>&1 | tail -25"
+          ;;
+        esac
+        ;;
+      *)
+        # Generic: always run if we have a test command
+        echo "CHECK|tests|$TEST_CMD 2>&1 | tail -25"
+        ;;
+    esac
+  fi
+}
+
+# Run auto-verify for a file. Returns verification results string.
+# Usage: auto_verify "/path/to/file.sh"
+auto_verify() {
+  local file="$1"
+  [ "$AUTO_VERIFY" != "on" ] && return 0
+  [ ! -f "$file" ] && return 0
+
+  local cmds; cmds=$(_get_verify_cmds "$file")
+  [ -z "$cmds" ] && return 0
+
+  local results=""
+  local _total_checks=0
+  local _passed=0
+  local _failed=0
+  local NL=$'\n'
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    local _label _cmd
+    _label="${line#CHECK|}"
+    _label="${_label%%|*}"
+    # Strip "CHECK|<label>|" prefix (2 pipes)
+    _cmd="${line#CHECK|${_label}|}"
+
+    _total_checks=$((_total_checks + 1))
+
+    # Run check with timeout (15s per check, 60s for tests)
+    local _timeout=15
+    [ "$_label" = "tests" ] && _timeout=60
+    [ "$_label" = "cargo-check" ] && _timeout=30
+
+    local _out _rc=0
+    _out=$(timeout "$_timeout" bash -c "$_cmd" 2>&1) || _rc=$?
+
+    # timeout returns 124 on timeout
+    if [ "$_rc" = "124" ]; then
+      results+="${NL}  ⏱ $_label: timed out (${_timeout}s)"
+      _failed=$((_failed + 1))
+      continue
+    fi
+
+    # Trim output
+    local _trimmed
+    _trimmed=$(printf '%s' "$_out" | head -10)
+    local _out_len=${#_out}
+
+    if [ "$_rc" -eq 0 ]; then
+      _passed=$((_passed + 1))
+      # Only show output if there are warnings (not clean)
+      if [ -n "$_trimmed" ] && [ "$_label" != "syntax" ]; then
+        # Check if output contains warnings
+        if printf '%s' "$_trimmed" | grep -qiE 'warning|warn'; then
+          results+="${NL}  ⚠ $_label: warnings"
+          local _wline=0
+          while IFS= read -r wl; do
+            _wline=$((_wline + 1))
+            [ "$_wline" -gt 5 ] && break
+            results+="${NL}    $wl"
+          done <<< "$_trimmed"
+        fi
+      fi
+    else
+      _failed=$((_failed + 1))
+      results+="${NL}  ✗ $_label: failed (exit $_rc)"
+      # Show first few lines of error output
+      local _eline=0
+      while IFS= read -r el; do
+        _eline=$((_eline + 1))
+        [ "$_eline" -gt 5 ] && break
+        results+="${NL}    $el"
+      done <<< "$_trimmed"
+      [ "$_out_len" -gt 500 ] && results+="${NL}    ... ($_out_len bytes total)"
+    fi
+  done <<< "$cmds"
+
+  # Build summary
+  if [ "$_failed" -gt 0 ]; then
+    printf '%s' "${NL}[VERIFY: ${_total_checks} checks, ${_passed} passed, ${_failed} FAILED]${results}"
+  elif [ "$_total_checks" -gt 0 ] && [ -n "$results" ]; then
+    printf '%s' "${NL}[VERIFY: ${_total_checks} checks passed]${results}"
+  fi
+  # If all passed and no warnings, return empty (don't clutter output)
+}
 # ─── Risk Scoring: BLOCKED | HIGH | MED | LOW <reason> ──────────────────────
 # Usage: read -r _risk _reason <<< "$(score_risk "$cmd")"
 score_risk() {
@@ -2188,6 +2400,19 @@ $_rh"
   [ -z "$result" ] && result="(no output)"
 
   if [ "$silent" != "true" ]; then
+    # Extract and display VERIFY results prominently
+    if printf '%s' "$result" | grep -q '\[VERIFY:'; then
+      local _verify_part
+      _verify_part=$(printf '%s' "$result" | sed -n '/\[VERIFY:/,$ p')
+      if printf '%s' "$_verify_part" | grep -q 'FAILED'; then
+        echo -e "    \033[1;31m🔍 verify:\033[0m"
+      else
+        echo -e "    \033[0;32m🔍 verify:\033[0m"
+      fi
+      printf '%s' "$_verify_part" | head -10 | while IFS= read -r _vl; do
+        echo -e "      \033[0;90m$_vl\033[0m"
+      done
+    fi
     # Simplify tool result text nicely aligned 
     local display_res="${result:0:300}"
     display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
@@ -2477,6 +2702,25 @@ handle_cmd() {
       _FILE_CACHE='{}'; _FILE_CACHE_ORDER=""
       echo -e "  \033[38;5;82m✓\033[0m File cache cleared."
       ;;
+    /verify)
+      echo "  Auto-verify: $AUTO_VERIFY"
+      echo "  Usage: /verify [on|off]  — toggle syntax/lint/typecheck after edits"
+      ;;
+    /verify\ on)
+      AUTO_VERIFY="on"
+      echo -e "  \033[38;5;82m✓\033[0m Auto-verify ON — will run checks after edit_file/create_file"
+      ;;
+    /verify\ off)
+      AUTO_VERIFY="off"
+      echo -e "  \033[0;90m  Auto-verify OFF\033[0m"
+      ;;
+    /verify\ *)
+      local _varg="${1#/verify }"
+      case "$_varg" in
+        on|off) AUTO_VERIFY="$_varg"; echo "  Auto-verify → $AUTO_VERIFY" ;;
+        *) echo "  Unknown. Use: /verify [on|off]" ;;
+      esac
+      ;;
     /models)
       if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
         ${PROVIDER}_list_models
@@ -2609,7 +2853,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /refresh  /cache [clear]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -3177,7 +3421,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/refresh" "/cache" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
+        for c in "/flush" "/refresh" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
