@@ -127,6 +127,11 @@ ${_collapsed}"
     local _struct=""
     local _lines; _lines=$(wc -l < "$f" 2>/dev/null || echo 0)
 
+    # Skip non-code files from structure extraction
+    case "$_ext" in
+      md|json|yaml|yml|toml|sql|proto|txt|lock) _ext="" ;;
+    esac
+
     # Skip very large files — just note the size
     if [ "$_lines" -gt 500 ]; then
       _struct="  ($_lines lines)"
