@@ -26,6 +26,7 @@ run_agent() {
     # Always start animated spinner (Python will kill it before streaming first token)
     start_spinner "mix (turn $turn)"
     export SPIN_PID="$_SPIN_PID"
+    tmux_update   # show ⟳ in tmux status while thinking
 
     local parsed
     local _api_attempt _api_max_retries=3
