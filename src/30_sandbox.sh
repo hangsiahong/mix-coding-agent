@@ -325,7 +325,7 @@ sandbox_cmd_setup() {
     unshare --user --map-root-user --fork --mount \
       chroot "$_build_dir" \
       /bin/sh -c \
-      'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && apk update --no-progress 2>&1 && apk add --no-cache --no-progress bash python3 curl git 2>&1' \
+      'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && apk update --no-progress 2>&1 && apk add --no-cache --no-progress bash python3 curl git nodejs npm 2>&1' \
     2>&1
   )
   local _apk_rc=$?
@@ -357,6 +357,45 @@ sandbox_cmd_setup() {
   echo "  Location: $_SANDBOX_ROOTFS_TAR ($_final_sz)"
   echo ""
   echo -e "  Run \033[1;37m/sandbox on\033[0m to enable sandbox mode."
+  echo -e "  Use \033[1;37m/sandbox install <pkg>\033[0m to add more tools (shellcheck, rust, go, etc.)"
+}
+
+# ── /sandbox install <pkg> — apk add WITH network, persists to rootfs ──────────────────────────
+sandbox_cmd_install() {
+  local pkg="$*"
+  if [ -z "$pkg" ]; then
+    echo -e "  Usage: /sandbox install <package> [package2 ...]"
+    echo -e "  Examples: /sandbox install shellcheck\n            /sandbox install rust cargo\n            /sandbox install go\n            /sandbox install openjdk21"
+    return 1
+  fi
+
+  if [ ! -d "$_SANDBOX_ROOTFS_DIR" ]; then
+    if ! _sandbox_unpack_rootfs; then
+      echo -e "  \033[1;31m✗\033[0m Rootfs not found. Run /sandbox setup first."
+      return 1
+    fi
+  fi
+
+  echo -e "  \033[0;90m↻ Installing $pkg into sandbox rootfs (with network)...\033[0m"
+  local _rfs="$_SANDBOX_ROOTFS_DIR"
+
+  # Run apk add WITHOUT --net so it can reach the Alpine package repos.
+  # This is safe: it's just package installation, not code execution.
+  # The rootfs is on the host filesystem so changes persist for sandbox runs.
+  local _out; _out=$(
+    unshare --user --map-root-user --fork --mount \
+      chroot "$_rfs" \
+      /bin/sh -c "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && apk add --no-cache $pkg" \
+    2>&1
+  )
+  local _rc=$?
+
+  if [ $_rc -eq 0 ]; then
+    echo -e "  \033[38;5;82m✓\033[0m Installed: $pkg"
+  else
+    echo -e "  \033[1;31m✗\033[0m Install failed:"
+    echo "$_out" | sed 's/^/    /'
+  fi
 }
 
 # ── /sandbox status ───────────────────────────────────────────────────────────

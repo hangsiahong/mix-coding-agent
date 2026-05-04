@@ -79,12 +79,12 @@ unshare --fork --pid --mount --user --map-root-user
 When `SANDBOX_ENABLED=true`, a context block is injected into the system prompt:
 
 ```
-SANDBOX ACTIVE: You are running inside an Alpine Linux 3.21.x chroot.
-- /workspace = project directory (same files as outside)
-- /root/.mix = your ~/.mix from the host
-- Use `apk add <pkg>` to install tools (nodejs, rust, shellcheck, etc.)
-- apk installs persist between tool calls (rootfs is writable)
-- Network: HTTPS works. Host localhost is NOT reachable.
+SANDBOX ACTIVE: bash tool runs inside Alpine Linux 3.21.x chroot with full namespace isolation.
+- /workspace = project directory (bind-mounted from host)
+- /root/.mix = ~/.mix from host
+- Network: FULLY ISOLATED inside bash tool. No internet, no LAN. Loopback only.
+  apk add cannot be run inside bash tool calls — network is blocked.
+- If a package is missing: STOP and tell the user to run /sandbox install <pkg> in the REPL.
 - Resource limits: 512MB RAM, 50% CPU, 200 PIDs
 - uid=0 (root) inside sandbox — normal, not a security escalation
 ```
@@ -135,7 +135,7 @@ SANDBOX ACTIVE: You are running inside an Alpine Linux 3.21.x chroot.
 
 **Round 2 — network namespace + proc hardening**
 - Added `--net` to `unshare` flags: isolated network namespace, only `lo` visible.
-- `apk add` won't work inside sandbox (no network); install tools via `/sandbox setup` before enabling.
+- `apk add` won't work inside sandbox bash tool calls (no network). Use `/sandbox install <pkg>` from the REPL instead — it runs apk add with network and persists to the rootfs.
 - Loopback brought up (`ip link set lo up`) for local dev servers.
 - `/proc` mounted with `nosuid,nodev,noexec` options.
 - `sysrq-trigger` masked with read-only `/dev/null` bind.
@@ -171,8 +171,8 @@ mix --sandbox
 # Check status
 /sandbox status
 
-# Install a tool inside sandbox (persists)
-> run: apk add shellcheck
+# Install a tool into the sandbox rootfs (runs apk add with network, from REPL)
+/sandbox install shellcheck
 
 # Disable
 /sandbox off
@@ -183,6 +183,7 @@ mix --sandbox
 - `id` → `uid=0(root) gid=0(root)` inside sandbox
 - `cat /etc/alpine-release` → `3.21.3`
 - `/home/jiren` not accessible inside (bind-mounted items only)
-- `curl https://...` works (network available)
+- `curl https://...` BLOCKED inside bash tool (network isolated, `--net` namespace)
+- Loopback works: `curl http://localhost:3000` inside bash tool is fine
 - `/sys/fs/cgroup/.../pids.current` shows tracked PIDs
-- `apk add nodejs` works and persists across calls
+- `/sandbox install nodejs` from REPL installs via apk add (network available) and persists

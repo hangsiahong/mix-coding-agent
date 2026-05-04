@@ -676,19 +676,34 @@ GIT: repo active. edit_file auto-commits. Use git freely."
     base+="
 
 ## SANDBOX MODE (active)
-All BASH TOOL CALLS run inside an Alpine Linux chroot (PID + mount + user namespace isolation).
+All BASH TOOL CALLS run inside an Alpine Linux chroot (PID + mount + user + network namespace isolation).
 read_file / edit_file / create_file / list_files / search_files tools operate on the HOST filesystem as normal — use real host paths (e.g. $WORKDIR/src/foo.sh), NOT /workspace paths, with those tools.
 Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (= $WORKDIR on host).
-- Filesystem inside bash: only /workspace and /root/.mix visible. No /home, no host system.
-- Packages: use 'apk add --no-cache <pkg>' to install tools. Changes persist to the sandbox rootfs.
-  Common: apk add nodejs npm (JS/TS), apk add rust cargo (Rust), apk add shellcheck (shell lint),
-          apk add py3-pylint (Python lint), apk add go (Go), apk add openjdk21 (Java)
-  NOTE: apk add requires internet. Run /sandbox setup or apk add BEFORE enabling sandbox,
-        OR disable sandbox temporarily (/sandbox off), install, then re-enable.
-- Network: ISOLATED. No external internet, no LAN, no host services. Loopback (localhost) works for local dev servers spawned inside the sandbox.
-- Resource limits: ~${_sbox_ram_mb}MB RAM (50% of host), 50% CPU, 200 processes max.
-- Root: you appear as uid=0 inside — normal for Alpine containers.
-- If a tool/language is missing inside bash: apk add it. Do not fall back to host paths."
+
+### Inside the bash tool
+- Filesystem: only /workspace and /root/.mix visible. No /home, no host system.
+- Network: FULLY ISOLATED. No internet, no LAN, no host services. Loopback only (localhost works for local servers).
+  apk add WILL NOT WORK from inside the bash tool — the network is blocked.
+- Pre-installed: bash, python3, curl, git, nodejs, npm.
+- Resource limits: ~${_sbox_ram_mb}MB RAM, 50% CPU, 200 PIDs.
+- UID: you appear as uid=0 (root) inside — normal, safe.
+
+### If a tool or command is missing
+Do NOT try apk add inside the bash tool — it will fail (no network).
+Instead, STOP and tell the user:
+  "Package '<name>' is not installed in the sandbox. Please run: /sandbox install <name>"
+The user runs /sandbox install from the REPL (outside the sandbox), which has network access.
+After they confirm it is installed, retry the bash command.
+
+Common install commands to suggest:
+  /sandbox install nodejs npm       (JS/TS)
+  /sandbox install rust cargo       (Rust)
+  /sandbox install shellcheck       (shell lint)
+  /sandbox install py3-pylint       (Python lint)
+  /sandbox install go               (Go)
+  /sandbox install openjdk21        (Java)
+  /sandbox install jq               (JSON processing)
+  /sandbox install make             (build tooling)"
   fi
 
   # Repo map — structural awareness of codebase
@@ -3914,7 +3929,7 @@ sandbox_cmd_setup() {
     unshare --user --map-root-user --fork --mount \
       chroot "$_build_dir" \
       /bin/sh -c \
-      'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && apk update --no-progress 2>&1 && apk add --no-cache --no-progress bash python3 curl git 2>&1' \
+      'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && apk update --no-progress 2>&1 && apk add --no-cache --no-progress bash python3 curl git nodejs npm 2>&1' \
     2>&1
   )
   local _apk_rc=$?
@@ -3946,6 +3961,45 @@ sandbox_cmd_setup() {
   echo "  Location: $_SANDBOX_ROOTFS_TAR ($_final_sz)"
   echo ""
   echo -e "  Run \033[1;37m/sandbox on\033[0m to enable sandbox mode."
+  echo -e "  Use \033[1;37m/sandbox install <pkg>\033[0m to add more tools (shellcheck, rust, go, etc.)"
+}
+
+# ── /sandbox install <pkg> — apk add WITH network, persists to rootfs ──────────────────────────
+sandbox_cmd_install() {
+  local pkg="$*"
+  if [ -z "$pkg" ]; then
+    echo -e "  Usage: /sandbox install <package> [package2 ...]"
+    echo -e "  Examples: /sandbox install shellcheck\n            /sandbox install rust cargo\n            /sandbox install go\n            /sandbox install openjdk21"
+    return 1
+  fi
+
+  if [ ! -d "$_SANDBOX_ROOTFS_DIR" ]; then
+    if ! _sandbox_unpack_rootfs; then
+      echo -e "  \033[1;31m✗\033[0m Rootfs not found. Run /sandbox setup first."
+      return 1
+    fi
+  fi
+
+  echo -e "  \033[0;90m↻ Installing $pkg into sandbox rootfs (with network)...\033[0m"
+  local _rfs="$_SANDBOX_ROOTFS_DIR"
+
+  # Run apk add WITHOUT --net so it can reach the Alpine package repos.
+  # This is safe: it's just package installation, not code execution.
+  # The rootfs is on the host filesystem so changes persist for sandbox runs.
+  local _out; _out=$(
+    unshare --user --map-root-user --fork --mount \
+      chroot "$_rfs" \
+      /bin/sh -c "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && apk add --no-cache $pkg" \
+    2>&1
+  )
+  local _rc=$?
+
+  if [ $_rc -eq 0 ]; then
+    echo -e "  \033[38;5;82m✓\033[0m Installed: $pkg"
+  else
+    echo -e "  \033[1;31m✗\033[0m Install failed:"
+    echo "$_out" | sed 's/^/    /'
+  fi
 }
 
 # ── /sandbox status ───────────────────────────────────────────────────────────
@@ -4316,6 +4370,9 @@ handle_cmd() {
     /sandbox\ status)
       sandbox_cmd_status
       ;;
+    /sandbox\ install\ *)
+      sandbox_cmd_install "${INPUT#/sandbox install }"
+      ;;
     /help)
       echo -e "  \033[1;37m─── mix commands ───\033[0m"
       echo ""
@@ -4326,7 +4383,7 @@ handle_cmd() {
       echo -e "  \033[1;36mTesting\033[0m    /test [init|generate|run|coverage]"
       echo -e "  \033[1;36mWorkers\033[0m    /worker <name> <cmd>  /subagent <name> <task>  /workers  /afk [hint|log|stop|setup|apply]"
       echo -e "  \033[1;36mSkills\033[0m     /skill <name>  /skills  /ext [load|unload|create|reload|list]"
-      echo -e "  \033[1;36mSandbox\033[0m    /sandbox [on|off|setup|status]"
+      echo -e "  \033[1;36mSandbox\033[0m    /sandbox [on|off|setup|status]  /sandbox install <pkg>"
       echo ""
       echo -e "  \033[0;90mShortcuts:  Tab=autocomplete  Ctrl+E=editor  Ctrl+V=paste\033[0m"
       echo -e "  \033[0;90mPiped mode: echo \"task\" | mix\033[0m"
@@ -5515,7 +5572,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/sandbox" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
+        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/sandbox" "/sandbox install" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then

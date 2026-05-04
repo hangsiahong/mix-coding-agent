@@ -85,19 +85,34 @@ GIT: repo active. edit_file auto-commits. Use git freely."
     base+="
 
 ## SANDBOX MODE (active)
-All BASH TOOL CALLS run inside an Alpine Linux chroot (PID + mount + user namespace isolation).
+All BASH TOOL CALLS run inside an Alpine Linux chroot (PID + mount + user + network namespace isolation).
 read_file / edit_file / create_file / list_files / search_files tools operate on the HOST filesystem as normal — use real host paths (e.g. $WORKDIR/src/foo.sh), NOT /workspace paths, with those tools.
 Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (= $WORKDIR on host).
-- Filesystem inside bash: only /workspace and /root/.mix visible. No /home, no host system.
-- Packages: use 'apk add --no-cache <pkg>' to install tools. Changes persist to the sandbox rootfs.
-  Common: apk add nodejs npm (JS/TS), apk add rust cargo (Rust), apk add shellcheck (shell lint),
-          apk add py3-pylint (Python lint), apk add go (Go), apk add openjdk21 (Java)
-  NOTE: apk add requires internet. Run /sandbox setup or apk add BEFORE enabling sandbox,
-        OR disable sandbox temporarily (/sandbox off), install, then re-enable.
-- Network: ISOLATED. No external internet, no LAN, no host services. Loopback (localhost) works for local dev servers spawned inside the sandbox.
-- Resource limits: ~${_sbox_ram_mb}MB RAM (50% of host), 50% CPU, 200 processes max.
-- Root: you appear as uid=0 inside — normal for Alpine containers.
-- If a tool/language is missing inside bash: apk add it. Do not fall back to host paths."
+
+### Inside the bash tool
+- Filesystem: only /workspace and /root/.mix visible. No /home, no host system.
+- Network: FULLY ISOLATED. No internet, no LAN, no host services. Loopback only (localhost works for local servers).
+  apk add WILL NOT WORK from inside the bash tool — the network is blocked.
+- Pre-installed: bash, python3, curl, git, nodejs, npm.
+- Resource limits: ~${_sbox_ram_mb}MB RAM, 50% CPU, 200 PIDs.
+- UID: you appear as uid=0 (root) inside — normal, safe.
+
+### If a tool or command is missing
+Do NOT try apk add inside the bash tool — it will fail (no network).
+Instead, STOP and tell the user:
+  "Package '<name>' is not installed in the sandbox. Please run: /sandbox install <name>"
+The user runs /sandbox install from the REPL (outside the sandbox), which has network access.
+After they confirm it is installed, retry the bash command.
+
+Common install commands to suggest:
+  /sandbox install nodejs npm       (JS/TS)
+  /sandbox install rust cargo       (Rust)
+  /sandbox install shellcheck       (shell lint)
+  /sandbox install py3-pylint       (Python lint)
+  /sandbox install go               (Go)
+  /sandbox install openjdk21        (Java)
+  /sandbox install jq               (JSON processing)
+  /sandbox install make             (build tooling)"
   fi
 
   # Repo map — structural awareness of codebase

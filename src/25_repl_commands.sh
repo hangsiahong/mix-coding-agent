@@ -288,6 +288,9 @@ handle_cmd() {
     /sandbox\ status)
       sandbox_cmd_status
       ;;
+    /sandbox\ install\ *)
+      sandbox_cmd_install "${INPUT#/sandbox install }"
+      ;;
     /help)
       echo -e "  \033[1;37m─── mix commands ───\033[0m"
       echo ""
@@ -298,7 +301,7 @@ handle_cmd() {
       echo -e "  \033[1;36mTesting\033[0m    /test [init|generate|run|coverage]"
       echo -e "  \033[1;36mWorkers\033[0m    /worker <name> <cmd>  /subagent <name> <task>  /workers  /afk [hint|log|stop|setup|apply]"
       echo -e "  \033[1;36mSkills\033[0m     /skill <name>  /skills  /ext [load|unload|create|reload|list]"
-      echo -e "  \033[1;36mSandbox\033[0m    /sandbox [on|off|setup|status]"
+      echo -e "  \033[1;36mSandbox\033[0m    /sandbox [on|off|setup|status]  /sandbox install <pkg>"
       echo ""
       echo -e "  \033[0;90mShortcuts:  Tab=autocomplete  Ctrl+E=editor  Ctrl+V=paste\033[0m"
       echo -e "  \033[0;90mPiped mode: echo \"task\" | mix\033[0m"
