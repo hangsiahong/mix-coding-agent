@@ -197,7 +197,7 @@ Extensions auto-load on next startup.
 
 ## Architecture
 
-mix is built from 35 source files concatenated by `build.sh` into a single executable:
+mix is built from 35 source files concatenated by `build.sh` into a single executable. Each build is versioned (`~/.mix/versions/`) with health-gating and automatic fallback.
 
 ```
 src/
