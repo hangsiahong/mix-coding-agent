@@ -137,7 +137,8 @@ auto_verify() {
     local _label _cmd
     _label="${line#CHECK|}"
     _label="${_label%%|*}"
-    _cmd="${line#*|}"
+    # Strip "CHECK|<label>|" prefix (2 pipes)
+    _cmd="${line#CHECK|${_label}|}"
 
     _total_checks=$((_total_checks + 1))
 
