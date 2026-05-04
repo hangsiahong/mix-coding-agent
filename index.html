@@ -346,9 +346,18 @@ document.getElementById('installCmd').addEventListener('click', function() {
     { type: 'out', text: '▸ tests pass' },
     { type: 'out', text: '▸ filed to memorybank/solutions/' },
     { type: 'out', text: '' },
-    { type: 'cursor-row', parts: [
-      { cls: 'prompt', text: '> ' }
-    ]}
+    { type: 'out', text: '◆ previous session found (1.5h ago). /resume to restore.' },
+    { type: 'row', parts: [
+      { cls: 'prompt', text: '> ' },
+      { cls: 'cmd', text: '/resume' }
+    ]},
+    { type: 'out', text: '▸ restored: model, file cache (3 files), repo map' },
+    { type: 'out', text: '' },
+    { type: 'row', parts: [
+      { cls: 'prompt', text: '> ' },
+      { cls: 'cmd', text: 'refactor the auth module' }
+    ]},
+    { type: 'out', text: '▸ reading src/auth.js (from cache)' },
   ];
 
   let lineIdx = 0;
