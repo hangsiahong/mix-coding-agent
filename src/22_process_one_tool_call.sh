@@ -91,7 +91,6 @@ $_rh"
         fi
       fi
       ;;
-      ;;
     read_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
       [ "$silent" != "true" ] && echo -e "    \033[0;90m📄 $p\033[0m"
