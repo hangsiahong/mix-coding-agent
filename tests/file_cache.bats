@@ -17,8 +17,7 @@ setup() {
     _tmpfile=$(mktemp)
     echo "hello world" > "$_tmpfile"
 
-    run file_cache_put "$_tmpfile" "hello world"
-    [ "$status" -eq 0 ]
+    file_cache_put "$_tmpfile" "hello world"
 
     # Cache should now contain the file
     [[ "$_FILE_CACHE" == *"$_tmpfile"* ]]
