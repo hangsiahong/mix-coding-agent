@@ -377,3 +377,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - `/reload` integration: rebuilds via build.sh, detects self-test failures
 - `install.sh` update: 4-stage pipeline (download → health_check → version_install → install_wrapper)
 - Pushed to origin/refactor.
+
+## [2026-05-05] task | try update something i want to see, maybe check log.md
