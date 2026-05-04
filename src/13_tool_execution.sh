@@ -218,21 +218,18 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       elif [ "$_gm_action" = "replace" ]; then
         _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
         if [ -f "$_gmem" ] && grep -qF "$_gm_old" "$_gmem"; then
-          # Use temp file to avoid shell escaping issues with special chars
-          local _gm_tmp; _gm_tmp=$(mktemp -t mix-gmem-XXXXXX)
-          printf '%s\n%s\n%s' "$_gm_old" "$_gm_content" "$_gmem" | python3 -c '
-import sys
-old, new, path = sys.stdin.readline().rstrip("\n"), sys.stdin.readline().rstrip("\n"), sys.stdin.readline().rstrip("\n")
+          # Pass old/new/path via JSON to stdin — avoids argv escaping issues
+          result=$(printf '%s' "$args" | python3 -c '
+import json,sys
+d = json.load(sys.stdin)
+old, new, path = d["old_text"], d["content"], sys.argv[1]
 content = open(path).read()
 if old not in content:
     print("Error: old_text not found")
 else:
     open(path, "w").write(content.replace(old, new, 1))
     print("Global memory updated.")
-' 2>/dev/null || echo "Error updating global memory"
-          result=$(cat "$_gm_tmp" 2>/dev/null)
-          rm -f "$_gm_tmp"
-          [ -z "$result" ] && result="Error updating global memory"
+' "$_gmem" 2>/dev/null) || result="Error updating global memory"
         else
           result="Error: old_text not found in global memory"
         fi
