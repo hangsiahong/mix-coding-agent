@@ -410,6 +410,46 @@ handle_cmd() {
         echo "  Undo failed: git is not enabled or not a repository."
       fi
       ;;
+    /reload)
+      echo -e "  \033[0;36m⟳ Rebuilding...\033[0m"
+      _reload_bin="$(command -v mix 2>/dev/null || echo "./mix")"
+      # Find project root (where build.sh + src/ live)
+      _reload_root=""
+      for _rd in "$WORKDIR" "$PWD" "$(dirname "$_reload_bin")/.."; do
+        if [ -f "$_rd/build.sh" ] && [ -d "$_rd/src" ]; then
+          _reload_root="$_rd"
+          break
+        fi
+      done
+      if [ -z "$_reload_root" ]; then
+        echo -e "  \033[1;31m✗ Cannot find project root (build.sh + src/)\033[0m"
+        echo "  cd to the project directory first."
+        return 0
+      fi
+      # Build
+      _reload_out=$(cd "$_reload_root" && bash build.sh 2>&1)
+      _reload_rc=$?
+      if [ $_reload_rc -ne 0 ]; then
+        # build.sh returns non-zero even on success sometimes (cp permission)
+        # Check if binary was actually produced
+        if [ ! -f "$_reload_root/mix.compiled" ]; then
+          echo -e "  \033[1;31m✗ Build failed:\033[0m"
+          echo "$_reload_out" | tail -10
+          return 0
+        fi
+      fi
+      # Find the installed binary path
+      [ -x "$HOME/.local/bin/mix" ] && _reload_bin="$HOME/.local/bin/mix"
+      [ -x "$HOME/bin/mix" ] && _reload_bin="$HOME/bin/mix"
+      # Copy new build to install location
+      cp "$_reload_root/mix" "$_reload_bin" 2>/dev/null || _reload_bin="$_reload_root/mix"
+      echo -e "  \033[38;5;82m✓ Built\033[0m → $_reload_bin"
+      echo -e "  \033[0;36m⟳ Restarting (session preserved)...\033[0m"
+      # Save session, then exec new binary (EXIT trap also saves, but be explicit)
+      session_save 2>/dev/null
+      save_history 2>/dev/null
+      exec "$_reload_bin" "$@"
+      ;;
     /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
              exit 0 ;;
     /*)
