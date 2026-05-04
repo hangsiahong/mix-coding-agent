@@ -81,15 +81,14 @@ for s in stale:
 print(json.dumps(cache))
 ' "$_FILE_CACHE" 2>/dev/null) || _FILE_CACHE='{}'
 
-  # Remove stale entries from order too
+  # Rebuild order from cache keys, preserving original order
   local _new_order=""
   for _fp in $_FILE_CACHE_ORDER; do
     [ -z "$_fp" ] && continue
-    python3 -c "
-import json,sys
-cache = json.loads('''$_FILE_CACHE''')
-sys.exit(0 if '$_fp' in cache else 1)
-" 2>/dev/null && _new_order="$_new_order $_fp"
+    # Check if key still exists in cache — use grep on JSON string
+    if printf '%s' "$_FILE_CACHE" | grep -qF "\"$_fp\""; then
+      _new_order="$_new_order $_fp"
+    fi
   done
   _FILE_CACHE_ORDER="${_new_order# }"
 }
