@@ -30,6 +30,7 @@ run_agent() {
     for _api_attempt in 1 2 3; do
       if [ "$STREAM" = "true" ]; then
         parsed=$(call_api_stream)
+        _SESSION_API_CALLS=$((_SESSION_API_CALLS + 1))
         if [[ "$parsed" == FAIL:network_drop* ]]; then
           [ "$INTERACTIVE" = false ] \
             && echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
@@ -59,6 +60,13 @@ run_agent() {
           echo -e "\r\033[K  \033[1;31mAPI failed after $_api_max_retries attempts: ${resp#FAIL:}\033[0m"
           break 2
         fi
+        # Track token usage from API response
+        _SESSION_API_CALLS=$((_SESSION_API_CALLS + 1))
+        local _pt _ct
+        _pt=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("prompt_tokens",0))' 2>/dev/null) || _pt=0
+        _ct=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("completion_tokens",0))' 2>/dev/null) || _ct=0
+        _SESSION_PROMPT_TOKENS=$((_SESSION_PROMPT_TOKENS + _pt))
+        _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
         parsed=$(parse_resp "$resp")
       fi
       break  # success — exit retry loop

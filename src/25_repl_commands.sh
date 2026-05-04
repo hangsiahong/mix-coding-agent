@@ -50,6 +50,17 @@ handle_cmd() {
         echo "  $_stash_out"
       fi
       ;;
+    /stats)
+      local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) ))
+      echo -e "  \033[1;37mSession Stats\033[0m"
+      echo "  API calls:     $_SESSION_API_CALLS"
+      echo "  Prompt tokens:  $_SESSION_PROMPT_TOKENS"
+      echo "  Output tokens:  $_SESSION_COMPLETION_TOKENS"
+      echo "  Total tokens:   $_total_tok"
+      echo "  Tools used:     $_TOOLS_USED"
+      local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
+      echo "  History msgs:   $_hist_n"
+      ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
@@ -221,7 +232,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /undo  /stash  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
