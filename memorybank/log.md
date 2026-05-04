@@ -363,3 +363,7 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - All 8 SPEC tasks complete
 
 ## [2026-05-05] task | so update memorybank and readme?
+
+## [2026-05-05] task | commit and push
+
+## [2026-05-05] task | is our global memory is working
