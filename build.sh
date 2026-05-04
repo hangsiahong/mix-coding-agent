@@ -21,6 +21,7 @@ cat \
     src/04b_extension_system.sh \
     src/05_pre_edit_diff_preview.sh \
     src/06_auto_read_logs_on_bash_failure.sh \
+    src/11c_session.sh \
     src/07_environment_detection.sh \
     src/08_self_healing_bash_wrapper.sh \
     src/08a_failure_diagnostics.sh \
@@ -29,8 +30,6 @@ cat \
     src/11_history.sh \
     src/11a_file_cache.sh \
     src/11b_repo_map.sh \
-    src/11c_session.sh \
-    src/07b_session_startup.sh \
     src/12_auto_compact_history.sh \
     src/13_tool_execution.sh \
     src/13a_auto_verify.sh \
