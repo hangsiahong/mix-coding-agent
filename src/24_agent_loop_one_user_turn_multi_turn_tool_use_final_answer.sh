@@ -133,11 +133,16 @@ run_agent() {
         _disp=$(printf '%s' "$_disp" | tr '\n' ' ')
         echo -e "      \033[38;5;244m└─ ${_disp}...\033[0m"
 
-        # Append to history
+        # Append to history (no disk write yet — batch them)
         local _esc
         _esc=$(printf '%s' "$_res" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || _esc='"(error)"'
-        append_raw "{\"role\":\"tool\",\"tool_call_id\":\"$_tid\",\"name\":\"$_tname\",\"content\":$_esc}"
+        append_raw_nosave "{\"role\":\"tool\",\"tool_call_id\":\"$_tid\",\"name\":\"$_tname\",\"content\":$_esc}"
       done
+      # Flush once for entire parallel batch + count them
+      if [ "${#_parallel_refs[@]}" -gt 0 ]; then
+        save_history
+        _TOOLS_USED=$((_TOOLS_USED + ${#_parallel_refs[@]}))
+      fi
 
       # Process sequential tools (bash, edit, create)
       for tc in "${_sequential_tcs[@]}"; do

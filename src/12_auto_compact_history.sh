@@ -161,6 +161,24 @@ print(json.dumps(h))
   save_history
 }
 
+# Like append_raw but skips the disk write — call save_history manually after a batch
+append_raw_nosave() {
+  local msg="$1"
+  if [ "$HISTORY" = "[]" ]; then
+    HISTORY="[$msg]"
+  else
+    local _new
+    _new=$(printf '%s\n%s' "$HISTORY" "$msg" | python3 -c '
+import json,sys
+lines=sys.stdin.read().split("\n",1)
+h=json.loads(lines[0])
+h.append(json.loads(lines[1]))
+print(json.dumps(h))
+' 2>/dev/null)
+    [ -n "$_new" ] && HISTORY="$_new"
+  fi
+}
+
 append_text() {
   local role="$1" content="$2"
   local escaped
