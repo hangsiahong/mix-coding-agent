@@ -169,3 +169,11 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | /yolo
   Yolo mode ON  — auto-confirming commands (guardrails active).
 ❯ commit a
+
+## [2026-05-04] task | update it to YES by default
+
+## [2026-05-04] task | merge to master
+
+## [2026-05-04] task | Project Overrides
+
+## [2026-05-04] task | please continue
