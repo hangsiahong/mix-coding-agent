@@ -24,7 +24,9 @@
 | `/caveman [off\|lite\|full\|ultra]` | Toggle response compression |
 | `/mode [fast\|deep\|plan]` | Switch agent reasoning mode |
 | `/yolo` | Toggle auto-confirm (MED-risk auto-runs) |
-| `/undo` | `git reset --soft HEAD~1` (requires git) |
+| `/undo` | `git revert HEAD` with diff preview + confirmation (requires git) |
+| `/stash` | `git stash` wrapper |
+| `/stats` | Session token stats: API calls, prompt/completion/total tokens, tools used, history msgs |
 
 ## Workers & Subagents
 
