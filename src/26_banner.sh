@@ -72,6 +72,23 @@ fi
 echo -e "    \033[0;90m/help  ·  Tab=complete  ·  Ctrl+E=editor  ·  Ctrl+V=paste\033[0m"
 echo ""
 
+# ─── Doctor mode (if booted from wrapper due to broken build) ────────────────
+if [ "${_DOCTOR_MODE:-false}" = "true" ]; then
+  echo -e "  \033[1;33m⚠ Doctor mode — previous build was broken\033[0m"
+  echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
+  _CRASH_LOG="/tmp/mix-crash.log"
+  if [ -f "$_CRASH_LOG" ]; then
+    echo -e "  \033[0;31mCrash log:\033[0m"
+    sed 's/^/    /' "$_CRASH_LOG" | head -5
+  fi
+  echo ""
+  echo -e "  \033[0;90mRunning from last_good binary. You can:\033[0m"
+  echo -e "    \033[0;36m/reload\033[0m     — rebuild from source (if you fixed the issue)"
+  echo -e "    \033[0;36mfix the build\033[0m — describe what broke and I'll try to repair"
+  echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
+  echo ""
+fi
+
 # tmux: rename window + status bar + session line
 if [ -n "$TMUX" ]; then
   _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
