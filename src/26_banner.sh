@@ -16,6 +16,7 @@ else
   echo -e "    \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
 fi
 echo -e "    \033[0;90mcommands: /flush /refresh /compact /model [id] /models /caveman /mode /yolo /workers /exit\033[0m"
+echo -e "    \033[0;90mshortcuts: Tab=complete  Ctrl+E=editor  Ctrl+V=paste  /help=all commands\033[0m"
 echo ""
 
 # tmux: rename window + initial status bar
