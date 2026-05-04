@@ -68,6 +68,7 @@ if count == 1:
     sys.exit(0)
 if count > 1:
     print('Error: old_text not unique ('+str(count)+' matches) in '+p)
+    suggest_context(content, o, 'not unique')
     sys.exit(0)
 
 # 2. Fuzzy match: normalize trailing whitespace + line endings
