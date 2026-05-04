@@ -16,7 +16,7 @@ process_tc() {
     bash)
       local cmd
       cmd=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || cmd="?"
-      
+
       if [ "$silent" != "true" ]; then
         local total_lines
         total_lines=$(printf '%s\n' "$cmd" | wc -l)
@@ -45,7 +45,7 @@ process_tc() {
         result="Error: command blocked — $_reason."
         FAIL_STREAK=$((FAIL_STREAK + 1))
       elif [ "$_risk" = "HIGH" ]; then
-        if [ "$silent" = "true" ]; then 
+        if [ "$silent" = "true" ]; then
            result="Error: HIGH risk command cannot be run in parallel/silent mode."
         else
            local _ans=""
@@ -59,9 +59,9 @@ process_tc() {
           _run=true
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
-        elif confirm "    Run? [Y/n] "; then 
+        elif confirm "    Run? [Y/n] "; then
           _run=true
-        else 
+        else
           result="User declined.";
         fi
       else
@@ -117,7 +117,7 @@ $_rh"
           _TOOLS_USED=$((_TOOLS_USED + 1))
           if [[ "$result" == Edited* ]]; then
             _ext_hook on_edit "$p"
-              # Stage and show real git diff
+            if [ "$GIT_ENABLED" = true ]; then
               git -C "$WORKDIR" add "$p" 2>/dev/null || true
               local _gdiff
               _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
@@ -238,12 +238,12 @@ $_rh"
         echo -e "      \033[0;95m$_sl\033[0m"
       done
     fi
-    # Simplify tool result text nicely aligned 
+    # Simplify tool result text nicely aligned
     local display_res="${result:0:300}"
     display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
     echo -e "      \033[38;5;244m└─ ${display_res}\033[0m"
     [ ${#result} -gt 300 ] && echo -e "         \033[0;90m... (${#result} bytes)\033[0m"
-    
+
     # Append tool result to history
     local esc
     esc=$(printf '%s' "$result" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || esc='"(error)"'
