@@ -188,6 +188,7 @@ sandbox_run_cmd() {
       --mount \
       --user \
       --map-root-user \
+      --net \
       -- \
       /bin/sh -s "$mntdir" "$rfs" "$workspace" "$mix_home" "$host_resolv" "$cmd" << 'INNER'
 mntdir="$1" rfs="$2" workspace="$3" mix_home="$4" host_resolv="$5"
@@ -237,12 +238,19 @@ unset KCONSOLE_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY \
 # Plain 'chroot ...' would create a child (PID 2+) while PID 1 stays un-chrooted
 # with the host root — that is the escape vector we are closing.
 mkdir -p "${mntdir}/proc"
-mount -t proc proc "${mntdir}/proc" 2>/dev/null || true
-# Also mask /proc/sysrq-trigger and /proc/kcore if they leak through
-[ -f "${mntdir}/proc/sysrq-trigger" ] && mount --bind /dev/null "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+mount -t proc -o nosuid,nodev,noexec proc "${mntdir}/proc" 2>/dev/null || true
+# Mask sysrq-trigger read-only (defense in depth — /dev/null bind, then remount ro)
+if [ -f "${mntdir}/proc/sysrq-trigger" ]; then
+  mount --bind /dev/null "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+  mount -o remount,ro "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+fi
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-exec chroot "$mntdir" /bin/sh -c "cd /workspace && $cmd"
+# Bring up loopback inside the network namespace (--net gives us a clean netns
+# with no interfaces; lo up enables localhost for dev servers inside sandbox).
+# No external network — 'apk add' won't work inside sandbox; use /sandbox setup
+# or pre-install tools before enabling sandbox.
+exec chroot "$mntdir" /bin/sh -c "ip link set lo up 2>/dev/null; cd /workspace && $cmd"
 INNER
   ) 2>&1; rc=$?
 

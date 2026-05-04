@@ -683,7 +683,9 @@ Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (
 - Packages: use 'apk add --no-cache <pkg>' to install tools. Changes persist to the sandbox rootfs.
   Common: apk add nodejs npm (JS/TS), apk add rust cargo (Rust), apk add shellcheck (shell lint),
           apk add py3-pylint (Python lint), apk add go (Go), apk add openjdk21 (Java)
-- Network: outbound HTTPS works. Host localhost services are NOT reachable.
+  NOTE: apk add requires internet. Run /sandbox setup or apk add BEFORE enabling sandbox,
+        OR disable sandbox temporarily (/sandbox off), install, then re-enable.
+- Network: ISOLATED. No external internet, no LAN, no host services. Loopback (localhost) works for local dev servers spawned inside the sandbox.
 - Resource limits: ~${_sbox_ram_mb}MB RAM (50% of host), 50% CPU, 200 processes max.
 - Root: you appear as uid=0 inside — normal for Alpine containers.
 - If a tool/language is missing inside bash: apk add it. Do not fall back to host paths."
@@ -3775,6 +3777,7 @@ sandbox_run_cmd() {
       --mount \
       --user \
       --map-root-user \
+      --net \
       -- \
       /bin/sh -s "$mntdir" "$rfs" "$workspace" "$mix_home" "$host_resolv" "$cmd" << 'INNER'
 mntdir="$1" rfs="$2" workspace="$3" mix_home="$4" host_resolv="$5"
@@ -3824,12 +3827,19 @@ unset KCONSOLE_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY \
 # Plain 'chroot ...' would create a child (PID 2+) while PID 1 stays un-chrooted
 # with the host root — that is the escape vector we are closing.
 mkdir -p "${mntdir}/proc"
-mount -t proc proc "${mntdir}/proc" 2>/dev/null || true
-# Also mask /proc/sysrq-trigger and /proc/kcore if they leak through
-[ -f "${mntdir}/proc/sysrq-trigger" ] && mount --bind /dev/null "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+mount -t proc -o nosuid,nodev,noexec proc "${mntdir}/proc" 2>/dev/null || true
+# Mask sysrq-trigger read-only (defense in depth — /dev/null bind, then remount ro)
+if [ -f "${mntdir}/proc/sysrq-trigger" ]; then
+  mount --bind /dev/null "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+  mount -o remount,ro "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+fi
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-exec chroot "$mntdir" /bin/sh -c "cd /workspace && $cmd"
+# Bring up loopback inside the network namespace (--net gives us a clean netns
+# with no interfaces; lo up enables localhost for dev servers inside sandbox).
+# No external network — 'apk add' won't work inside sandbox; use /sandbox setup
+# or pre-install tools before enabling sandbox.
+exec chroot "$mntdir" /bin/sh -c "ip link set lo up 2>/dev/null; cd /workspace && $cmd"
 INNER
   ) 2>&1; rc=$?
 

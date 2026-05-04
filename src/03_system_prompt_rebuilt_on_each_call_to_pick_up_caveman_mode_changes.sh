@@ -92,7 +92,9 @@ Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (
 - Packages: use 'apk add --no-cache <pkg>' to install tools. Changes persist to the sandbox rootfs.
   Common: apk add nodejs npm (JS/TS), apk add rust cargo (Rust), apk add shellcheck (shell lint),
           apk add py3-pylint (Python lint), apk add go (Go), apk add openjdk21 (Java)
-- Network: outbound HTTPS works. Host localhost services are NOT reachable.
+  NOTE: apk add requires internet. Run /sandbox setup or apk add BEFORE enabling sandbox,
+        OR disable sandbox temporarily (/sandbox off), install, then re-enable.
+- Network: ISOLATED. No external internet, no LAN, no host services. Loopback (localhost) works for local dev servers spawned inside the sandbox.
 - Resource limits: ~${_sbox_ram_mb}MB RAM (50% of host), 50% CPU, 200 processes max.
 - Root: you appear as uid=0 inside — normal for Alpine containers.
 - If a tool/language is missing inside bash: apk add it. Do not fall back to host paths."
