@@ -264,6 +264,18 @@ if [ "$INTERACTIVE" = true ]; then
   # enable-bracketed-paste: tells readline to treat pasted text as single input, not execute each line
   bind 'set enable-bracketed-paste on' 2>/dev/null || true
 
+  # ── Readline input history (Up/Down arrow cycling) ──────────────
+  _INPUT_HISTFILE="${HOME}/.mix/input_history"
+  _INPUT_HISTSIZE=500
+  HISTFILE="$_INPUT_HISTFILE"
+  HISTSIZE="$_INPUT_HISTSIZE"
+  HISTFILESIZE="$_INPUT_HISTSIZE"
+  HISTCONTROL="ignorespace:erasedups"
+  # Load saved history (ignore errors — missing file is fine)
+  history -r "$_INPUT_HISTFILE" 2>/dev/null || true
+  # Deduplicate existing in-memory history
+  history -n 2>/dev/null || true
+
   # Hook Ctrl+V to paste media (image or text) from system clipboard (if available)
   _mix_paste_media() {
     local dir="/tmp/mix-clipboard"
