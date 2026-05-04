@@ -341,8 +341,35 @@ $(cat "$_plan_save")"
       local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-afk-prompt-XXXXXX)
       local _worker_tmp; _worker_tmp=$(mktemp -t mix-afk-worker-XXXXXX)
 
-      # Prompt tells the agent to write the plan directly to the file — no log parsing needed
-      cat > "$_prompt_tmp" << PLAN_PROMPT_END
+      if [ -n "$_afk_hint" ]; then
+        # Custom prompt mode: user provided a task/direction
+        cat > "$_prompt_tmp" << PLAN_PROMPT_END
+[AFK PLAN MODE] The user is away. Follow this task, then write your plan as a markdown file to: ${_plan_save}
+
+User task: ${_afk_hint}
+
+Rules:
+- Do NOT use edit_file or bash commands with side effects
+- Read-only bash only: cat, grep, git log, git status, git diff, find, wc
+- Analyse what's needed, then write a concrete plan
+- Use the bash tool to write the plan file at the end
+
+At the end, run this bash command to save your plan (replace the content):
+\`\`\`bash
+cat > ${_plan_save} << 'EOF'
+# AFK Plan — \$(date '+%Y-%m-%d %H:%M')
+
+Task: ${_afk_hint}
+
+[your plan items here, one per line]
+EOF
+\`\`\`
+
+Keep the plan concise: each item should be one line with a risk level (low/med/high).
+PLAN_PROMPT_END
+      else
+        # Default mode: analyse codebase for issues
+        cat > "$_prompt_tmp" << PLAN_PROMPT_END
 [AFK PLAN MODE] The user is away. Analyse the codebase, then write your plan as a markdown file to: ${_plan_save}
 
 Rules:
@@ -367,8 +394,7 @@ EOF
 
 Keep the plan concise: each item should be one line with a risk level (low/med/high).
 PLAN_PROMPT_END
-
-      [ -n "$_afk_hint" ] && printf '\nUser focus: %s\n' "$_afk_hint" >> "$_prompt_tmp"
+      fi
 
       cat > "$_apply_tmp" << 'APPLY_PREFIX_END'
 [AFK APPLY MODE] The user reviewed and approved this plan via Telegram. Execute each item using edit_file and bash. Read each file before editing. Make minimal targeted changes. Do not touch anything outside the plan scope.
