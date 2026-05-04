@@ -313,6 +313,26 @@ handle_cmd() {
         AUTO_YES=true;  echo "  Yolo mode ON  — auto-confirming commands (guardrails active)."
       fi
       ;;
+    /config)
+      echo -e "  \033[1;37mActive Config\033[0m"
+      echo "  Model:        $MODEL"
+      echo "  Provider:     $PROVIDER"
+      echo "  Base URL:     $BASE_URL"
+      echo "  Caveman:      $CAVEMAN_MODE"
+      echo "  Agent Mode:   $AGENT_MODE"
+      echo "  Auto-verify:  ${AUTO_VERIFY:-off}"
+      echo "  Stream:       $STREAM"
+      echo "  Yolo:         $AUTO_YES"
+      echo "  Max Turns:    $MAX_TURNS"
+      echo "  Max Hist:     $MAX_HIST_MSGS"
+      echo "  Context:      $CTX_TOKENS tokens"
+      echo "  Git:          $GIT_ENABLED"
+      echo "  Workdir:      $WORKDIR"
+      if [ -n "${VERIFY_CMD:-}" ]; then echo "  Verify Cmd:   $VERIFY_CMD"; fi
+      if [ -n "${TEST_CMD:-}" ]; then echo "  Test Cmd:     $TEST_CMD"; fi
+      echo ""
+      _mixrc_show
+      ;;
     /undo)
       if [ "$GIT_ENABLED" = true ]; then
         if git rev-parse HEAD~1 >/dev/null 2>&1; then
