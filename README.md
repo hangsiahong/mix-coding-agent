@@ -27,7 +27,7 @@ mix
 - **Memorybank**: Three-layer wiki (`raw/` → `memorybank/` → `AGENTS.md`). Mix reads and updates markdown notes to compound knowledge across sessions.
 - **Safety**: Risk-gated shell execution (BLOCKED/HIGH/MED/LOW). Auto-commits every edit with git. Diff preview before applying changes.
 - **Auto-Verify**: After edits, auto-runs syntax check, linter, and typechecker (10 languages). Catches bugs immediately.
-- **Sandbox**: Opt-in container-level isolation via Linux namespaces — no Docker required. `/sandbox setup` downloads Alpine rootfs (~26MB, one-time). `/sandbox on` enables chroot + PID/mount/user namespaces + cgroup v2 limits (512MB RAM, 50% CPU). LLM can `apk add` tools; installs persist to rootfs. Project dir auto-mounted at `/workspace`. `--sandbox` flag enables on startup.
+- **Sandbox**: Opt-in container-level isolation via Linux namespaces — no Docker required. `/sandbox setup` downloads Alpine rootfs (~26MB, one-time). `/sandbox on` enables chroot + PID/mount/user/network namespaces + cgroup v2 limits (512MB RAM, 50% CPU). Network is fully isolated inside bash tool calls (loopback only). Use `/sandbox install <pkg>` from the REPL to add packages (runs `apk add` with network, persists to rootfs). Project dir auto-mounted at `/workspace`. `--sandbox` flag enables on startup.
 - **Extensions**: Drop-in plugins. Put `.sh` in `~/.mix/extensions/` or `.mix/extensions/`. Convention hooks customize the harness without forking. See [Extensions](#extensions).
 - **Self-Healing Bash**: Failed commands get automatic diagnostics and recovery hints. Streak detection with fallback suggestions.
 - **Repo Map**: Aider-style code structure map injected into system prompt. Eliminates 2-3 orientation turns per task.
@@ -122,6 +122,7 @@ Type these inside the mix prompt:
 | `/sandbox off` | Disable sandbox |
 | `/sandbox setup` | Download Alpine rootfs (~26MB, one-time) |
 | `/sandbox setup --rebuild` | Re-download and rebuild rootfs |
+| `/sandbox install <pkg>` | Install apk package into sandbox rootfs (persists) |
 | `/sandbox status` | Show cgroup and rootfs details |
 | `/exit` | Quit |
 
