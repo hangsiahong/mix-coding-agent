@@ -25,6 +25,25 @@ handle_cmd() {
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
+    /cache)
+      local _nc
+      _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
+      if [ "$_nc" -eq 0 ]; then
+        echo "  File cache: empty (files auto-cache on read_file)"
+      else
+        echo -e "  \033[1;32mFile cache:\033[0m $_nc files"
+        for _fp in $_FILE_CACHE_ORDER; do
+          local _sz
+          _sz=$(printf '%s' "$_FILE_CACHE" | python3 -c "import json,sys;c=json.load(sys.stdin).get('$_fp',{});print(c.get('lines','?'))" 2>/dev/null) || _sz="?"
+          echo -e "    \033[0;90m$_fp ($_sz lines)\033[0m"
+        done
+        echo "  Survives history compaction. Invalidation: /cache clear"
+      fi
+      ;;
+    /cache\ clear)
+      _FILE_CACHE='{}'; _FILE_CACHE_ORDER=""
+      echo -e "  \033[38;5;82m✓\033[0m File cache cleared."
+      ;;
     /models)
       if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
         ${PROVIDER}_list_models
