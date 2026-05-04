@@ -6,8 +6,6 @@ compact_history() {
   count=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || return
   [ "$count" -lt "$MAX_HIST_MSGS" ] && return
 
-  printf "\r\033[K  \033[0;90m↻ compacting history (%d msgs)...\033[0m" "$count"
-
   # Resolve API key — provider may override
   local _compact_key="$API_KEY"
   if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
