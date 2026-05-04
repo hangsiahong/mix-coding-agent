@@ -2960,8 +2960,6 @@ handle_cmd() {
         echo "  $_stash_out"
       fi
       ;;
-<<<<<<< HEAD
-=======
     /stats)
       local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) ))
       echo -e "  \033[1;37mSession Stats\033[0m"
@@ -2973,7 +2971,6 @@ handle_cmd() {
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
       echo "  History msgs:   $_hist_n"
       ;;
->>>>>>> 3c6e796 (features: token tracking, /stats, /undo, /stash, edit suggestions, smart truncation)
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
@@ -3145,11 +3142,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-<<<<<<< HEAD
-      echo "  agent:   /flush  /undo  /stash  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
-=======
       echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
->>>>>>> 3c6e796 (features: token tracking, /stats, /undo, /stash, edit suggestions, smart truncation)
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -3717,11 +3710,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-<<<<<<< HEAD
-        for c in "/flush" "/undo" "/stash" "/refresh" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
-=======
         for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
->>>>>>> 3c6e796 (features: token tracking, /stats, /undo, /stash, edit suggestions, smart truncation)
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
