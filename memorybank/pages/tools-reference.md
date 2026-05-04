@@ -53,5 +53,14 @@ Every tool call goes through:
 6. **Execution**: delegates to run_tool() (13)
 7. **Git commit** (if git enabled + success): auto-stage + commit with summary
 8. **Test run** (if TEST_CMD set + user confirms): runs test command, appends result
-9. **Result display**: first 300 chars, truncated with byte count
+9. **Result display**: first 300 chars, truncated with byte count. Uses `└─` prefix.
 10. **History append**: JSON-escaped tool result added to conversation
+
+## Parallel Tool Execution (read-only tools)
+
+`read_file`, `list_files`, `search_files` are classified as read-only and run **concurrently** in background subshells:
+- Results written to temp batch directory (`mix-batch-XXXXXX`).
+- All parallel results collected after all subshells complete.
+- History appended via `append_raw_nosave()` per tool, then **single `save_history` flush** for entire batch.
+- Write tools (`bash`, `edit_file`, `create_file`) remain sequential after parallel batch finishes.
+- Sequential tools use `silent` flag to skip redundant UI output when part of a multi-tool turn.
