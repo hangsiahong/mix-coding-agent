@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
-# Shebang must be line 1. Write it first, then embed providers so their
-# functions exist when src/01_config.sh runs copilot_activate at startup.
+# ─── mix build script ────────────────────────────────────────────────────────
+# Concatenates src/*.sh into a single executable binary with versioning.
+
+# Bump version on each build
+MIX_VERSION="${MIX_VERSION:-$(date +%Y%m%d%H%M)}"
+export MIX_VERSION
+
 echo '#!/usr/bin/env bash' > mix.compiled
+# Embed version as the very first line after shebang
+echo "MIX_VERSION='$MIX_VERSION'" >> mix.compiled
 
 for pf in src/providers/*.sh; do
   [ -f "$pf" ] || continue
@@ -58,7 +65,53 @@ cp mix.compiled mix
 chmod +x mix.compiled mix
 echo "Compiled to mix (and mix.compiled)!"
 
-# Auto-install to the same location install.sh picked
+# ─── Health gate: only version + install if binary passes self-test ──────────
+_self_test_out=$(bash mix --self-test 2>&1)
+_self_test_rc=$?
+if [ $_self_test_rc -ne 0 ]; then
+  echo "⚠️  Self-test FAILED — binary not installed or versioned:"
+  echo "$_self_test_out" | head -5
+  exit 1
+fi
+echo "✓ Self-test passed"
+
+# ─── Version the binary ─────────────────────────────────────────────────────
+_VERSIONS_DIR="$HOME/.mix/versions"
+mkdir -p "$_VERSIONS_DIR"
+
+# Timestamped backup
+_TS=$(date +%s)
+_VERSIONED_BIN="$_VERSIONS_DIR/${_TS}.bin"
+cp mix "$_VERSIONED_BIN"
+echo "✓ Versioned → ${_TS}.bin"
+
+# Update last_good (keep previous current if it exists)
+if [ -L "$_VERSIONS_DIR/current" ] && [ -f "$_VERSIONS_DIR/current" ]; then
+  _prev_current=$(readlink -f "$_VERSIONS_DIR/current" 2>/dev/null)
+  if [ -n "$_prev_current" ] && [ "$_prev_current" != "$_VERSIONED_BIN" ]; then
+    ln -sfn "$_prev_current" "$_VERSIONS_DIR/last_good"
+    echo "✓ last_good → $(basename "$_prev_current")"
+  fi
+fi
+
+# Update current symlink
+ln -sfn "$_VERSIONED_BIN" "$_VERSIONS_DIR/current"
+echo "✓ current → ${_TS}.bin"
+
+# ─── Auto-prune: keep last 5 versions ───────────────────────────────────────
+_prune_count=0
+_cur_target=$(readlink -f "$_VERSIONS_DIR/current" 2>/dev/null)
+_lg_target=$(readlink -f "$_VERSIONS_DIR/last_good" 2>/dev/null)
+for _old in $(ls -1t "$_VERSIONS_DIR/"*.bin 2>/dev/null | tail -n +6); do
+  _old_real=$(readlink -f "$_old" 2>/dev/null)
+  [ "$_old_real" = "$_cur_target" ] && continue
+  [ "$_old_real" = "$_lg_target" ] && continue
+  rm -f "$_old"
+  ((_prune_count++)) || true
+done
+[ $_prune_count -gt 0 ] && echo "✓ Pruned $_prune_count old version(s)"
+
+# ─── Install: write thin wrapper to PATH ────────────────────────────────────
 _install_target=""
 for _d in "$HOME/bin" "$HOME/.local/bin" "/usr/local/bin"; do
   if echo "$PATH" | tr ':' '\n' | grep -qx "$_d" && [ -d "$_d" ]; then
@@ -66,6 +119,50 @@ for _d in "$HOME/bin" "$HOME/.local/bin" "/usr/local/bin"; do
     break
   fi
 done
+
 if [ -n "$_install_target" ]; then
-  cp mix "$_install_target" && echo "Installed → $_install_target"
+  cat > "$_install_target" << 'WRAPPER'
+#!/bin/bash
+# mix wrapper — health-checks the current binary, falls back to last_good
+# This file is intentionally simple (~30 lines). It should NEVER break.
+MIX_DIR="$HOME/.mix/versions"
+CRASH_LOG="/tmp/mix-crash.log"
+CURRENT="$MIX_DIR/current"
+LAST_GOOD="$MIX_DIR/last_good"
+
+# No versions installed yet? Try running from source tree
+if [ ! -f "$CURRENT" ]; then
+  for _try in "./mix" "$(dirname "$0")/../mix"; do
+    [ -f "$_try" ] && exec bash "$_try" "$@"
+  done
+  echo "mix: no binary found. Run install.sh or build.sh first." >&2
+  exit 1
+fi
+
+# Quick health check — 3 second timeout
+_test_out=$(timeout 3 bash "$CURRENT" --self-test 2>"$CRASH_LOG")
+_test_rc=$?
+if [ $_test_rc -eq 0 ] && [ "$_test_out" = "OK" ]; then
+  exec bash "$CURRENT" "$@"
+fi
+
+# Current binary is broken — try last_good in --doctor mode
+echo "⚠️  Broken build detected." >&2
+if [ -f "$CRASH_LOG" ]; then
+  echo "  Last error:" >&2
+  head -3 "$CRASH_LOG" | sed 's/^/    /' >&2
+fi
+
+if [ -f "$LAST_GOOD" ]; then
+  echo "  Booting last_good in --doctor mode..." >&2
+  exec bash "$LAST_GOOD" --doctor "$@"
+fi
+
+# Catastrophic — no working binary
+echo "  No last_good binary available." >&2
+echo "  Manual recovery: cd to source dir and run 'bash build.sh'" >&2
+exit 1
+WRAPPER
+  chmod +x "$_install_target"
+  echo "Installed wrapper → $_install_target"
 fi
