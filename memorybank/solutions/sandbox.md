@@ -229,6 +229,84 @@ Step 4: Reverse shell connects out from host     → POSSIBLE (host has network)
 1. ✅ Mount rootfs dirs (`/bin,/etc,/lib,/sbin,/usr,/var`) as **read-only** by default; remount rw only during `/sandbox install`
 2. Restrict `~/.mix` writes to allowlist (session.json, history, extensions only) — not yet implemented
 
+### Round 6 — Deep Escalation Audit (Capabilities, Namespaces, Kernel Interfaces)
+
+**New findings from testing capabilities, namespace nesting, overlayfs, block devices, mount attacks, /proc leaks:**
+
+#### ✅ PASS — 22 attack vectors
+
+| # | Attack Vector | Result |
+|---|---|---|
+| `unshare` nested namespace | `Operation not permitted` | ✅ BLOCKED |
+| `chroot` escape attempt | Not available / fails | ✅ BLOCKED |
+| `ptrace` attach to PID 1 | Blocked | ✅ BLOCKED |
+| `overlayfs` mount | Succeeds but only sees sandbox rootfs | ✅ SAFE |
+| `mount --bind /proc/1/root` | Only sees sandbox rootfs | ✅ SAFE |
+| Block device read (`/dev/nvme*`) | No device nodes accessible | ✅ BLOCKED |
+| Block device write (`dd`) | No device nodes accessible | ✅ BLOCKED |
+| `mknod` device creation | Fails | ✅ BLOCKED |
+| `mount` host btrfs partition | `Permission denied` | ✅ BLOCKED |
+| `dmesg` kernel logs | `Operation not permitted` | ✅ BLOCKED |
+| `/sys` filesystem | Not mounted | ✅ BLOCKED |
+| Unix domain socket to host | All paths fail | ✅ BLOCKED |
+| Host process visibility | Only sandbox PIDs (4 total) | ✅ BLOCKED |
+| `io_uring` | Not exploitable | ✅ BLOCKED |
+| `/dev/shm` host shared memory | Empty (sandbox-local) | ✅ BLOCKED |
+| Host disk mount via device number | `Permission denied` | ✅ BLOCKED |
+| Raw disk read via python open() | `No such file or directory` | ✅ BLOCKED |
+| `sudo` / `su` escalation | Not available / blocked | ✅ BLOCKED |
+| PID namespace (host PIDs) | Only sandbox PIDs visible | ✅ PASS |
+| `/proc/1/root` filesystem | Sandbox rootfs only | ✅ PASS |
+| `/proc/1/fd` write to host pty | Writes to sandbox pipe only | ✅ PASS |
+| Network (all protocols) | `Network unreachable` | ✅ BLOCKED |
+
+#### 🔴 MEDIUM — /proc Information Leaks (3 items)
+
+| Leak | Data Exposed | Severity | Exploitability |
+|---|---|---|---|
+| `/proc/1/environ` | Full host user env: `HOME=/home/jiren`, `USER=jiren`, `SHELL=/usr/bin/fish`, `DISPLAY=:0`, `WAYLAND_DISPLAY=wayland-0`, `TMUX=/tmp/tmux-1000/default,1236015,0`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR=/run/user/1000`, `KONSOLE_DBUS_*` | **MEDIUM** | Recon only — reveals username, desktop env, tmux session. No secrets after `unset` fix. |
+| `/proc/{version,cpuinfo,meminfo}` | Host kernel (`7.0.0-1-cachyos`), CPU model (`AMD Ryzen AI 9 HX 370`), RAM (`32GB`) | **LOW** | Recon only — hardware fingerprinting. |
+| `/proc/partitions` + `mountinfo` | Disk layout (`nvme0n1` with 9 partitions), btrfs subvol names (`@home`, `@`), host username in paths | **LOW** | Recon only — disk layout fingerprinting. |
+
+#### ⚠️ LOW — mount tmpfs/proc Inside Sandbox
+
+| Issue | Severity | Detail |
+|---|---|---|
+| `mount -t tmpfs tmpfs /tmp/mnt` succeeds | **LOW** | Can create tmpfs inside sandbox. Harmless — no host access. |
+| `mount -t proc proc /tmp/hostproc` succeeds | **LOW** | Fresh proc mount shows same sandbox PIDs. No host escape. |
+
+#### Root Cause: /proc/1/environ Leak
+
+The sandbox uses `exec chroot` which correctly replaces PID 1 with the chrooted process. But `/proc/1/environ` still contains the host user's full environment because:
+
+1. `unshare --fork --user --map-root-user --pid` creates PID 1 as `/bin/sh -s`
+2. PID 1 **inherits** the full host environment before `unset` runs
+3. `unset` removes API keys but leaves `HOME`, `USER`, `SHELL`, `DISPLAY`, etc.
+4. `exec chroot` replaces the binary but preserves `/proc/1/environ` (kernel copies env at exec time)
+5. Result: `/proc/1/environ` leaks host user identity + desktop session details
+
+**Recommended fix**: Replace `unset` with `env -i` to start from clean environment:
+```bash
+# Current (leaks most host env):
+unset KCONSOLE_API_KEY ... && exec chroot ...
+
+# Proposed (clean environment):
+exec env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root chroot ...
+```
+
+#### Overall Verdict
+
+**Sandbox is production-ready for LLM code execution.** No host filesystem escape, no network escape, no privilege escalation possible. The only remaining issues are **informational leaks** through `/proc` — the LLM can learn the host username, hardware, and desktop session but cannot access any files, processes, or network services on the host.
+
+**Risk summary**: A malicious LLM inside the sandbox can:
+- ✅ See host username, hardware specs, desktop environment (recon)
+- ❌ Cannot read/write host files outside `/workspace` and `~/.mix`
+- ❌ Cannot reach host network
+- ❌ Cannot escalate privileges
+- ❌ Cannot see host processes
+- ❌ Cannot access block devices
+- ❌ Cannot modify sandbox rootfs (read-only)
+
 ## Verified Behavior
 
 - `id` → `uid=0(root) gid=0(root)` inside sandbox
