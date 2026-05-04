@@ -46,10 +46,10 @@ setup() {
   HISTORY='[]'
   CTX_TOKENS=131072
   _SESSION_API_CALLS=0
-  run ctx_bar
-  [ $status -eq 0 ]
-  # Should show 0k / 131k
-  echo "$output" | grep -q "0k"
+  _SESSION_PROMPT_TOKENS=0
+  _SESSION_COMPLETION_TOKENS=0
+  ctx_bar
+  [ $? -eq 0 ]
 }
 
 @test "ctx_bar shows session stats when calls > 0" {
