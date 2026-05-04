@@ -17,27 +17,27 @@ setup() {
 
 @test "spinner default color is purple" {
   ACTIVE_SKILLS=""
-  local label="thinking"
-  local color="38;5;99m" # purple
-  # Verify the function exists and runs without error
   start_spinner "thinking"
-  stop_spinner
-  [ -z "$_SPIN_PID" ]
+  # Verify PID is set
+  [ -n "$_SPIN_PID" ]
+  kill "$_SPIN_PID" 2>/dev/null; wait "$_SPIN_PID" 2>/dev/null
+  _SPIN_PID=""
 }
 
 @test "spinner retry label triggers orange color" {
-  # We can't easily test internal variable, but verify start/stop works with retry label
   ACTIVE_SKILLS=""
   start_spinner "mix (turn 1 retry 2)"
-  stop_spinner
-  [ -z "$_SPIN_PID" ]
+  [ -n "$_SPIN_PID" ]
+  kill "$_SPIN_PID" 2>/dev/null; wait "$_SPIN_PID" 2>/dev/null
+  _SPIN_PID=""
 }
 
 @test "spinner error label triggers red color" {
   ACTIVE_SKILLS=""
   start_spinner "error recovery"
-  stop_spinner
-  [ -z "$_SPIN_PID" ]
+  [ -n "$_SPIN_PID" ]
+  kill "$_SPIN_PID" 2>/dev/null; wait "$_SPIN_PID" 2>/dev/null
+  _SPIN_PID=""
 }
 
 # ─── Context bar (#7) ──────────────────────────────────────────────
