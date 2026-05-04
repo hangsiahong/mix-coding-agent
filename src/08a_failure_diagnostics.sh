@@ -79,7 +79,7 @@ diagnose_failure() {
   # ── Pattern: module/package not found ───────────────────────────────────
   if printf '%s' "$output" | grep -qiE 'ModuleNotFoundError|ImportError|Cannot find module|no module named'; then
     local _mod
-    _mod=$(printf '%s' "$output" | grep -oE "(named '|'module ')[^']*" | sed "s/.*'//" | head -1) || true
+    _mod=$(printf '%s' "$output" | grep -oE "(named |module )'[^']*" | sed "s/.*'//" | head -1) || true
     [ -z "$_mod" ] && _mod=$(printf '%s' "$output" | grep -oE "Cannot find module '([^']+)'" | sed "s/.*'//;s/'.*//" | head -1) || true
     if [ -n "$_mod" ]; then
       hints+="${NL}  💡 Module '$_mod' not found."
