@@ -26,7 +26,7 @@ _REPO_MAP_PATTERNS=(
   "ts:^(function |class ):decl"
   "ts:^(export (const|let) [A-Z][a-zA-Z]+ =):decl"
   "ts:^(interface |type [A-Z]|enum [A-Z]):decl"
-  "ts:^(export (async )?(function |const) (GET|POST|PUT|DELETE|PATCH)):api"
+  "ts:^(export (async )?(function|const) (GET|POST|PUT|DELETE|PATCH)):api"
   "go:^(func |type |var |const |import ):decl"
   "rs:^(pub )?(fn |struct |enum |trait |impl |mod ):decl"
   "java:^(public |private |protected |static ).*(class |interface |void |int |String ):decl"
