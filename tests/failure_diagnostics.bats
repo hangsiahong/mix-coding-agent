@@ -3,6 +3,7 @@
 # Pure function: takes cmd, output, exit_code → returns diagnostic hints
 
 setup() {
+    PROJECT_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     source "$PROJECT_ROOT/src/08a_failure_diagnostics.sh"
 }
 
