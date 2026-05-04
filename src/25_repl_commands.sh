@@ -44,6 +44,25 @@ handle_cmd() {
       _FILE_CACHE='{}'; _FILE_CACHE_ORDER=""
       echo -e "  \033[38;5;82m✓\033[0m File cache cleared."
       ;;
+    /verify)
+      echo "  Auto-verify: $AUTO_VERIFY"
+      echo "  Usage: /verify [on|off]  — toggle syntax/lint/typecheck after edits"
+      ;;
+    /verify\ on)
+      AUTO_VERIFY="on"
+      echo -e "  \033[38;5;82m✓\033[0m Auto-verify ON — will run checks after edit_file/create_file"
+      ;;
+    /verify\ off)
+      AUTO_VERIFY="off"
+      echo -e "  \033[0;90m  Auto-verify OFF\033[0m"
+      ;;
+    /verify\ *)
+      local _varg="${1#/verify }"
+      case "$_varg" in
+        on|off) AUTO_VERIFY="$_varg"; echo "  Auto-verify → $AUTO_VERIFY" ;;
+        *) echo "  Unknown. Use: /verify [on|off]" ;;
+      esac
+      ;;
     /models)
       if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
         ${PROVIDER}_list_models
