@@ -30,6 +30,7 @@ cat \
     src/11a_file_cache.sh \
     src/11b_repo_map.sh \
     src/11c_session.sh \
+    src/07b_session_startup.sh \
     src/12_auto_compact_history.sh \
     src/13_tool_execution.sh \
     src/13a_auto_verify.sh \
