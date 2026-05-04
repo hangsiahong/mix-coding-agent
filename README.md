@@ -27,6 +27,7 @@ mix
 - **Memorybank**: Three-layer wiki (`raw/` → `memorybank/` → `AGENTS.md`). Mix reads and updates markdown notes to compound knowledge across sessions.
 - **Safety**: Risk-gated shell execution (BLOCKED/HIGH/MED/LOW). Auto-commits every edit with git. Diff preview before applying changes.
 - **Auto-Verify**: After edits, auto-runs syntax check, linter, and typechecker (10 languages). Catches bugs immediately.
+- **Extensions**: Drop-in plugins. Put `.sh` in `~/.mix/extensions/` or `.mix/extensions/`. Convention hooks customize the harness without forking. See [Extensions](#extensions).
 - **Self-Healing Bash**: Failed commands get automatic diagnostics and recovery hints. Streak detection with fallback suggestions.
 - **Repo Map**: Aider-style code structure map injected into system prompt. Eliminates 2-3 orientation turns per task.
 - **File Cache**: Caches read file contents in-memory, auto-injects into system prompt. Survives history compaction.
