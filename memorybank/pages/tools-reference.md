@@ -19,11 +19,12 @@
 
 ### edit_file
 - Input: `{"path": "/abs/path", "old_text": "exact", "new_text": "replacement"}`
-- 3-strategy matching:
+- 4-strategy matching:
   1. **Exact**: direct string replace. Fast path.
-  2. **Fuzzy whitespace**: normalizes trailing whitespace + line endings (\r\n→\n, rstrip)
-  3. **Fuzzy indent**: strips all leading whitespace per line
-- old_text must be unique (exactly 1 match). Multiple matches → error.
+  2. **Fuzzy whitespace**: normalizes trailing whitespace + line endings (\r\n→\n, rstrip). Uniqueness checked.
+  3. **Fuzzy indent**: strips all leading whitespace per line.
+  4. **Block anchor**: matches first+last non-empty lines of old_text, scans file for that pair within range.
+- old_text must be unique at whichever strategy succeeds. Multiple matches → error.
 - Not found → clear error message.
 - Auto-commits if git enabled.
 
