@@ -20,6 +20,7 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
+| extension-system.md | Drop-in plugin system. ~/.mix/extensions/ + .mix/extensions/. Convention hooks (_init/_cmd/_tool/_on_edit/_on_create/_on_bash/_on_session/_on_shutdown). /ext [load|unload|create|reload|list]. 24 tests |
 | repo-map-structural-awareness.md | Regex-based codebase map (~1200 tokens) injected into system prompt. Eliminates 2-3 orientation tool calls per task. 10-language support, mtime-cached, /refresh to rebuild |
 | file-content-cache.md | Session-scoped file content cache surviving history compaction. Auto-caches on read/edit/create. ~1000 tokens in system prompt. /cache to inspect |
 | auto-verify-post-edit.md | Auto syntax/lint/typecheck after every edit_file/create_file. 10 languages, graceful degradation. [VERIFY: FAILED] in tool result |
