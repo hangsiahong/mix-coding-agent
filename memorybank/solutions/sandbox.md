@@ -225,9 +225,9 @@ Step 4: Reverse shell connects out from host     → POSSIBLE (host has network)
 
 **Verdict**: Sandbox prevents DIRECT compromise. The remaining risk is social engineering — user must explicitly run a dropped file on the host. This is the same trust model as any development tool (vim, VS Code, etc.).
 
-**Recommended hardening** (not yet implemented):
-1. Mount rootfs dirs (`/bin,/etc,/lib,/sbin,/usr`) as **read-only** by default; remount rw only during `/sandbox install`
-2. Restrict `~/.mix` writes to allowlist (session.json, history, extensions only)
+**Recommended hardening** (IMPLEMENTED Round 5):
+1. ✅ Mount rootfs dirs (`/bin,/etc,/lib,/sbin,/usr,/var`) as **read-only** by default; remount rw only during `/sandbox install`
+2. Restrict `~/.mix` writes to allowlist (session.json, history, extensions only) — not yet implemented
 
 ## Verified Behavior
 
