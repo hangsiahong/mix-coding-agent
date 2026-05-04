@@ -181,3 +181,12 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | continue
 
 ## [2026-05-04] task | i thought rc.sh is extension, the features like like pi.dev Change the harness, 
+
+## [2026-05-04] task | dont need to redesign .mixrc as extension system, just add another feature imple
+
+## [2026-05-04] ingest | Extension system complete
+  - New: src/04b_extension_system.sh (245 lines)
+  - New: src/02_mixrc.sh (107 lines) — .mixrc project overrides
+  - 151/151 tests passing (27 mixrc + 24 extensions)
+  - Updated: architecture.md, index.md, extension-system.md solution page
+  - Pending: README update for extensions section
