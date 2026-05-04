@@ -314,3 +314,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-04] task |  continue to to check for other esclation, weaknesses, or we can confirm sandbox
 
 ## [2026-05-05] task | i have fixed it already
+
+## [2026-05-05] task | status and check and try to commit and push?
