@@ -29,7 +29,7 @@
 | 17_response_parser.sh | 23 | parse_resp(): RAW/TC/TEXT protocol format |
 | 18_streaming_api_call.sh | 210 | call_api_stream(): SSE streaming with spinner kill, network-drop retry fallback |
 | 19_spinner.sh | 18 | start_spinner()/stop_spinner(): braille animation |
-| 20_context_window_bar.sh | 17 | ctx_bar(): token usage bar (3 chars/token ratio) |
+| 20_context_window_bar.sh | 23 | ctx_bar(): token usage bar (3 chars/token ratio) + session stats line (API calls, prompt/completion tokens) |
 | 21_tmux_status_updater.sh | 22 | tmux_update(): refreshes tmux status bar with context % |
 | 22_process_one_tool_call.sh | 246 | process_tc(): UX layer per tool — risk scoring, confirmation, diff preview, git commit, test runner, 💡 suggestion display. Delegates to run_tool() for execution |
 | 23_plan_mode.sh | 28 | call_api_plan(): lightweight planning call, shows numbered plan, asks approval |
