@@ -31,7 +31,7 @@ MAX_TURNS="${MAX_TURNS:-100}"
 MAX_HIST_MSGS="${MAX_HIST_MSGS:-60}"  # compact history after this many messages
 CTX_TOKENS="${CTX_TOKENS:-131072}"   # model context window size (for % display)
 STREAM="${STREAM:-true}"             # stream tokens live
-AUTO_YES="${AUTO_YES:-true}"   # yolo mode: auto-confirm all non-blocked commands
+AUTO_YES="${AUTO_YES:-false}"  # yolo mode: auto-confirm all non-blocked commands
 # MIX_YOLO=1 env var enables AUTO_YES for non-interactive scripted runs (e.g. /afk apply)
 [ "${MIX_YOLO:-}" = "1" ] && AUTO_YES=true
 CAVEMAN_MODE="${CAVEMAN_MODE:-full}"  # caveman: off | lite | full | ultra
