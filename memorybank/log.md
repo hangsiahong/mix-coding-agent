@@ -5,7 +5,7 @@ Append-only task timeline. Format: `## [YYYY-MM-DD] type | description`
 
 Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems, provider system, config priority chain, test suite. Strengths, weaknesses, design decisions.
 
-## [2025-07-14] task | TUI Improvements — 12 changes
+## [2025-07-14] lint | Memorybank update — architecture.md line counts corrected (29→38 files, 4700→5240 lines), 2 new solution pages (session-persistence, tui-polish), index updated with 14 solutions
 
 12 TUI improvements implemented: re-render flicker fix, bash truncation marker, banner keybinding hints, grouped /help display, ctx_bar before first turn, MED risk yolo indicator, turn progress indicator, spinner color states, provider/extension autocomplete, turn separator, diff preview context lines, tmux live status. 166/166 tests pass.
 
@@ -212,3 +212,9 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 ## [2026-05-04] task | reasoning with yourself about mix-coding-agent
 
 ## [2026-05-04] task | check for tui improvement, and tell me what should we improve on?
+
+## [2026-05-04] task | okay implement all of it and keep on do it until we finished and test it for me 
+
+## [2026-05-04] task | /context
+
+## [2026-05-04] task | please continue
