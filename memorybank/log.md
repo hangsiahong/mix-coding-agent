@@ -103,3 +103,6 @@ Types: `ingest` `query` `lint` `task`
 - Added `.worktrees`, `.turbo`, `.vercel` to skip dirs
 - Validated across 8 real projects (bash, JS, TS, Next.js)
 - Budget: ~4800 chars / ~1600 tokens
+
+## [2026-05-04] task | okay continue
+## [2026-05-04] feature | File Content Cache — session-scoped cache surviving compaction

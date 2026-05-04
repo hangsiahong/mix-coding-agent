@@ -565,6 +565,14 @@ GIT: repo active. edit_file auto-commits. Use git freely."
 $_rmap"
   fi
 
+  # File content cache — recently accessed files, survives compaction
+  local _fctx; _fctx=$(build_file_context 2>/dev/null) || true
+  if [ -n "$_fctx" ]; then
+    base+="
+
+$_fctx"
+  fi
+
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
@@ -806,6 +814,152 @@ save_history() {
   fi
 }
 
+# ─── File Content Cache ──────────────────────────────────────────────────────
+# Session-scoped file content cache. Survives history compaction.
+# Purpose: eliminate re-reading files the agent already saw.
+# After compact, model loses file contents from history but cache persists.
+#
+# How it works:
+#   1. Every read_file call → cache stores content + mtime
+#   2. Every edit_file/create_file → cache updates with new content
+#   3. build_file_context() → injects top-N recently-accessed files into system prompt
+#   4. Cache invalidates on mtime change (file edited externally)
+#
+# Budget: ~3000 chars (~1000 tokens). Max 8 files, 400 chars each.
+# This leaves room in system prompt alongside repo map (~4800 chars).
+
+_FILE_CACHE=""        # JSON: {"path": {"content": "...", "mtime": 123, "atime": 456, "lines": 42}}
+_FILE_CACHE_ORDER=""  # "path1 path2 path3" — access order (most recent last)
+
+# Initialize cache from empty
+[ -z "$_FILE_CACHE" ] && _FILE_CACHE='{}'
+
+# Add or update a file in the cache
+file_cache_put() {
+  local _fp="$1" _fc="$2"
+  local _fmtime
+  _fmtime=$(stat -c '%Y' "$_fp" 2>/dev/null || echo "0")
+  local _flines
+  _flines=$(printf '%s' "$_fc" | wc -l)
+
+  # Write content to temp file, pass cache + path + temp via argv
+  local _ctmp; _ctmp=$(mktemp -t mix-fc-XXXXXX)
+  printf '%s' "$_fc" > "$_ctmp"
+
+  _FILE_CACHE=$(python3 -c '
+import json,sys,os,time
+cache = json.loads(sys.argv[1])
+path = sys.argv[2]
+content = open(sys.argv[3]).read()
+mtime = int(sys.argv[4])
+nlines = int(sys.argv[5])
+cache[path] = {"content": content, "mtime": mtime, "atime": time.time(), "lines": nlines}
+print(json.dumps(cache))
+' "$_FILE_CACHE" "$_fp" "$_ctmp" "$_fmtime" "$_flines" 2>/dev/null) || { rm -f "$_ctmp"; return; }
+  rm -f "$_ctmp"
+
+  # Update access order: remove existing entry, append to end
+  _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | grep -v '^$' | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
+  _FILE_CACHE_ORDER="${_FILE_CACHE_ORDER:+$_FILE_CACHE_ORDER }$_fp"
+}
+
+# Remove a file from cache
+file_cache_del() {
+  local _fp="$1"
+  _FILE_CACHE=$(python3 -c '
+import json,sys
+cache = json.loads(sys.argv[1])
+cache.pop(sys.argv[2], None)
+print(json.dumps(cache))
+' "$_FILE_CACHE" "$_fp" 2>/dev/null) || return
+  _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//;s/ *$//')
+}
+
+# Validate cache entries — remove stale (externally modified) files
+file_cache_validate() {
+  _FILE_CACHE=$(python3 -c '
+import json,sys,os
+cache = json.loads(sys.argv[1])
+stale = []
+for path, entry in cache.items():
+    if not os.path.exists(path):
+        stale.append(path)
+        continue
+    try:
+        mt = int(os.path.getmtime(path))
+        if mt != entry.get("mtime", 0):
+            stale.append(path)
+    except:
+        stale.append(path)
+for s in stale:
+    del cache[s]
+print(json.dumps(cache))
+' "$_FILE_CACHE" 2>/dev/null) || _FILE_CACHE='{}'
+
+  # Rebuild order from cache keys, preserving original order
+  local _new_order=""
+  for _fp in $_FILE_CACHE_ORDER; do
+    [ -z "$_fp" ] && continue
+    # Check if key still exists in cache — use grep on JSON string
+    if printf '%s' "$_FILE_CACHE" | grep -qF "\"$_fp\""; then
+      _new_order="$_new_order $_fp"
+    fi
+  done
+  _FILE_CACHE_ORDER="${_new_order# }"
+}
+
+# Build file context string for system prompt injection
+# Returns top-N most recently accessed files, truncated to budget
+build_file_context() {
+  file_cache_validate
+
+  # Count cached files
+  local _nfiles
+  _nfiles=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nfiles=0
+  [ "$_nfiles" -eq 0 ] && return
+
+  # Budget: 3000 chars total, max 8 files, 400 chars per file
+  local _budget=3000 _max_files=8 _per_file=400
+
+  # Get ordered paths from cache (most recent first via reversed order)
+  local _ordered_paths
+  _ordered_paths=$(printf '%s\n' "$_FILE_CACHE_ORDER" | tr -s ' ' '\n' | sed '/^$/d' | tac | tr '\n' '|')
+
+  # Build context via single python3 call (avoids repeated json parsing)
+  printf '%s' "$_FILE_CACHE" | python3 -c '
+import json,sys
+cache = json.loads(sys.stdin.read())
+order_str = sys.argv[1]
+budget = int(sys.argv[2])
+max_files = int(sys.argv[3])
+per_file = int(sys.argv[4])
+
+paths = [p for p in order_str.split("|") if p and p in cache]
+result_parts = []
+total_len = 0
+
+for path in paths[:max_files]:
+    entry = cache[path]
+    content = entry["content"]
+    nlines = entry.get("lines", "?")
+
+    # Truncate content to per-file budget
+    if len(content) > per_file:
+        keep = per_file - 50
+        head_n = int(keep * 0.7)
+        content = content[:head_n] + "\n... (truncated) ...\n" + content[-(keep - head_n):]
+
+    block = f"{path} ({nlines} lines):\n```\n{content}\n```"
+    if total_len + len(block) + 2 > budget:
+        break
+    result_parts.append(block)
+    total_len += len(block) + 2
+
+if result_parts:
+    print("## CACHED FILES (recently read — use instead of re-reading)\n")
+    print("\n\n".join(result_parts))
+' "$_ordered_paths" "$_budget" "$_max_files" "$_per_file" 2>/dev/null
+}
 # ─── Repo Map (codebase structural awareness) ────────────────────────────────
 # Generates a compressed map of the codebase injected into the system prompt.
 # Eliminates 2-3 "orientation" tool calls per task — agent knows file layout,
@@ -1235,6 +1389,8 @@ $result"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
       result=$(cat "$path" 2>&1) || true
       [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
+      # Cache file content for session — survives compaction
+      file_cache_put "$path" "$result" 2>/dev/null || true
       ;;
     edit_file)
       local _ea_dir; _ea_dir=$(mktemp -d -t mix-XXXXXX)
@@ -1321,6 +1477,11 @@ if len(o_lines) > 2:
 
 print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
+      # Update file cache after successful edit
+      if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
+        local _new_content; _new_content=$(cat "$path" 2>/dev/null) || true
+        [ -n "$_new_content" ] && file_cache_put "$path" "$_new_content" 2>/dev/null || true
+      fi
       ;;
     list_files)
       local path
@@ -1340,6 +1501,13 @@ os.makedirs(os.path.dirname(p) or ".",exist_ok=True)
 open(p,"w").write(d["content"])
 print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
 ' 2>/dev/null) || result="Error: bad args"
+      # Cache newly created file
+      if [[ "$result" == Created* ]]; then
+        local _cfp _cfc
+        _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
+        _cfc=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["content"])' 2>/dev/null)
+        [ -n "$_cfp" ] && [ -n "$_cfc" ] && file_cache_put "$_cfp" "$_cfc" 2>/dev/null || true
+      fi
       ;;
     search_files)
       local _sf_pat _sf_path
@@ -2290,6 +2458,25 @@ handle_cmd() {
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
+    /cache)
+      local _nc
+      _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
+      if [ "$_nc" -eq 0 ]; then
+        echo "  File cache: empty (files auto-cache on read_file)"
+      else
+        echo -e "  \033[1;32mFile cache:\033[0m $_nc files"
+        for _fp in $_FILE_CACHE_ORDER; do
+          local _sz
+          _sz=$(printf '%s' "$_FILE_CACHE" | python3 -c "import json,sys;c=json.load(sys.stdin).get('$_fp',{});print(c.get('lines','?'))" 2>/dev/null) || _sz="?"
+          echo -e "    \033[0;90m$_fp ($_sz lines)\033[0m"
+        done
+        echo "  Survives history compaction. Invalidation: /cache clear"
+      fi
+      ;;
+    /cache\ clear)
+      _FILE_CACHE='{}'; _FILE_CACHE_ORDER=""
+      echo -e "  \033[38;5;82m✓\033[0m File cache cleared."
+      ;;
     /models)
       if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
         ${PROVIDER}_list_models
@@ -2422,7 +2609,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /refresh  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /compact  /refresh  /cache [clear]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -2990,7 +3177,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/refresh" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
+        for c in "/flush" "/refresh" "/cache" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
