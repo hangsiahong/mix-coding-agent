@@ -212,7 +212,7 @@ handle_test_cmd() {
 _test_init() {
   local _dir="$1"
   local _det; _det=$(_test_detect_framework "$_dir")
-  local _fw="${det%%|*}"
+  local _fw="${_det%%|*}"
 
   # Parse detection result
   local _fw_name _runner _config _testdir _ext
