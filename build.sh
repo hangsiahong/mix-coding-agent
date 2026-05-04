@@ -28,6 +28,7 @@ cat \
     src/11b_repo_map.sh \
     src/12_auto_compact_history.sh \
     src/13_tool_execution.sh \
+    src/13a_auto_verify.sh \
     src/14_risk_scoring_blocked_high_med_low_reason.sh \
     src/15_ask_user_for_confirmation_reads_from_dev_tty_not_stdin.sh \
     src/16_api.sh \
