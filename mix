@@ -780,6 +780,251 @@ if [ -f "$HOME/.mix/rc.sh" ]; then
   source "$HOME/.mix/rc.sh"
 fi
 
+# ─── Extension System ────────────────────────────────────────────────────────
+# Drop-in extensions from ~/.mix/extensions/ and .mix/extensions/
+# Like pi.dev: customize the harness, not your workflow.
+#
+# Convention-based hooks an extension can define:
+#   <name>_init()           — called on load (set variables, register state)
+#   <name>_cmd()            — REPL command handler (receives full input line)
+#   <name>_tool()           — custom tool handler (receives name + json args)
+#   <name>_on_edit()        — hook after successful edit_file (receives path)
+#   <name>_on_create()      — hook after successful create_file (receives path)
+#   <name>_on_bash()        — hook after bash execution (receives command)
+#   <name>_on_session()     — hook for session save/restore
+#   <name>_on_shutdown()    — cleanup on exit
+#
+# Extension files: ~/.mix/extensions/<name>.sh or .mix/extensions/<name>.sh
+# Priority: project (.mix/) > global (~/.mix/) — project wins.
+
+_MIX_EXTENSIONS_DIR="${HOME}/.mix/extensions"
+_MIX_EXTENSIONS_LOCAL="${WORKDIR}/.mix/extensions"
+_MIX_EXTENSIONS_LOADED=""
+
+# ─── Load all extensions ────────────────────────────────────────────────────
+_ext_load_all() {
+  local _loaded=0
+  # Build list: global first, then project (project overwrites global)
+  local -A _ext_files
+  if [ -d "$_MIX_EXTENSIONS_DIR" ]; then
+    for f in "$_MIX_EXTENSIONS_DIR"/*.sh; do
+      [ -f "$f" ] && _ext_files[$(basename "$f")]="$f"
+    done
+  fi
+  if [ -d "$_MIX_EXTENSIONS_LOCAL" ]; then
+    for f in "$_MIX_EXTENSIONS_LOCAL"/*.sh; do
+      [ -f "$f" ] && _ext_files[$(basename "$f")]="$f"
+    done
+  fi
+
+  for _name in "${!_ext_files[@]}"; do
+    local _base="${_name%.sh}"
+    source "${_ext_files[$_name]}" 2>/dev/null || {
+      echo -e "  \033[1;31m✗ Extension $_name failed to load\033[0m" >&2
+      continue
+    }
+    # Call init hook if defined
+    if type "${_base}_init" >/dev/null 2>&1; then
+      ${_base}_init 2>/dev/null || true
+    fi
+    _MIX_EXTENSIONS_LOADED+="$_base "
+    _loaded=$((_loaded + 1))
+  done
+
+  # Trim trailing space
+  _MIX_EXTENSIONS_LOADED="${_MIX_EXTENSIONS_LOADED% }"
+  return 0
+}
+
+# ─── Dispatch command to extensions ─────────────────────────────────────────
+# Returns 0 if an extension handled it, 1 if none did
+_ext_dispatch_cmd() {
+  local _input="$1"
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    if type "${_ext}_cmd" >/dev/null 2>&1; then
+      if ${_ext}_cmd "$_input"; then
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+# ─── Dispatch tool to extensions ────────────────────────────────────────────
+# Returns tool result string if handled, empty if none did
+_ext_dispatch_tool() {
+  local _tname="$1" _targs="$2"
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    if type "${_ext}_tool" >/dev/null 2>&1; then
+      local _result
+      _result=$(${_ext}_tool "$_tname" "$_targs" 2>/dev/null) || continue
+      if [ -n "$_result" ]; then
+        printf '%s' "$_result"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+# ─── Dispatch hook to all extensions ────────────────────────────────────────
+_ext_hook() {
+  local _hook="$1"; shift
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    if type "${_ext}_${_hook}" >/dev/null 2>&1; then
+      ${_ext}_${_hook} "$@" 2>/dev/null || true
+    fi
+  done
+}
+
+# ─── List available extensions ──────────────────────────────────────────────
+_ext_list() {
+  local -A _seen
+  # Loaded extensions
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    echo -e "  \033[38;5;82m●\033[0m $_ext \033[0;90m(loaded)\033[0m"
+    _seen[$_ext]=1
+  done
+  # Available but not loaded
+  for _dir in "$_MIX_EXTENSIONS_DIR" "$_MIX_EXTENSIONS_LOCAL"; do
+    [ -d "$_dir" ] || continue
+    for f in "$_dir"/*.sh; do
+      [ -f "$f" ] || continue
+      local _base="$(basename "$f" .sh)"
+      [ -z "${_seen[$_base]:-}" ] && echo -e "    $_base \033[0;90m($f)\033[0m" && _seen[$_base]=1
+    done
+  done
+}
+
+# ─── Load single extension by name ─────────────────────────────────────────
+_ext_load_one() {
+  local _name="$1"
+  # Already loaded?
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    [ "$_ext" = "$_name" ] && echo "  Extension $_name already loaded." && return 0
+  done
+  local _found=""
+  # Project wins over global
+  if [ -f "$_MIX_EXTENSIONS_LOCAL/${_name}.sh" ]; then
+    _found="$_MIX_EXTENSIONS_LOCAL/${_name}.sh"
+  elif [ -f "$_MIX_EXTENSIONS_DIR/${_name}.sh" ]; then
+    _found="$_MIX_EXTENSIONS_DIR/${_name}.sh"
+  fi
+  [ -z "$_found" ] && echo "  Extension not found: $_name" && return 1
+
+  source "$_found" 2>/dev/null || { echo "  Failed to load $_name"; return 1; }
+  if type "${_name}_init" >/dev/null 2>&1; then
+    ${_name}_init 2>/dev/null || true
+  fi
+  _MIX_EXTENSIONS_LOADED+="$_name "
+  echo -e "  \033[38;5;82m✓\033[0m Extension $_name loaded"
+  return 0
+}
+
+# ─── Unload extension ──────────────────────────────────────────────────────
+_ext_unload() {
+  local _name="$1"
+  local _new=""
+  local _found=false
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    if [ "$_ext" = "$_name" ]; then
+      _found=true
+      # Shutdown hook
+      if type "${_name}_on_shutdown" >/dev/null 2>&1; then
+        ${_name}_on_shutdown 2>/dev/null || true
+      fi
+      # Unset all functions
+      for _fn in init cmd tool on_edit on_create on_bash on_session on_shutdown; do
+        unset -f "${_name}_${_fn}" 2>/dev/null || true
+      done
+    else
+      _new+="$_ext "
+    fi
+  done
+  _MIX_EXTENSIONS_LOADED="${_new% }"
+  if [ "$_found" = true ]; then
+    echo -e "  \033[0;90mExtension $_name unloaded\033[0m"
+  else
+    echo "  Extension $_name not loaded"
+  fi
+}
+
+# ─── Create example extension ──────────────────────────────────────────────
+_ext_create() {
+  local _name="$1"
+  [ -z "$_name" ] && { echo "  Usage: /ext create <name>"; return 1; }
+  local _target="$_MIX_EXTENSIONS_DIR/${_name}.sh"
+  [ -f "$_target" ] && { echo "  $_target already exists"; return 1; }
+  mkdir -p "$_MIX_EXTENSIONS_DIR"
+  cat > "$_target" << 'EXAMPLE'
+# ─── Extension: example ─────────────────────────────────────────────────────
+# Hooks available:
+#   <name>_init()           — called on load
+#   <name>_cmd()            — REPL command (return 0=handled, 1=pass)
+#   <name>_tool()           — custom tool (return result string or empty)
+#   <name>_on_edit()        — hook after edit_file (receives path)
+#   <name>_on_create()      — hook after create_file (receives path)
+#   <name>_on_bash()        — hook after bash execution (receives command)
+#   <name>_on_session()     — hook for session save/restore
+#   <name>_on_shutdown()    — cleanup on exit
+
+EXAMPLE_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"
+
+example_init() {
+  # Called when extension loads
+  : # placeholder
+}
+
+example_cmd() {
+  # Handle /example REPL command. Return 0 = handled, 1 = not handled.
+  case "$1" in
+    /example)
+      echo "  Hello from $EXAMPLE_NAME extension!"
+      return 0
+      ;;
+    /example\ *)
+      local _arg="${1#/example }"
+      echo "  Example got: $_arg"
+      return 0
+      ;;
+  esac
+  return 1  # not our command
+}
+
+example_on_edit() {
+  # Called after successful edit_file
+  local _path="$1"
+  : # e.g. trigger lint, notify, etc
+}
+
+example_on_shutdown() {
+  # Cleanup
+  :
+}
+EXAMPLE
+  # Replace placeholder name with actual
+  sed -i "s/example/${_name}/g; s/EXAMPLE_NAME/${_name^^}_NAME/" "$_target"
+  echo -e "  \033[38;5;82m✓\033[0m Created $_target"
+  echo "  Edit it, then /ext load $_name to activate."
+}
+
+# ─── Reload all extensions ──────────────────────────────────────────────────
+_ext_reload() {
+  # Shutdown all loaded
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    if type "${_ext}_on_shutdown" >/dev/null 2>&1; then
+      ${_ext}_on_shutdown 2>/dev/null || true
+    fi
+  done
+  _MIX_EXTENSIONS_LOADED=""
+  _ext_load_all
+  local _count=0
+  for _ in $_MIX_EXTENSIONS_LOADED; do _count=$((_count+1)); done
+  echo -e "  \033[38;5;82m✓\033[0m Reloaded $_count extensions"
+}
+
+# Load on source
+_ext_load_all
 # ─── Pre-edit diff preview ──────────────────────────────────────────────────
 show_edit_diff() {
   local targs="$1"
@@ -2795,7 +3040,7 @@ process_tc() {
     bash)
       local cmd
       cmd=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || cmd="?"
-      
+
       if [ "$silent" != "true" ]; then
         local total_lines
         total_lines=$(printf '%s\n' "$cmd" | wc -l)
@@ -2824,7 +3069,7 @@ process_tc() {
         result="Error: command blocked — $_reason."
         FAIL_STREAK=$((FAIL_STREAK + 1))
       elif [ "$_risk" = "HIGH" ]; then
-        if [ "$silent" = "true" ]; then 
+        if [ "$silent" = "true" ]; then
            result="Error: HIGH risk command cannot be run in parallel/silent mode."
         else
            local _ans=""
@@ -2838,9 +3083,9 @@ process_tc() {
           _run=true
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
-        elif confirm "    Run? [Y/n] "; then 
+        elif confirm "    Run? [Y/n] "; then
           _run=true
-        else 
+        else
           result="User declined.";
         fi
       else
@@ -2866,6 +3111,7 @@ $_rh"
           fi
         else
           FAIL_STREAK=0
+          _ext_hook on_bash "$cmd"
         fi
       fi
       ;;
@@ -2895,8 +3141,8 @@ $_rh"
           FAIL_STREAK=0
           _TOOLS_USED=$((_TOOLS_USED + 1))
           if [[ "$result" == Edited* ]]; then
+            _ext_hook on_edit "$p"
             if [ "$GIT_ENABLED" = true ]; then
-              # Stage and show real git diff
               git -C "$WORKDIR" add "$p" 2>/dev/null || true
               local _gdiff
               _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
@@ -2956,6 +3202,7 @@ $_rh"
           _TOOLS_USED=$((_TOOLS_USED + 1))
           FAIL_STREAK=0
           if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
+            _ext_hook on_create "$p"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
             git -C "$WORKDIR" commit -m "agent: create $(basename "$p")" --quiet 2>/dev/null \
               && echo -e "    \033[0;90m↳ committed: create $(basename "$p")\033[0m" \
@@ -2981,7 +3228,16 @@ $_rh"
       result=$(run_tool update_global_memory "$targs")
       FAIL_STREAK=0
       ;;
-    *) result="Unknown: $tname" ;;
+    *)
+      # Try extension tools before reporting unknown
+      local _ext_result
+      _ext_result=$(_ext_dispatch_tool "$tname" "$targs" 2>/dev/null) || true
+      if [ -n "$_ext_result" ]; then
+        result="$_ext_result"
+      else
+        result="Unknown: $tname"
+      fi
+      ;;
   esac
   [ -z "$result" ] && result="(no output)"
 
@@ -3008,12 +3264,12 @@ $_rh"
         echo -e "      \033[0;95m$_sl\033[0m"
       done
     fi
-    # Simplify tool result text nicely aligned 
+    # Simplify tool result text nicely aligned
     local display_res="${result:0:300}"
     display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
     echo -e "      \033[38;5;244m└─ ${display_res}\033[0m"
     [ ${#result} -gt 300 ] && echo -e "         \033[0;90m... (${#result} bytes)\033[0m"
-    
+
     # Append tool result to history
     local esc
     esc=$(printf '%s' "$result" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || esc='"(error)"'
@@ -3269,6 +3525,9 @@ for m in reversed(h):
 
 # ─── REPL Commands ──────────────────────────────────────────────────────────
 handle_cmd() {
+  # Extensions get first crack at commands
+  _ext_dispatch_cmd "$1" && return 0
+
   case "$1" in
     /paste)
       local dir="/tmp/mix-clipboard"
@@ -3506,10 +3765,38 @@ handle_cmd() {
         *) echo "  Unknown. Use: fast deep plan" ;;
       esac
       ;;
+    /ext)
+      if [ -z "$_MIX_EXTENSIONS_LOADED" ]; then
+        echo -e "  \033[0;90mNo extensions loaded.\033[0m"
+        echo "  Usage: /ext load <name>   /ext unload <name>   /ext create <name>   /ext reload   /ext list"
+        echo "  Drop .sh files in ~/.mix/extensions/ or .mix/extensions/"
+      else
+        echo -e "  \033[1;37mExtensions:\033[0m"
+        _ext_list
+      fi
+      ;;
+    /ext\ load\ *)
+      local _ename="${1#/ext load }"
+      _ext_load_one "$_ename"
+      ;;
+    /ext\ unload\ *)
+      local _ename="${1#/ext unload }"
+      _ext_unload "$_ename"
+      ;;
+    /ext\ create\ *)
+      local _ename="${1#/ext create }"
+      _ext_create "$_ename"
+      ;;
+    /ext\ reload)
+      _ext_reload
+      ;;
+    /ext\ list)
+      _ext_list
+      ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
       echo "  testing: /test [init|generate|run|coverage]  — /test init to scaffold from scratch"
-      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /resume  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /config  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /resume  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /config  /ext [load|unload|create|reload|list]  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -4656,7 +4943,7 @@ fi
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
-trap 'session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-* 2>/dev/null; exit' EXIT TERM HUP
+trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-* 2>/dev/null; exit' EXIT TERM HUP
 
 # ─── Autocomplete ─────────────────────────────────────────────
 
@@ -4668,7 +4955,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
+        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then

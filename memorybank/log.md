@@ -177,3 +177,7 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | Project Overrides
 
 ## [2026-05-04] task | please continue
+
+## [2026-05-04] task | continue
+
+## [2026-05-04] task | i thought rc.sh is extension, the features like like pi.dev Change the harness, 
