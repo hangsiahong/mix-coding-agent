@@ -3,14 +3,6 @@ handle_cmd() {
   # Extensions get first crack at commands
   _ext_dispatch_cmd "$1" && return 0
 
-  # Catch-all: check if it looks like a slash command but not matched
-  if [[ "$1" == /* ]]; then
-    # Skip known commands that fall through to here (like /verify args)
-    [[ "$1" =~ ^/verify\  ]] && return 1
-    echo -e "  \033[1;31m✗ Unknown command:\033[0m $1"
-    echo "  Use /help to see available commands."
-    return 0
-  fi
   case "$1" in
     /paste)
       local dir="/tmp/mix-clipboard"
