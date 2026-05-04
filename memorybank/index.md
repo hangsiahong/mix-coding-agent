@@ -21,6 +21,7 @@ Update this file after every ingest or new page created.
 | file | summary |
 |---|---|
 | copilot-provider.md | GitHub Copilot provider: device-flow OAuth, token cache, model list, streaming |
+| tool_feedback_system.md | Enhanced TUI tool execution system with professional icons and resilience strategies |
 | workers-and-parallelism.md | tmux workers vs subagents, limitations, source references |
 
 ## sources

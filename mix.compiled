@@ -488,6 +488,8 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Brief explanation, then act. No throat-clearing.
 - Tool succeeded → move on. No repeats.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.
+- After completing a non-trivial task (bug fix, new feature, architecture decision), proactively write findings to memorybank/solutions/ and update memorybank/log.md if they exist. Don't wait to be asked.
+- If history is getting long, proactively save key findings to memorybank before they get compacted away.
 - Concise final answer after done.
 - Bash failure ([FAILED exit=N]) = signal, not dead end. Diagnose, fix root cause, retry.
 - Same approach fails twice → try different tool, simpler command, or fallback strategy.
@@ -500,6 +502,14 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
+
+## SKILLS (available in ~/.mix/skills/)
+- swe-precision:       better edit matches + auto-verification
+- bug-hunter:          repro scripts + root-cause isolation
+- security-hardener:   audit-first code + input sanitization
+- architect-evaluator: impact analysis + global refactoring
+- minimalist-refactor: bash-first + line-count reduction
+Suggest loading a skill if it matches the current task difficulty.
 
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
@@ -802,16 +812,19 @@ compact_history() {
     [ -n "$_pkey" ] && _compact_key="$_pkey"
   fi
 
-  # Build payload via temp files (avoids ARG_MAX on large histories)
+  # Build payload via temp files
   local _payload_tmp; _payload_tmp=$(mktemp -t mix-compact-XXXXXX)
   local _hist_tmp; _hist_tmp=$(mktemp -t mix-hist-XXXXXX)
   printf '%s' "$HISTORY" > "$_hist_tmp"
   python3 -c '
 import json,sys
-s=json.dumps("Summarize the conversation below into a single dense paragraph. Capture: goals, decisions made, files edited, commands run, errors resolved, current state. Be complete but concise. Output only the summary paragraph, nothing else.")
+s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else."
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
-msg=[{"role":"system","content":s}]+h
+# Some providers refuse to answer if the last message is from the user
+# or if there is no user message to trigger a response.
+# We append the instruction as a final user message.
+msg=h+[{"role":"user","content":s}]
 json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
 ' "$_hist_tmp" "$MODEL" "$_payload_tmp" 2>/dev/null || {
     rm -f "$_payload_tmp" "$_hist_tmp"
@@ -824,15 +837,19 @@ json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
     "${BASE_URL}/chat/completions"
     -H "Authorization: Bearer $_compact_key"
     -H "Content-Type: application/json")
-  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
-    local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
-    if [ -n "$_ph" ]; then
-      while IFS= read -r _hk _hv; do
-        [ -n "$_hk" ] && _curl_args+=(-H "$_hk: $_hv")
-      done < <(printf '%s' "$_ph" | python3 -c '
+
+  # Use provider-specific headers if available (e.g. for Copilot)
+  if [ "$PROVIDER" != "default" ]; then
+    if type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+      local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+      if [ -n "$_ph" ]; then
+        while IFS= read -r _header; do
+          [ -n "$_header" ] && _curl_args+=(-H "$_header")
+        done < <(printf '%s' "$_ph" | python3 -c '
 import json,sys
-for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
+for k,v in json.load(sys.stdin).items(): print(f"{k}: {v}")
 ' 2>/dev/null)
+      fi
     fi
   fi
 
@@ -898,7 +915,7 @@ for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
 
   local _compacted
   _compacted=$(printf '%s\n%s' \
-    "[{\"role\":\"user\",\"content\":$sum_esc},{\"role\":\"assistant\",\"content\":\"Understood. Context loaded.\"}]" \
+    "[{\"role\":\"user\",\"content\":$sum_esc},{\"role\":\"assistant\",\"content\":\"Context loaded. Reviewing summary. Ready to continue — pick up where we left off.\"}]" \
     "$recent" \
   | python3 -c '
 import json,sys
@@ -953,6 +970,17 @@ append_text() {
 # ─── Tool Execution ─────────────────────────────────────────────────────────
 run_tool() {
   local name="$1" args="$2" result=""
+  
+  # Professional TUI feedback
+  case "$name" in
+    bash*)        printf "  \e[32m⊚\e[0m \e[1mbash\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("command","")[:60])' 2>/dev/null)..." ;;
+    read_file)    printf "  \e[34m📖\e[0m \e[1mread\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    edit_file)    printf "  \e[33m📝\e[0m \e[1medit\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    create_file)  printf "  \e[32m➕\e[0m \e[1mcreate\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    list_files)   printf "  \e[36m📂\e[0m \e[1mlist\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    search_files) printf "  \e[35m🔍\e[0m \e[1msearch\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("pattern",""))' 2>/dev/null)" ;;
+  esac
+
   case "$name" in
     bash)
       local cmd
@@ -992,6 +1020,12 @@ import sys, re
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
 content=open(p).read()
 
+def normalize(s):
+    return '\n'.join(line.rstrip() for line in s.replace('\r\n','\n').replace('\r','\n').split('\n'))
+
+def strip_indent(s):
+    return '\n'.join(line.lstrip() for line in s.split('\n'))
+
 # 1. Exact match
 count=content.count(o)
 if count == 1:
@@ -1003,36 +1037,21 @@ if count > 1:
     sys.exit(0)
 
 # 2. Fuzzy match: normalize trailing whitespace + line endings
-def normalize(s):
-    return '\n'.join(line.rstrip() for line in s.replace('\r\n','\n').replace('\r','\n').split('\n'))
-
 nc = normalize(content)
 no = normalize(o)
 fcount = nc.count(no)
 if fcount == 1:
-    # Find the span in normalized content, map replacement back
     idx = nc.index(no)
-    # Rebuild: prefix + new_text normalized + suffix
     open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(no):])
     print('Edited '+p+' (fuzzy whitespace match)')
     sys.exit(0)
-if fcount > 1:
-    print('Error: old_text not unique after fuzzy match ('+str(fcount)+' matches) in '+p)
-    sys.exit(0)
 
-# 3. Indent-agnostic match: strip all leading whitespace per line
-def strip_indent(s):
-    return '\n'.join(line.lstrip() for line in s.split('\n'))
-
+# 3. Indent-agnostic match
 sc = strip_indent(nc)
 so = strip_indent(no)
 icount = sc.count(so)
 if icount == 1:
-    # Apply: find the actual region in normalized content and replace
     idx = sc.index(so)
-    # Corrected: we need the length of the matching segment in the *normalized* string, 
-    # not the stripped string, to slice correctly.
-    # Actually, easier: find start/end indices in sc, map to nc.
     start_line = sc[:idx].count('\n')
     match_lines = so.count('\n') + 1
     nc_lines = nc.split('\n')
@@ -1040,13 +1059,29 @@ if icount == 1:
     open(p,'w').write('\n'.join(new_nc))
     print('Edited '+p+' (fuzzy indent match)')
     sys.exit(0)
-if icount > 1:
-    print('Error: old_text not unique after indent-agnostic match ('+str(icount)+' matches) in '+p)
-    sys.exit(0)
+
+# 4. Fallback: Block Header/Footer Anchor match
+# If old_text has multiple lines, try matching first and last lines uniquely
+o_lines = [l.strip() for l in no.split('\n') if l.strip()]
+if len(o_lines) > 2:
+    first, last = o_lines[0], o_lines[-1]
+    nc_lines = nc.split('\n')
+    matches = []
+    for i, line in enumerate(nc_lines):
+        if first in line:
+            # Look ahead for the last line within a reasonable range (len(o_lines) + 10)
+            for j in range(i + 1, min(i + len(o_lines) + 10, len(nc_lines))):
+                if last in nc_lines[j]:
+                    matches.append((i, j))
+    if len(matches) == 1:
+        i, j = matches[0]
+        new_nc = nc_lines[:i] + [normalize(n)] + nc_lines[j+1:]
+        open(p,'w').write('\n'.join(new_nc))
+        print('Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')')
+        sys.exit(0)
 
 print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
-      #return
       ;;
     list_files)
       local path
@@ -1855,9 +1890,21 @@ run_agent() {
     local _slug; _slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
     local _sfile="$WORKDIR/memorybank/solutions/${_slug}.md"
     if [ ! -f "$_sfile" ]; then
+      # Extract last assistant text for a meaningful summary
+      local _last_answer; _last_answer=$(printf '%s' "$HISTORY" | python3 -c '
+import json,sys
+h=json.load(sys.stdin)
+for m in reversed(h):
+  if m.get("role")=="assistant" and m.get("content"):
+    print(m["content"][:500]); break
+' 2>/dev/null || true)
       mkdir -p "$WORKDIR/memorybank/solutions" 2>/dev/null || true
-      printf '# %s\nDate: %s\nInput: %s\n' \
-        "$_slug" "$(date '+%Y-%m-%d')" "${input:0:200}" > "$_sfile" 2>/dev/null || true
+      {
+        printf '# %s\n' "$_slug"
+        printf 'Date: %s\n' "$(date '+%Y-%m-%d')"
+        printf 'Input: %s\n' "${input:0:200}"
+        [ -n "$_last_answer" ] && printf '\n## Summary\n%s\n' "$_last_answer"
+      } > "$_sfile" 2>/dev/null || true
       echo -e "  \033[0;90m✓ memorybank/solutions/${_slug}.md\033[0m"
     fi
   fi
@@ -2025,10 +2072,16 @@ handle_cmd() {
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
-        echo "  No active skills."
+        echo -e "  \033[0;90mNo active skills.\033[0m"
+        echo -e "  Available in ~/.mix/skills/:"
+        for f in "$HOME/.mix/skills/"*.md; do
+          [ -f "$f" ] && echo -e "    - \033[1;34m$(basename "$f" .md)\033[0m"
+        done
       else
-        echo "  Active skills:"
-        for s in $ACTIVE_SKILLS; do echo "    - $s"; done
+        echo -e "  \033[1;32m● Active Skills:\033[0m"
+        for s in $ACTIVE_SKILLS; do
+          echo -e "    - \033[1;34m$(basename "$s" .md)\033[0m \033[0;90m($s)\033[0m"
+        done
       fi
       ;;
     /skill\ clear)
@@ -2731,7 +2784,18 @@ fi
 
 while true; do
   if [ "$INTERACTIVE" = true ]; then
-    read -e -r -p $'\001\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
+    # Format skills for display: just basename, comma separated, limited length
+    _skill_status=""
+    if [ -n "$ACTIVE_SKILLS" ]; then
+      _s_names=""
+      for _s in $ACTIVE_SKILLS; do
+        _bn=$(basename "$_s" .md)
+        _s_names+="${_bn},"
+      done
+      _skill_status="\033[0;90m(${_s_names%,})\033[0m "
+    fi
+
+    read -e -r -p $'\001'"$_skill_status"$'\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
       # If interrupted by SIGINT (read returns >128 status code), just continue the loop
       if [ $? -gt 128 ]; then
         continue
