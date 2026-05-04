@@ -1,4 +1,16 @@
 # ─── Tool Execution ─────────────────────────────────────────────────────────
+
+# Sandbox path guard — in sandbox mode, file tools are restricted to mounted paths only.
+# Allowed: $WORKDIR (project) and $HOME/.mix (agent state).
+_sandbox_path_allowed() {
+  local p="$1"
+  # Resolve to real path (handle symlinks, .., etc.)
+  local real; real=$(realpath -m "$p" 2>/dev/null) || real="$p"
+  local wd; wd=$(realpath -m "${WORKDIR:-$PWD}" 2>/dev/null) || wd="${WORKDIR:-$PWD}"
+  local md; md=$(realpath -m "${HOME}/.mix" 2>/dev/null) || md="${HOME}/.mix"
+  [[ "$real" == "$wd"* ]] || [[ "$real" == "$md"* ]]
+}
+
 run_tool() {
   local name="$1" args="$2" result=""
 
@@ -27,6 +39,9 @@ $result"
     read_file)
       local path
       path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ] && ! _sandbox_path_allowed "$path"; then
+        echo "Error: sandbox mode — read_file restricted to project dir and ~/.mix. Path outside allowed zone: $path"; return
+      fi
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
       result=$(cat "$path" 2>&1) || true
       [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
@@ -45,6 +60,9 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
       local path old_text new_text
       path=$(cat "$_ea_dir/p"); old_text=$(cat "$_ea_dir/o"); new_text=$(cat "$_ea_dir/n")
       rm -rf "$_ea_dir"
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ] && ! _sandbox_path_allowed "$path"; then
+        echo "Error: sandbox mode — edit_file restricted to project dir and ~/.mix. Path outside allowed zone: $path"; return
+      fi
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
       # Detect external file modification since last cache read
       if [ "$AUTO_VERIFY" != "off" ]; then
@@ -179,10 +197,19 @@ suggest_context(content, o, 'not found')
     list_files)
       local path
       path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ] && ! _sandbox_path_allowed "$path"; then
+        echo "Error: sandbox mode — list_files restricted to project dir and ~/.mix. Path outside allowed zone: $path"; return
+      fi
       [ ! -d "$path" ] && { echo "Error: not a dir: $path"; return; }
       result=$(ls -F --color=never "$path" 2>&1) || true
       ;;
     create_file)
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+        local _cfpath; _cfpath=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
+        if ! _sandbox_path_allowed "$_cfpath"; then
+          echo "Error: sandbox mode — create_file restricted to project dir and ~/.mix. Path outside allowed zone: $_cfpath"; return
+        fi
+      fi
       result=$(printf '%s' "$args" | python3 -c '
 import json,sys,os
 d=json.load(sys.stdin)
@@ -209,6 +236,9 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       local _sf_pat _sf_path
       _sf_pat=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       _sf_path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ] && ! _sandbox_path_allowed "$_sf_path"; then
+        echo "Error: sandbox mode — search_files restricted to project dir and ~/.mix. Path outside allowed zone: $_sf_path"; return
+      fi
       [ ! -e "$_sf_path" ] && { echo "Error: not found: $_sf_path"; return; }
       result=$(grep -rn -E -I "$_sf_pat" "$_sf_path" 2>/dev/null | head -60) || true
       [ -z "$result" ] && result="(no matches for: $_sf_pat)"

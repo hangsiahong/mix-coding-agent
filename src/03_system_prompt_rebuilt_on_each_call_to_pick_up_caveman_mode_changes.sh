@@ -85,9 +85,10 @@ GIT: repo active. edit_file auto-commits. Use git freely."
     base+="
 
 ## SANDBOX MODE (active)
-All BASH TOOL CALLS run inside an Alpine Linux chroot (PID + mount + user + network namespace isolation).
-read_file / edit_file / create_file / list_files / search_files tools operate on the HOST filesystem as normal — use real host paths (e.g. $WORKDIR/src/foo.sh), NOT /workspace paths, with those tools.
-Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (= $WORKDIR on host).
+ALL TOOLS are restricted to the sandbox-mounted paths: project dir ($WORKDIR) and ~/.mix only.
+- read_file, edit_file, create_file, list_files, search_files: only work within $WORKDIR and ~/.mix. Paths outside will be rejected with an error.
+- Use $WORKDIR-relative paths (e.g. $WORKDIR/src/foo.sh) — not /workspace paths — with file tools.
+- bash tool: runs inside Alpine chroot. Project is at /workspace inside bash.
 
 ### Inside the bash tool
 - Filesystem: only /workspace and /root/.mix visible. No /home, no host system.
