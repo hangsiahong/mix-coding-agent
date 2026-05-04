@@ -387,6 +387,13 @@ while true; do
         INPUT+=$'\n'"$_extra_line"
       done
     fi
+
+    # Add to readline history for Up/Down arrow cycling
+    # Use first line as the history entry (multiline pastes get a summary)
+    _hist_entry="${INPUT%%$'\n'*}"
+    [ -n "$_hist_entry" ] && history -s "$_hist_entry"
+    # Append-write to disk (cheap, keeps file in sync)
+    history -a 2>/dev/null || true
   else
     # Piped mode: read from stdin, exit after one task
     read -r INPUT || break
