@@ -173,6 +173,12 @@ ${_recent}"
     fi
   fi
 
+  # Hard trim to budget — system prompt has no room for excess
+  if [ ${#_map} -gt "$_token_budget" ]; then
+    _map="${_map:0:$((_token_budget - 20))}
+... (truncated)"
+  fi
+
   _REPO_MAP="$_map"
   _REPO_MAP_MTIMES="$_new_mtimes"
   _REPO_MAP_TIME="$_now"
