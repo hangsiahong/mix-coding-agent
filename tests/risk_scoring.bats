@@ -3,6 +3,7 @@
 # Pure function: takes command string, returns "LEVEL reason"
 
 setup() {
+    PROJECT_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     source "$PROJECT_ROOT/src/14_risk_scoring_blocked_high_med_low_reason.sh"
 }
 
