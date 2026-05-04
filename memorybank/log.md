@@ -90,3 +90,16 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | why you stop?   ◆ mix
 
 ## [2026-05-04] ingest | Repo Map — codebase structural awareness. Regex-based extractor, 10 languages, ~1200 tokens in system prompt. Eliminates 2-3 orientation turns per task.
+
+## [2026-05-04] task | after everything we know about mix coding agent, what is the one things that we 
+
+## [2026-05-04] task | please continue
+
+## [2025-01-XX] lint | Repo Map v2 — robustness fixes
+- Fixed regex breakage on paths with `[id]`, `(app)` special chars (→ `awk -F/` literal match)
+- Tightened JS/TS extraction: filter `export const runtime` noise, PascalCase-only const, max 20 lines/file
+- Smart tree collapse: >60 files → top-level dirs with counts (was showing every subdirectory)
+- Hard trim at 4800 chars with truncation notice
+- Added `.worktrees`, `.turbo`, `.vercel` to skip dirs
+- Validated across 8 real projects (bash, JS, TS, Next.js)
+- Budget: ~4800 chars / ~1600 tokens
