@@ -147,3 +147,5 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] feature | /resume — Session Context Recovery. New src/11c_session.sh. session_save/load/apply/clear. Base64 encoding for safe field passing (dict→JSON broke tab-separated approach). .agent/session.json persisted on exit, /resume restores file cache + repo map + env + config. 27 new tests. Total: 100/100 passing.
 
 ## [2026-05-04] task | 1 and 2 let do it
+
+## [2026-05-04] task | do it, and keep on iterate until we finished all of this.
