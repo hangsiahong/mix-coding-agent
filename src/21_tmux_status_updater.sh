@@ -13,9 +13,14 @@ tmux_update() {
     branch_str=" #[fg=white]|#[fg=cyan]$(git -C "$WORKDIR" branch --show-current 2>/dev/null)"
   local mode_str=""
   [ "$AGENT_MODE" != "fast" ] && mode_str=" #[fg=white]|#[fg=magenta]${AGENT_MODE}"
+  # Active tool indicator — shows if spinner is running
+  local tool_str=""
+  if [ -n "$_SPIN_PID" ] && kill -0 "$_SPIN_PID" 2>/dev/null; then
+    tool_str=" #[fg=white]|#[fg=yellow]⟳"
+  fi
   tmux set-option -gq status-right-length 100 2>/dev/null
   tmux set-option -gq status-right \
-    " #[fg=white,bold]mix#[nobold] #[fg=cyan]${MODEL}${branch_str}${mode_str} #[fg=white]| ctx ${ctx_color}${pct}%#[fg=white] #[default]" \
+    " #[fg=white,bold]mix#[nobold] #[fg=cyan]${MODEL}${branch_str}${mode_str}${tool_str} #[fg=white]| ctx ${ctx_color}${pct}%#[fg=white] #[default]" \
     2>/dev/null || true
 }
 
