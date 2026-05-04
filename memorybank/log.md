@@ -1,7 +1,9 @@
 # memorybank log
 
 Append-only task timeline. Format: `## [YYYY-MM-DD] type | description`
-Types: `ingest` `query` `lint` `task`
+## [2025-07-14] ingest | Architecture Deep Dive
+
+Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems, provider system, config priority chain, test suite. Strengths, weaknesses, design decisions.
 
 ## [2025-05-03] ingest | Initial codebase audit (1520 lines, 4 critical security issues)
 ## [2025-05-03] ingest | Copilot provider implementation
@@ -200,3 +202,5 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | check the script install, help me check make sure when user install the mix, it 
 
 ## [2026-05-04] task | merge this to master
+
+## [2026-05-04] task | /home/jiren/.local/bin/mix: line 1119: session_hint: command not found
