@@ -151,3 +151,7 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | do it, and keep on iterate until we finished all of this.
 
 ## [2026-05-04] task | verify it one more time
+
+## [2026-05-04] task | is it a good idea to commit every edit ? Commits on May 4, 2026
+
+## [2026-05-04] task | no it fine to keep the current commit history but what are we going to do to mix
