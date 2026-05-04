@@ -68,5 +68,8 @@ User input → append_text("user") → [plan mode?] → while turns < MAX_TURNS 
 - **Batch history I/O**: parallel tool results appended in-memory via append_raw_nosave(), flushed once per batch to disk
 - **MAX_TURNS=100**: up from 30. Supports longer agent sessions without premature cutoff
 - **Edit failure suggestions**: [SUGGESTION] context on edit mismatch eliminates re-read turn
-- **Smart bash truncation**: 50/50 head/tail + error extraction preserves diagnostic signal from middle
+- **Smart bash truncation**: 50/50 head/tail + error extraction preserves diagnostic signal from middle. Truncation marker `┊ showing first/last N of N lines (N omitted) ┊`
 - **Token tracking**: session counters for prompt/completion tokens, displayed in ctx_bar and /stats
+- **Session persistence**: .agent/session.json saved on exit, /resume restores file cache + repo map + env + config. Base64 encoding for safe shell/python interop
+- **Smart tab completion**: only completes /commands, @file-refs, and subcommands. Regular text input gets no completion noise
+- **TUI polish**: re-render flicker fix (≤8 lines skip), turn progress indicator, spinner color states (orange/red), tmux live ⟳ status, grouped /help, turn separator, diff preview context lines
