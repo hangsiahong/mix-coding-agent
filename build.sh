@@ -18,6 +18,7 @@ cat \
     src/02_tmux_bootstrap.sh \
     src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_changes.sh \
     src/04_project_local_extensions.sh \
+    src/04b_extension_system.sh \
     src/05_pre_edit_diff_preview.sh \
     src/06_auto_read_logs_on_bash_failure.sh \
     src/07_environment_detection.sh \
