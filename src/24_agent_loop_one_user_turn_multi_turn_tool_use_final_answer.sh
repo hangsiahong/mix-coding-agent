@@ -19,6 +19,8 @@ run_agent() {
   fi
 
   local turn=0
+  # Show context bar before first turn so user sees budget early
+  ctx_bar
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
     # Always start animated spinner (Python will kill it before streaming first token)
