@@ -87,8 +87,8 @@ $_rh"
           fi
         else
           FAIL_STREAK=0
+          _ext_hook on_bash "$cmd"
         fi
-      fi
       ;;
     read_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
