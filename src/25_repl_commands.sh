@@ -392,7 +392,7 @@ handle_cmd() {
       echo -e "  \033[1;31m✗ Unknown command:\033[0m $1"
       echo "  Use /help to see available commands."
       ;;
-    *)
+    /worker\ *)
       local _wargs="${1#/worker }"
       local _wname="${_wargs%% *}"
       local _wcmd="${_wargs#* }"
