@@ -20,7 +20,7 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
-| extension-system.md | Drop-in plugin system. ~/.mix/extensions/ + .mix/extensions/. Convention hooks (_init/_cmd/_tool/_on_edit/_on_create/_on_bash/_on_session/_on_shutdown). /ext [load|unload|create|reload|list]. 24 tests |
+| extension-system.md | Drop-in plugin system. ~/.mix/extensions/ + .mix/extensions/. Convention hooks (_init/_cmd/_tool/_on_edit/_on_create/_on_bash/_on_session/_on_shutdown). /ext [load\|unload\|create\|reload\|list]. 24 tests |
 | repo-map-structural-awareness.md | Regex-based codebase map (~1200 tokens) injected into system prompt. Eliminates 2-3 orientation tool calls per task. 10-language support, mtime-cached, /refresh to rebuild |
 | file-content-cache.md | Session-scoped file content cache surviving history compaction. Auto-caches on read/edit/create. ~1000 tokens in system prompt. /cache to inspect |
 | auto-verify-post-edit.md | Auto syntax/lint/typecheck after every edit_file/create_file. 10 languages, graceful degradation. [VERIFY: FAILED] in tool result |
@@ -32,6 +32,8 @@ Update this file after every ingest or new page created.
 | smart-bash-truncation.md | 50/50 head+tail + error extraction from truncated middle. [KEY ERRORS] section preserves diagnostics |
 | token-tracking.md | Session token counters (prompt/completion/calls). ctx_bar stats line. /stats REPL command |
 | test-generation.md | /test system: init (detect+install+scaffold), generate (targeted or recent), run, coverage. Background via --bg. 6 frameworks. |
+| session-persistence.md | /resume session recovery. .agent/session.json saved on exit, restores file cache + repo map + env + config. Base64 encoding. 27 tests |
+| tui-polish.md | 12 TUI improvements: flicker fix, turn progress, truncation marker, grouped /help, spinner colors, smart tab-complete, diff context, tmux ⟳ status. 15 tests |
 
 ## sources
 
