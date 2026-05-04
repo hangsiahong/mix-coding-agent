@@ -687,12 +687,20 @@ NEVER use /home/jiren/... or /workspace/... with file tools.
 NEVER use \$WORKDIR/... or host paths inside bash commands.
 If you get \"No such file or directory\" in bash, you used the wrong path — switch to /workspace/...
 
+EXCEPTION — these bash commands auto-run on the HOST (network available, cwd=\$WORKDIR):
+  git push, git pull, git fetch, git clone, git remote, git ls-remote
+  npm install, yarn install, pip install, curl, wget
+  Output will be prefixed with [host].
+
 ### Inside the bash tool
 - /workspace = your project (= ${WORKDIR} on the host)
 - /root/.mix = ~/.mix from the host
 - Nothing else is visible. No /home, no /etc from host, no host system.
 - Network: FULLY ISOLATED. No internet, no LAN. Loopback only.
   apk add WILL NOT WORK — network is blocked inside bash tool.
+  EXCEPTION: git push/pull/fetch/clone and curl/wget are auto-routed to the
+  HOST (outside the sandbox) so network operations work transparently.
+  Use /workspace paths as normal — the host routing handles the path mapping.
 - Pre-installed: bash, python3, curl, git, nodejs, npm.
 - Resource limits: ~${_sbox_ram_mb}MB RAM, 50% CPU, 200 PIDs.
 - UID: uid=0 (root) inside — normal, safe.
@@ -2207,6 +2215,29 @@ _sandbox_path_allowed() {
   [[ "$real" == "$wd"* ]] || [[ "$real" == "$md"* ]]
 }
 
+# Detect commands that must run on the host (not inside sandbox).
+# - All git commands: git needs /tmp for temp files; sandbox /tmp is empty.
+#   Also git push/pull/fetch need host network.
+# - Package managers that need network: npm install, pip install, etc.
+# - Direct network tools: curl, wget.
+# In sandbox mode these are transparently routed to the host (run in $WORKDIR).
+# Handles prefixes like: cd /workspace && git push, env VAR=x git push, etc.
+_sandbox_needs_host_network() {
+  local cmd="$1"
+  # Strip common prefixes: 'cd /workspace &&', 'cd /workspace;', env var assignments
+  local c; c=$(printf '%s' "$cmd" | sed 's|cd[[:space:]]*/workspace[[:space:]]*&&[[:space:]]*||g; s|cd[[:space:]]*/workspace[[:space:]]*;[[:space:]]*||g; s/^[[:space:]]*//')
+  # Also strip any leading env var assignments (VAR=val cmd)
+  while [[ "$c" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+    c="${c#*=}"; c="${c#* }"
+  done
+  case "$c" in
+    git\ *) return 0 ;;
+    npm\ publish*|npm\ install*|yarn\ install*|pip\ install*|pip3\ install*) return 0 ;;
+    curl\ *|wget\ *) return 0 ;;
+  esac
+  return 1
+}
+
 run_tool() {
   local name="$1" args="$2" result=""
 
@@ -2215,7 +2246,13 @@ run_tool() {
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        result=$(sandbox_run_cmd "$cmd")
+        if _sandbox_needs_host_network "$cmd"; then
+          # Run on host with network — cd to $WORKDIR so relative paths work
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result="[host] $result"
+        else
+          result=$(sandbox_run_cmd "$cmd")
+        fi
       else
         result=$(bash -c "$cmd" 2>&1)
       fi
@@ -2227,7 +2264,12 @@ $result"
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        result=$(sandbox_run_cmd "$cmd")
+        if _sandbox_needs_host_network "$cmd"; then
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result="[host] $result"
+        else
+          result=$(sandbox_run_cmd "$cmd")
+        fi
       else
         result=$(run_with_heal "$cmd")
       fi

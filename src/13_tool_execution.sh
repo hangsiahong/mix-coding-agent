@@ -11,6 +11,29 @@ _sandbox_path_allowed() {
   [[ "$real" == "$wd"* ]] || [[ "$real" == "$md"* ]]
 }
 
+# Detect commands that must run on the host (not inside sandbox).
+# - All git commands: git needs /tmp for temp files; sandbox /tmp is empty.
+#   Also git push/pull/fetch need host network.
+# - Package managers that need network: npm install, pip install, etc.
+# - Direct network tools: curl, wget.
+# In sandbox mode these are transparently routed to the host (run in $WORKDIR).
+# Handles prefixes like: cd /workspace && git push, env VAR=x git push, etc.
+_sandbox_needs_host_network() {
+  local cmd="$1"
+  # Strip common prefixes: 'cd /workspace &&', 'cd /workspace;', env var assignments
+  local c; c=$(printf '%s' "$cmd" | sed 's|cd[[:space:]]*/workspace[[:space:]]*&&[[:space:]]*||g; s|cd[[:space:]]*/workspace[[:space:]]*;[[:space:]]*||g; s/^[[:space:]]*//')
+  # Also strip any leading env var assignments (VAR=val cmd)
+  while [[ "$c" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+    c="${c#*=}"; c="${c#* }"
+  done
+  case "$c" in
+    git\ *) return 0 ;;
+    npm\ publish*|npm\ install*|yarn\ install*|pip\ install*|pip3\ install*) return 0 ;;
+    curl\ *|wget\ *) return 0 ;;
+  esac
+  return 1
+}
+
 run_tool() {
   local name="$1" args="$2" result=""
 
@@ -19,7 +42,13 @@ run_tool() {
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        result=$(sandbox_run_cmd "$cmd")
+        if _sandbox_needs_host_network "$cmd"; then
+          # Run on host with network — cd to $WORKDIR so relative paths work
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result="[host] $result"
+        else
+          result=$(sandbox_run_cmd "$cmd")
+        fi
       else
         result=$(bash -c "$cmd" 2>&1)
       fi
@@ -31,7 +60,12 @@ $result"
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        result=$(sandbox_run_cmd "$cmd")
+        if _sandbox_needs_host_network "$cmd"; then
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result="[host] $result"
+        else
+          result=$(sandbox_run_cmd "$cmd")
+        fi
       else
         result=$(run_with_heal "$cmd")
       fi

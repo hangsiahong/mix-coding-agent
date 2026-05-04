@@ -96,12 +96,20 @@ NEVER use /home/jiren/... or /workspace/... with file tools.
 NEVER use \$WORKDIR/... or host paths inside bash commands.
 If you get \"No such file or directory\" in bash, you used the wrong path — switch to /workspace/...
 
+EXCEPTION — these bash commands auto-run on the HOST (network available, cwd=\$WORKDIR):
+  git push, git pull, git fetch, git clone, git remote, git ls-remote
+  npm install, yarn install, pip install, curl, wget
+  Output will be prefixed with [host].
+
 ### Inside the bash tool
 - /workspace = your project (= ${WORKDIR} on the host)
 - /root/.mix = ~/.mix from the host
 - Nothing else is visible. No /home, no /etc from host, no host system.
 - Network: FULLY ISOLATED. No internet, no LAN. Loopback only.
   apk add WILL NOT WORK — network is blocked inside bash tool.
+  EXCEPTION: git push/pull/fetch/clone and curl/wget are auto-routed to the
+  HOST (outside the sandbox) so network operations work transparently.
+  Use /workspace paths as normal — the host routing handles the path mapping.
 - Pre-installed: bash, python3, curl, git, nodejs, npm.
 - Resource limits: ~${_sbox_ram_mb}MB RAM, 50% CPU, 200 PIDs.
 - UID: uid=0 (root) inside — normal, safe.
