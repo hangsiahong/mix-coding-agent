@@ -84,6 +84,11 @@ Type these inside the mix prompt:
 | `/resume` | Restore saved session (file cache, repo map, config) |
 | `/skill <name>` | Load a skill file from `~/.mix/skills/` |
 | `/skills` | List active skills |
+| `/ext load <name>` | Load an extension |
+| `/ext unload <name>` | Unload an extension |
+| `/ext create <name>` | Scaffold a new extension with template |
+| `/ext reload` | Reload all extensions |
+| `/ext list` | List loaded extensions |
 | `/worker <name> <cmd>` | Run background bash task (needs tmux) |
 | `/subagent <name> <task>` | Run background AI agent (needs tmux) |
 | `/workers` | List all background jobs |
