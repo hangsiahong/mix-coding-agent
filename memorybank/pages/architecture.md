@@ -1,7 +1,7 @@
 # Mix Architecture
 
 ## Overview
-2735 lines bash across 29 source files + 1 provider. Compiled to single binary `mix` via `build.sh`. Single-process, multi-turn agent loop with streaming.
+3587 lines bash across 33 source files + 1 provider. Compiled to single binary `mix` via `build.sh`. Single-process, multi-turn agent loop with streaming.
 
 ## Component Map
 
