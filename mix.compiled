@@ -789,13 +789,26 @@ run_with_heal() {
 $out"
   fi
 
-  # Context bloat control: truncate output if it exceeds 200 lines
+  # Context bloat control: smart truncation for long output
   local total_lines
   total_lines=$(printf '%s\n' "$out" | wc -l)
   if [ "$total_lines" -gt 200 ]; then
-    out="$(printf '%s\n' "$out" | head -n 100)
-... ($((total_lines - 200)) lines truncated by mix to prevent context bloat) ...
-$(printf '%s\n' "$out" | tail -n 100)"
+    local _head_n=50 _tail_n=50
+    # Extract error/warning lines from middle (common noise: build output, progress bars)
+    local _middle_errors
+    _middle_errors=$(printf '%s\n' "$out" | sed -n "$((_head_n + 1)),$((total_lines - _tail_n))p" \
+      | grep -iE '(error|Error|ERROR|fail|FAIL|warn|WARN|exception|Exception|EXCEPTION|fatal|FATAL|traceback|Traceback)' \
+      | head -20) || true
+    local _tail_part; _tail_part=$(printf '%s\n' "$out" | tail -n $_tail_n)
+    out="$(printf '%s\n' "$out" | head -n $_head_n)
+... ($((total_lines - _head_n - _tail_n)) lines truncated. ${total_lines} total) ..."
+    if [ -n "$_middle_errors" ]; then
+      out="$out
+[KEY ERRORS from truncated section:]
+$_middle_errors"
+    fi
+    out="$out
+$_tail_part"
   fi
 
   # Inject failure diagnostics if command failed
@@ -1594,6 +1607,41 @@ def normalize(s):
 def strip_indent(s):
     return '\n'.join(line.lstrip() for line in s.split('\n'))
 
+# Suggestion context for edit failures — helps model self-correct without re-reading
+def suggest_context(content, old_text, reason):
+    lines = content.split(chr(10))
+    o_lines = old_text.strip().split(chr(10))
+    o_first = o_lines[0].strip() if o_lines else ''
+    suggestions = []
+    if 'not unique' in reason:
+        for i, line in enumerate(lines):
+            if o_first and o_first in line:
+                start = max(0, i-1)
+                end = min(len(lines), i+min(len(o_lines),3)+1)
+                ctx = chr(10).join(f'{j+1}: {lines[j]}' for j in range(start, end))
+                suggestions.append(f'Match at line {i+1}:{chr(10)}{ctx}')
+                if len(suggestions) >= 3: break
+    else:
+        if o_first:
+            found = False
+            for i, line in enumerate(lines):
+                if o_first in line:
+                    start = max(0, i-1)
+                    end = min(len(lines), i+min(len(o_lines),3)+1)
+                    ctx = chr(10).join(f'{j+1}: {lines[j]}' for j in range(start, end))
+                    suggestions.append(f'Found similar at line {i+1}:{chr(10)}{ctx}')
+                    found = True
+                    break
+            if not found:
+                ctx = chr(10).join(f'{i+1}: {lines[i]}' for i in range(min(5, len(lines))))
+                suggestions.append(f'File starts with:{chr(10)}{ctx}')
+        elif len(lines) > 0:
+            ctx = chr(10).join(f'{i+1}: {lines[i]}' for i in range(min(5, len(lines))))
+            suggestions.append(f'File starts with:{chr(10)}{ctx}')
+    if suggestions:
+        combined = chr(10).join(suggestions)[:500]
+        print(chr(10) + '[SUGGESTION] ' + combined)
+
 # 1. Exact match
 count=content.count(o)
 if count == 1:
@@ -1602,6 +1650,7 @@ if count == 1:
     sys.exit(0)
 if count > 1:
     print('Error: old_text not unique ('+str(count)+' matches) in '+p)
+    suggest_context(content, o, 'not unique')
     sys.exit(0)
 
 # 2. Fuzzy match: normalize trailing whitespace + line endings
@@ -1617,6 +1666,7 @@ if no in nc:
         sys.exit(0)
     if fcount > 1:
         print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
+        suggest_context(content, o, 'not unique')
         sys.exit(0)
 
 # 3. Indent-agnostic match
@@ -1654,6 +1704,7 @@ if len(o_lines) > 2:
         sys.exit(0)
 
 print('Error: old_text not found in '+p)
+suggest_context(content, o, 'not found')
 " "$path" "$old_text" "$new_text")
       # Update file cache after successful edit
       if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
@@ -2586,6 +2637,15 @@ $_rh"
         echo -e "      \033[0;90m$_vl\033[0m"
       done
     fi
+    # Extract and display SUGGESTION results for edit failures
+    if printf '%s' "$result" | grep -q '\[SUGGESTION\]'; then
+      local _suggest_part
+      _suggest_part=$(printf '%s' "$result" | sed -n '/\[SUGGESTION\]/,$ p' | head -15)
+      echo -e "    \033[1;35m💡 suggestion:\033[0m"
+      printf '%s' "$_suggest_part" | while IFS= read -r _sl; do
+        echo -e "      \033[0;95m$_sl\033[0m"
+      done
+    fi
     # Simplify tool result text nicely aligned 
     local display_res="${result:0:300}"
     display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
@@ -2855,6 +2915,32 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /undo)
+      if [ "$GIT_ENABLED" != true ]; then
+        echo "  /undo requires git (GIT_ENABLED=true)"
+      else
+        local _last_rev; _last_rev=$(git -C "$WORKDIR" --no-pager log --oneline -1 2>/dev/null) || true
+        if [ -z "$_last_rev" ]; then
+          echo "  No commits to undo."
+        else
+          echo "  Last commit: $_last_rev"
+          git -C "$WORKDIR" --no-pager diff HEAD~1 --stat 2>/dev/null | head -10
+          if confirm "  Revert this commit? [y/N] "; then
+            git -C "$WORKDIR" revert --no-edit HEAD 2>/dev/null \
+              && echo -e "  \033[38;5;82m✓ Reverted\033[0m" \
+              || echo -e "  \033[1;31m✗ Revert failed (merge conflict?)\033[0m"
+          fi
+        fi
+      fi
+      ;;
+    /stash)
+      if [ "$GIT_ENABLED" != true ]; then
+        echo "  /stash requires git"
+      else
+        local _stash_out; _stash_out=$(git -C "$WORKDIR" stash 2>&1) || true
+        echo "  $_stash_out"
+      fi
+      ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
@@ -3026,7 +3112,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /undo  /stash  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -3594,7 +3680,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/refresh" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
+        for c in "/flush" "/undo" "/stash" "/refresh" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then

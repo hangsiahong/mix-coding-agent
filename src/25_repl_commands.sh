@@ -24,6 +24,32 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /undo)
+      if [ "$GIT_ENABLED" != true ]; then
+        echo "  /undo requires git (GIT_ENABLED=true)"
+      else
+        local _last_rev; _last_rev=$(git -C "$WORKDIR" --no-pager log --oneline -1 2>/dev/null) || true
+        if [ -z "$_last_rev" ]; then
+          echo "  No commits to undo."
+        else
+          echo "  Last commit: $_last_rev"
+          git -C "$WORKDIR" --no-pager diff HEAD~1 --stat 2>/dev/null | head -10
+          if confirm "  Revert this commit? [y/N] "; then
+            git -C "$WORKDIR" revert --no-edit HEAD 2>/dev/null \
+              && echo -e "  \033[38;5;82m✓ Reverted\033[0m" \
+              || echo -e "  \033[1;31m✗ Revert failed (merge conflict?)\033[0m"
+          fi
+        fi
+      fi
+      ;;
+    /stash)
+      if [ "$GIT_ENABLED" != true ]; then
+        echo "  /stash requires git"
+      else
+        local _stash_out; _stash_out=$(git -C "$WORKDIR" stash 2>&1) || true
+        echo "  $_stash_out"
+      fi
+      ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
@@ -195,7 +221,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /undo  /stash  /compact  /refresh  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then

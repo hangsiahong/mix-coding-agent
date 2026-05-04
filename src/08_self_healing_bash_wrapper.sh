@@ -31,13 +31,26 @@ run_with_heal() {
 $out"
   fi
 
-  # Context bloat control: truncate output if it exceeds 200 lines
+  # Context bloat control: smart truncation for long output
   local total_lines
   total_lines=$(printf '%s\n' "$out" | wc -l)
   if [ "$total_lines" -gt 200 ]; then
-    out="$(printf '%s\n' "$out" | head -n 100)
-... ($((total_lines - 200)) lines truncated by mix to prevent context bloat) ...
-$(printf '%s\n' "$out" | tail -n 100)"
+    local _head_n=50 _tail_n=50
+    # Extract error/warning lines from middle (common noise: build output, progress bars)
+    local _middle_errors
+    _middle_errors=$(printf '%s\n' "$out" | sed -n "$((_head_n + 1)),$((total_lines - _tail_n))p" \
+      | grep -iE '(error|Error|ERROR|fail|FAIL|warn|WARN|exception|Exception|EXCEPTION|fatal|FATAL|traceback|Traceback)' \
+      | head -20) || true
+    local _tail_part; _tail_part=$(printf '%s\n' "$out" | tail -n $_tail_n)
+    out="$(printf '%s\n' "$out" | head -n $_head_n)
+... ($((total_lines - _head_n - _tail_n)) lines truncated. ${total_lines} total) ..."
+    if [ -n "$_middle_errors" ]; then
+      out="$out
+[KEY ERRORS from truncated section:]
+$_middle_errors"
+    fi
+    out="$out
+$_tail_part"
   fi
 
   # Inject failure diagnostics if command failed
