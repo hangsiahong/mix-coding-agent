@@ -84,6 +84,8 @@ if no in nc:
         sys.exit(0)
     if fcount > 1:
         print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
+        suggest_content=open(p).read()
+        suggest_context(suggest_content, o, 'not unique')
         sys.exit(0)
 
 # 3. Indent-agnostic match
