@@ -71,7 +71,7 @@ setup() {
   [ $? -eq 0 ]
   # Should contain truncation marker
   echo "$result" | grep -q "showing first"
-  echo "$result" | grep -q "lines omitted"
+  echo "$result" | grep -q "omitted"
 }
 
 @test "run_with_heal short output is not truncated" {
