@@ -130,6 +130,7 @@ auto_verify() {
   local _total_checks=0
   local _passed=0
   local _failed=0
+  local NL=$'\n'
 
   while IFS= read -r line; do
     [ -z "$line" ] && continue
@@ -145,13 +146,12 @@ auto_verify() {
     [ "$_label" = "tests" ] && _timeout=60
     [ "$_label" = "cargo-check" ] && _timeout=30
 
-    local _out _rc
+    local _out _rc=0
     _out=$(timeout "$_timeout" bash -c "$_cmd" 2>&1) || _rc=$?
-    _rc="${_rc:-0}"
 
     # timeout returns 124 on timeout
     if [ "$_rc" = "124" ]; then
-      results+="\n  ⏱ $_label: timed out (${_timeout}s)"
+      results+="${NL}  ⏱ $_label: timed out (${_timeout}s)"
       _failed=$((_failed + 1))
       continue
     fi
@@ -167,29 +167,34 @@ auto_verify() {
       if [ -n "$_trimmed" ] && [ "$_label" != "syntax" ]; then
         # Check if output contains warnings
         if printf '%s' "$_trimmed" | grep -qiE 'warning|warn'; then
-          results+="\n  ⚠ $_label: warnings"
-          results+=$(printf '%s' "$_trimmed" | head -5 | while IFS= read -r wl; do printf "\n    %s" "$wl"; done)
+          results+="${NL}  ⚠ $_label: warnings"
+          local _wline=0
+          while IFS= read -r wl; do
+            _wline=$((_wline + 1))
+            [ "$_wline" -gt 5 ] && break
+            results+="${NL}    $wl"
+          done <<< "$_trimmed"
         fi
       fi
     else
       _failed=$((_failed + 1))
-      results+="\n  ✗ $_label: failed (exit $_rc)"
+      results+="${NL}  ✗ $_label: failed (exit $_rc)"
       # Show first few lines of error output
       local _eline=0
-      printf '%s\n' "$_trimmed" | while IFS= read -r el; do
+      while IFS= read -r el; do
         _eline=$((_eline + 1))
         [ "$_eline" -gt 5 ] && break
-        results+="\n    $el"
-      done
-      [ "$_out_len" -gt 500 ] && results+="\n    ... ($_out_len bytes total)"
+        results+="${NL}    $el"
+      done <<< "$_trimmed"
+      [ "$_out_len" -gt 500 ] && results+="${NL}    ... ($_out_len bytes total)"
     fi
   done <<< "$cmds"
 
   # Build summary
   if [ "$_failed" -gt 0 ]; then
-    printf '\n[VERIFY: %d checks, %d passed, %d FAILED]%s' "$_total_checks" "$_passed" "$_failed" "$results"
+    printf '%s' "${NL}[VERIFY: ${_total_checks} checks, ${_passed} passed, ${_failed} FAILED]${results}"
   elif [ "$_total_checks" -gt 0 ] && [ -n "$results" ]; then
-    printf '\n[VERIFY: %d checks passed]%s' "$_total_checks" "$results"
+    printf '%s' "${NL}[VERIFY: ${_total_checks} checks passed]${results}"
   fi
   # If all passed and no warnings, return empty (don't clutter output)
 }
