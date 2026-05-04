@@ -160,10 +160,16 @@ handle_cmd() {
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
-        echo "  No active skills."
+        echo -e "  \033[0;90mNo active skills.\033[0m"
+        echo -e "  Available in ~/.mix/skills/:"
+        for f in "$HOME/.mix/skills/"*.md; do
+          [ -f "$f" ] && echo -e "    - \033[1;34m$(basename "$f" .md)\033[0m"
+        done
       else
-        echo "  Active skills:"
-        for s in $ACTIVE_SKILLS; do echo "    - $s"; done
+        echo -e "  \033[1;32m● Active Skills:\033[0m"
+        for s in $ACTIVE_SKILLS; do
+          echo -e "    - \033[1;34m$(basename "$s" .md)\033[0m \033[0;90m($s)\033[0m"
+        done
       fi
       ;;
     /skill\ clear)
