@@ -173,7 +173,8 @@ if [ "$INTERACTIVE" = true ]; then
         declare -A _cmd_desc=(
           ["/flush"]="clear history"          ["/undo"]="undo last edit"
           ["/stash"]="stash/pop context"      ["/stats"]="token + cost stats"
-          ["/refresh"]="rebuild repo map"     ["/resume"]="reload last session"
+          ["/refresh"]="rebuild repo map"     ["/reload"]="rebuild+restart mix"
+          ["/resume"]="reload last session"
           ["/cache"]="show file cache"        ["/verify"]="auto-verify on/off"
           ["/model"]="switch model"           ["/provider"]="switch provider"
           ["/history"]="show history"         ["/caveman"]="caveman mode"
