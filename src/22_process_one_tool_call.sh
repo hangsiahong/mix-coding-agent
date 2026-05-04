@@ -55,7 +55,7 @@ process_tc() {
            else result="User declined (HIGH risk)."; fi
         fi
       elif [ "$_risk" = "MED" ]; then
-        if [ "$AGENT_MODE" = "yolo" ]; then
+        if [ "$AUTO_YES" = "true" ]; then
           _run=true
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
