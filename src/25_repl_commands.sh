@@ -294,7 +294,7 @@ handle_cmd() {
     /help)
       echo -e "  \033[1;37m─── mix commands ───\033[0m"
       echo ""
-      echo -e "  \033[1;36mSession\033[0m    /flush  /resume  /refresh  /cache [clear]  /stats  /history"
+      echo -e "  \033[1;36mSession\033[0m    /flush  /resume  /refresh  /reload  /cache [clear]  /stats  /history"
       echo -e "  \033[1;36mSafety\033[0m     /undo  /stash  /yolo  /verify [on|off]"
       echo -e "  \033[1;36mConfig\033[0m     /model [id]  /models  /provider [name|login|models|default]  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /config"
       echo -e "  \033[1;36mCavekit\033[0m    /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
