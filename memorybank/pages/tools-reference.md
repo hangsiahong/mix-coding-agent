@@ -64,3 +64,25 @@ Every tool call goes through:
 - History appended via `append_raw_nosave()` per tool, then **single `save_history` flush** for entire batch.
 - Write tools (`bash`, `edit_file`, `create_file`) remain sequential after parallel batch finishes.
 - Sequential tools use `silent` flag to skip redundant UI output when part of a multi-tool turn.
+
+## Repo Map (src/11b_repo_map.sh)
+
+**The single highest-impact feature.** Generates a compressed structural map of the codebase injected into every system prompt.
+
+### What it provides
+- File tree with line counts
+- Function/class/method signatures per file (regex-based, 10 languages)
+- Recently changed files (git-aware)
+- ~1200 tokens, fits easily in system prompt
+
+### How it works
+- `build_repo_map()`: scans WORKDIR, extracts structure via `grep -E` patterns
+- Caches result in `_REPO_MAP` variable with 10-minute TTL
+- Mtime-based invalidation (samples 50 files)
+- Hard token budget: 4500 chars max
+- `/refresh` REPL command forces rebuild
+
+### Impact
+- Eliminates 2-3 "orientation" tool calls per task
+- Agent can target correct file on first API call
+- For a 10-task session: ~20 fewer turns total
