@@ -5059,10 +5059,8 @@ if [ "$INTERACTIVE" = true ]; then
       # Prune massive/unwanted directories, and don't show hidden files/folders unless queried
       done < <(find . -type d \( -name ".git" -o -name "node_modules" -o -name "__pycache__" -o -name "venv" -o -name ".venv" -o -name "dist" -o -name "build" \) -prune -o -type f -print 2>/dev/null | sed 's|^\./||' | eval "$dotfile_filter" | grep -iE "(^|/)$q")
     else
-      # standard bash file completion
-      while IFS= read -r f; do
-        [ -n "$f" ] && matches+=("$f")
-      done < <(compgen -f -- "$word")
+      # No completion for regular text — just let readline handle it (no-op)
+      return 0
     fi
 
     if (( ${#matches[@]} == 1 )); then
