@@ -78,6 +78,15 @@ TESTS: run '$TEST_CMD' after edits that touch tested files."
   [ "$GIT_ENABLED" = true ] && base+="
 GIT: repo active. edit_file auto-commits. Use git freely."
 
+  # Repo map — structural awareness of codebase
+  local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
+  if [ -n "$_rmap" ]; then
+    base+="
+
+## REPO MAP (files + structure — use this to navigate without reading files)
+$_rmap"
+  fi
+
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
