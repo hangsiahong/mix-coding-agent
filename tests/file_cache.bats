@@ -3,6 +3,7 @@
 # Stateful: functions modify global _FILE_CACHE and _FILE_CACHE_ORDER
 
 setup() {
+    PROJECT_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     # Reset cache state before each test
     _FILE_CACHE='{}'
     _FILE_CACHE_ORDER=""
