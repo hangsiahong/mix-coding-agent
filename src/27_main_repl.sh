@@ -4,6 +4,35 @@ else
   INTERACTIVE=false
 fi
 
+# Parse --sandbox flag (mix --sandbox)
+for _arg in "$@"; do
+  if [ "$_arg" = "--sandbox" ]; then
+    if [ -d "${HOME}/.mix/sandbox-rootfs" ]; then
+      SANDBOX_ENABLED=true
+    else
+      # Rootfs not unpacked yet — check if tar exists and unpack
+      if [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
+        _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
+          echo -e "  \033[1;31m✗\033[0m --sandbox: failed to unpack rootfs. Run /sandbox setup."
+      else
+        echo -e "  \033[1;31m✗\033[0m --sandbox: rootfs not found. Run /sandbox setup first."
+      fi
+    fi
+  fi
+done
+
+# Auto-enable sandbox if project has .mix/sandbox marker file
+if [ "$SANDBOX_ENABLED" != "true" ] && [ -f "${WORKDIR:-$PWD}/.mix/sandbox" ]; then
+  if [ -d "${HOME}/.mix/sandbox-rootfs" ]; then
+    SANDBOX_ENABLED=true
+  elif [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
+    _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
+      echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but failed to unpack rootfs. Run /sandbox setup."
+  else
+    echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but rootfs not installed. Run /sandbox setup."
+  fi
+fi
+
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
@@ -19,7 +48,7 @@ if [ "$INTERACTIVE" = true ]; then
     local matches=()
 
     if [[ "$word" == /* ]]; then
-        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
+        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/sandbox" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then

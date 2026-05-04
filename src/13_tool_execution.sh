@@ -6,7 +6,11 @@ run_tool() {
     bash)
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      result=$(bash -c "$cmd" 2>&1)
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+        result=$(sandbox_run_cmd "$cmd")
+      else
+        result=$(bash -c "$cmd" 2>&1)
+      fi
       local _ec=$?
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
@@ -14,7 +18,11 @@ $result"
     bash_with_heal)
       local cmd
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      result=$(run_with_heal "$cmd")
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+        result=$(sandbox_run_cmd "$cmd")
+      else
+        result=$(run_with_heal "$cmd")
+      fi
       ;;
     read_file)
       local path

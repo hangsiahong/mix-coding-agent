@@ -35,6 +35,7 @@ Update this file after every ingest or new page created.
 | test-generation.md | /test system: init (detect+install+scaffold), generate (targeted or recent), run, coverage. Background via --bg. 6 frameworks. |
 | session-persistence.md | /resume session recovery. .agent/session.json saved on exit, restores file cache + repo map + env + config. Base64 encoding. 27 tests |
 | tui-polish.md | 12 TUI improvements: flicker fix, turn progress, truncation marker, grouped /help, spinner colors, smart tab-complete, diff context, tmux ⟳ status. 15 tests |
+| sandbox.md | Alpine chroot + Linux namespaces + cgroup v2. /sandbox commands, --sandbox flag, system prompt injection. Zero new deps. |
 
 ## sources
 

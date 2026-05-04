@@ -268,6 +268,26 @@ handle_cmd() {
     /ext\ list)
       _ext_list
       ;;
+    /sandbox)
+      sandbox_cmd_status
+      ;;
+    /sandbox\ on)
+      sandbox_cmd_on
+      ;;
+    /sandbox\ off)
+      sandbox_cmd_off
+      ;;
+    /sandbox\ setup)
+      sandbox_cmd_setup
+      ;;
+    /sandbox\ setup\ --rebuild)
+      rm -f "$_SANDBOX_ROOTFS_TAR" "$_SANDBOX_ROOTFS_VERSION"
+      rm -rf "$_SANDBOX_ROOTFS_DIR"
+      sandbox_cmd_setup
+      ;;
+    /sandbox\ status)
+      sandbox_cmd_status
+      ;;
     /help)
       echo -e "  \033[1;37m─── mix commands ───\033[0m"
       echo ""
@@ -278,6 +298,7 @@ handle_cmd() {
       echo -e "  \033[1;36mTesting\033[0m    /test [init|generate|run|coverage]"
       echo -e "  \033[1;36mWorkers\033[0m    /worker <name> <cmd>  /subagent <name> <task>  /workers  /afk [hint|log|stop|setup|apply]"
       echo -e "  \033[1;36mSkills\033[0m     /skill <name>  /skills  /ext [load|unload|create|reload|list]"
+      echo -e "  \033[1;36mSandbox\033[0m    /sandbox [on|off|setup|status]"
       echo ""
       echo -e "  \033[0;90mShortcuts:  Tab=autocomplete  Ctrl+E=editor  Ctrl+V=paste\033[0m"
       echo -e "  \033[0;90mPiped mode: echo \"task\" | mix\033[0m"
@@ -363,6 +384,7 @@ handle_cmd() {
       echo "  Auto-verify:  ${AUTO_VERIFY:-off}"
       echo "  Stream:       $STREAM"
       echo "  Yolo:         $AUTO_YES"
+      echo "  Sandbox:      $SANDBOX_ENABLED"
       echo "  Max Turns:    $MAX_TURNS"
       echo "  Max Hist:     $MAX_HIST_MSGS"
       echo "  Context:      $CTX_TOKENS tokens"

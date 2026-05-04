@@ -38,6 +38,7 @@ CAVEMAN_MODE="${CAVEMAN_MODE:-full}"  # caveman: off | lite | full | ultra
 MAX_FAIL_STREAK="${MAX_FAIL_STREAK:-4}"  # consecutive bash failures before forced fallback hint
 FAIL_STREAK=0
 AGENT_MODE="${AGENT_MODE:-fast}"  # fast | deep | plan
+SANDBOX_ENABLED="${SANDBOX_ENABLED:-false}"  # sandbox mode: requires /sandbox setup first
 GIT_ENABLED=false
 TEST_CMD=""
 ENV_INFO=""

@@ -79,6 +79,25 @@ TESTS: run '$TEST_CMD' after edits that touch tested files."
   [ "$GIT_ENABLED" = true ] && base+="
 GIT: repo active. edit_file auto-commits. Use git freely."
 
+  # Sandbox context — injected when SANDBOX_ENABLED=true
+  if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+    local _sbox_ram_mb; _sbox_ram_mb=$(awk '/MemTotal/{printf "%d", $2/2/1024}' /proc/meminfo 2>/dev/null) || _sbox_ram_mb=512
+    base+="
+
+## SANDBOX MODE (active)
+All BASH TOOL CALLS run inside an Alpine Linux chroot (PID + mount + user namespace isolation).
+read_file / edit_file / create_file / list_files / search_files tools operate on the HOST filesystem as normal — use real host paths (e.g. $WORKDIR/src/foo.sh), NOT /workspace paths, with those tools.
+Only the 'bash' tool runs sandboxed. Inside bash, the project is at /workspace (= $WORKDIR on host).
+- Filesystem inside bash: only /workspace and /root/.mix visible. No /home, no host system.
+- Packages: use 'apk add --no-cache <pkg>' to install tools. Changes persist to the sandbox rootfs.
+  Common: apk add nodejs npm (JS/TS), apk add rust cargo (Rust), apk add shellcheck (shell lint),
+          apk add py3-pylint (Python lint), apk add go (Go), apk add openjdk21 (Java)
+- Network: outbound HTTPS works. Host localhost services are NOT reachable.
+- Resource limits: ~${_sbox_ram_mb}MB RAM (50% of host), 50% CPU, 200 processes max.
+- Root: you appear as uid=0 inside — normal for Alpine containers.
+- If a tool/language is missing inside bash: apk add it. Do not fall back to host paths."
+  fi
+
   # Repo map — structural awareness of codebase
   local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
   if [ -n "$_rmap" ]; then

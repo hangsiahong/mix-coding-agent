@@ -77,7 +77,19 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 
 ## [2026-05-04] task | y   └─   📝 edit: /home/jiren/projects/funs/building/agent/src/24_agent_loop_one_
 
-## [2026-05-04] task | 
+## [2026-05-04] task |
+
+## [2026-05-05] feature | Sandbox mode implemented
+- `src/30_sandbox.sh` — full Alpine chroot via `unshare --fork --pid --mount --user --map-root-user`
+- Zero new system dependencies. Pure bash + Linux kernel namespaces.
+- Cgroup v2 limits: 512MB RAM, 50% CPU, 200 PID max (direct `/sys/fs/cgroup` writes)
+- Alpine 3.21.3 rootfs (~26MB compressed, ~65MB unpacked) at `~/.mix/sandbox-rootfs/`
+- Critical fix: bind mounts done INSIDE the unshare namespace where `--map-root-user` gives fake root
+- `/sandbox on|off|setup|status` REPL commands. `--sandbox` CLI flag.
+- All `bash` tool calls routed through `sandbox_run_cmd()` when `SANDBOX_ENABLED=true`
+- LLM informed via system prompt injection: Alpine OS, `/workspace` = project dir, `apk add` usage
+- `apk add` installs persist to rootfs (bind mounts are writable)
+- Banner shows 🔒 sandbox indicator when active 
            done
       └─   📝 edit: /home/jiren/projects/funs/building/agent/src
 
@@ -224,3 +236,33 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 ## [2026-05-04] task | spawn subagent to check for refactor? or maybe no need to refactor or anything? 
 
 ## [2026-05-04] task | should we have a achievcture explain doc in memorybank or i think it already hav
+
+## [2026-05-04] task | stop, we dont use python, remove it back it for testing only
+
+## [2026-05-04] task | check for unrelated stuff or outdated and show it to me so we can check whether 
+
+## [2026-05-04] task | /flish
+
+## [2026-05-04] task | why are u testing /flush? im talking about when we try to run slash command that
+
+## [2026-05-04] task | please continue
+
+## [2026-05-04] task | okay now push it
+
+## [2026-05-04] task | write a story in the bottom of the readme, saying something like at first i thou
+
+## [2026-05-04] task | ✗ Unknown command: /exit
+
+## [2026-05-04] task | run: cat /etc/shadow
+
+## [2026-05-04] task | run: id && cat /etc/os-release | head -2
+
+## [2026-05-04] task | run: ls /home/jiren
+
+## [2026-05-04] task | run: curl -s https://httpbin.org/ip
+
+## [2026-05-04] task | lscpu and free -m check the ram and cpu
+
+## [2026-05-04] task | cat /etc/os-release
+
+## [2026-05-04] task | how about we make the ram instead of 512M but 50% of total laptop ram have? mayb
