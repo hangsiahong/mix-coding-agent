@@ -35,15 +35,19 @@ json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
     "${BASE_URL}/chat/completions"
     -H "Authorization: Bearer $_compact_key"
     -H "Content-Type: application/json")
-  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
-    local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
-    if [ -n "$_ph" ]; then
-      while IFS= read -r _hk _hv; do
-        [ -n "$_hk" ] && _curl_args+=(-H "$_hk: $_hv")
-      done < <(printf '%s' "$_ph" | python3 -c '
+
+  # Use provider-specific headers if available (e.g. for Copilot)
+  if [ "$PROVIDER" != "default" ]; then
+    if type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+      local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+      if [ -n "$_ph" ]; then
+        while IFS= read -r _header; do
+          [ -n "$_header" ] && _curl_args+=(-H "$_header")
+        done < <(printf '%s' "$_ph" | python3 -c '
 import json,sys
-for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
+for k,v in json.load(sys.stdin).items(): print(f"{k}: {v}")
 ' 2>/dev/null)
+      fi
     fi
   fi
 
