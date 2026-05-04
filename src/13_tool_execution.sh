@@ -134,6 +134,13 @@ os.makedirs(os.path.dirname(p) or ".",exist_ok=True)
 open(p,"w").write(d["content"])
 print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
 ' 2>/dev/null) || result="Error: bad args"
+      # Cache newly created file
+      if [[ "$result" == Created* ]]; then
+        local _cfp _cfc
+        _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
+        _cfc=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["content"])' 2>/dev/null)
+        [ -n "$_cfp" ] && [ -n "$_cfc" ] && file_cache_put "$_cfp" "$_cfc" 2>/dev/null || true
+      fi
       ;;
     search_files)
       local _sf_pat _sf_path
