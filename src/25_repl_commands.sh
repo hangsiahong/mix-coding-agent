@@ -1,5 +1,8 @@
 # ─── REPL Commands ──────────────────────────────────────────────────────────
 handle_cmd() {
+  # Extensions get first crack at commands
+  _ext_dispatch_cmd "$1" && return 0
+
   case "$1" in
     /paste)
       local dir="/tmp/mix-clipboard"
