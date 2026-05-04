@@ -83,11 +83,15 @@ ensure_path() {
 setup_directories() {
   local mix_dir="$HOME/.mix"
   local skills_dir="$mix_dir/skills"
-  if [ ! -d "$skills_dir" ]; then
-    mkdir -p "$skills_dir"
-    info "created skill directory: $skills_dir"
-  else
-    ok "skill directory exists: $skills_dir"
+  mkdir -p "$skills_dir"
+  ok "skill directory: $skills_dir"
+
+  # Download starter skill if not already present
+  local skill_file="$skills_dir/mix.md"
+  if [ ! -f "$skill_file" ]; then
+    if curl -fsSL "$REPO/skills/mix.md" -o "$skill_file" 2>/dev/null; then
+      ok "installed skill: mix.md"
+    fi
   fi
 }
 

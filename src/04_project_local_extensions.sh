@@ -1,9 +1,6 @@
 # ─── Project-local extensions ────────────────────────────────────────────────
-# Load repo-specific tools/overrides, then user-global rc
-if [ -f "$WORKDIR/.agent/rc.sh" ]; then
-  echo -e "  \033[0;33m⚠  Sourcing project rc: $WORKDIR/.agent/rc.sh\033[0m"
-  source "$WORKDIR/.agent/rc.sh"
-fi
+# Only source from ~/.mix/rc.sh — trusted user-controlled location.
+# Project-local .agent/rc.sh is NOT auto-sourced (untrusted working directory).
 if [ -f "$HOME/.mix/rc.sh" ]; then
   source "$HOME/.mix/rc.sh"
 fi
