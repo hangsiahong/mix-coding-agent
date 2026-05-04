@@ -109,7 +109,7 @@ for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
 
   local _compacted
   _compacted=$(printf '%s\n%s' \
-    "[{\"role\":\"user\",\"content\":$sum_esc},{\"role\":\"assistant\",\"content\":\"Understood. Context loaded.\"}]" \
+    "[{\"role\":\"user\",\"content\":$sum_esc},{\"role\":\"assistant\",\"content\":\"Context loaded. Ready to continue the task.\"}]" \
     "$recent" \
   | python3 -c '
 import json,sys
