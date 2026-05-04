@@ -29,5 +29,9 @@ detect_env() {
   command -v mypy >/dev/null 2>&1 && info+=" mypy"
   ENV_INFO="${info# }"  # trim leading space
 }
+
 detect_env
 
+# Try loading previous session (sets _SESSION_AVAILABLE=true if found)
+session_load 2>/dev/null
+session_hint

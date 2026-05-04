@@ -17,13 +17,11 @@ session_save() {
     _save_cache=$(printf '%s' "$_FILE_CACHE" | python3 -c '
 import json, sys
 cache = json.loads(sys.stdin.read())
-# Keep only the 4 most recent entries
 order = sys.argv[1].split()
 keep = order[-4:] if len(order) > 4 else order
 filtered = {k: v for k, v in cache.items() if k in keep}
 print(json.dumps(filtered))
 ' "$_FILE_CACHE_ORDER" 2>/dev/null) || _save_cache='{}'
-    # Rebuild order to match
     local _new_order=""
     for _fp in $_FILE_CACHE_ORDER; do
       if printf '%s' "$_save_cache" | grep -qF "\"$_fp\""; then
@@ -33,15 +31,12 @@ print(json.dumps(filtered))
     _FILE_CACHE_ORDER="$_new_order"
   fi
 
-  # Get git branch
   local _branch=""
   [ "$GIT_ENABLED" = true ] && _branch=$(git -C "$WORKDIR" branch --show-current 2>/dev/null || echo "?")
 
-  # Build session JSON via python3
   local _sess_tmp; _sess_tmp=$(mktemp -t mix-session-XXXXXX)
   python3 -c '
 import json, sys, os, time
-
 data = {
     "version": 1,
     "timestamp": int(time.time()),
@@ -63,7 +58,6 @@ data = {
     "last_input": sys.argv[16],
     "cwd": sys.argv[17]
 }
-
 os.makedirs(os.path.dirname(sys.argv[18]), exist_ok=True)
 with open(sys.argv[18], "w") as f:
     json.dump(data, f)
@@ -75,12 +69,11 @@ with open(sys.argv[18], "w") as f:
     return 1
   }
 
-  # Atomic move
   mkdir -p .agent 2>/dev/null || true
   mv "$_sess_tmp" "$_SESSION_FILE" 2>/dev/null || rm -f "$_sess_tmp"
 }
 
-# Load session from disk — called at startup
+# Load session from disk — stores restore data (not applied until /resume)
 session_load() {
   [ ! -f "$_SESSION_FILE" ] && return 1
 
@@ -90,56 +83,55 @@ session_load() {
     return 1
   }
 
-  # Read session into variables via python3 (write to temp JSON for safe parsing)
+  # Extract fields via python3 → base64-encoded shell vars in temp file
   local _sess_tmp; _sess_tmp=$(mktemp -t mix-sess-load-XXXXXX)
   python3 -c '
-import json, sys
+import json, sys, time, base64
 
 with open(sys.argv[1]) as f:
     s = json.load(f)
 
-# Version check
 if s.get("version") != 1:
     sys.exit(1)
 
-# CWD check — only restore if same project (or subdirectory)
 saved_cwd = s.get("cwd", "")
 cur_cwd = sys.argv[2]
 if saved_cwd and not (cur_cwd == saved_cwd or cur_cwd.startswith(saved_cwd + "/")):
     sys.exit(2)
 
-# Age check
-import time
 ts = s.get("timestamp", 0)
 age_h = (time.time() - ts) / 3600
 if age_h > 168:
     sys.exit(3)
 
-# Write a flat JSON with all restore fields
-fc = s.get("file_cache", {})
-if isinstance(fc, dict):
-    fc = json.dumps(fc)
-flat = {
+def b64(v):
+    if isinstance(v, dict): v = json.dumps(v)
+    if not isinstance(v, str): v = str(v)
+    return base64.b64encode(v.encode()).decode()
+
+fields = {
     "env_info": s.get("env_info", ""),
-    "git_enabled": str(s.get("git_enabled", False)),
+    "git_enabled": s.get("git_enabled", False),
     "git_branch": s.get("git_branch", ""),
     "provider": s.get("provider", "default"),
     "model": s.get("model", ""),
     "base_url": s.get("base_url", ""),
     "caveman_mode": s.get("caveman_mode", "full"),
     "agent_mode": s.get("agent_mode", "fast"),
-    "auto_yes": str(s.get("auto_yes", False)),
+    "auto_yes": s.get("auto_yes", False),
     "active_skills": s.get("active_skills", ""),
-    "file_cache": fc,
+    "file_cache": s.get("file_cache", {}),
     "file_cache_order": s.get("file_cache_order", ""),
     "repo_map": s.get("repo_map", ""),
     "repo_map_mtimes": s.get("repo_map_mtimes", ""),
-    "repo_map_time": str(s.get("repo_map_time", 0)),
+    "repo_map_time": s.get("repo_map_time", 0),
     "last_input": s.get("last_input", ""),
     "age_h": f"{age_h:.1f}"
 }
+
 with open(sys.argv[3], "w") as f:
-    json.dump(flat, f)
+    for k, v in fields.items():
+        f.write(f"_SL_{k}={b64(v)}\n")
 ' "$_SESSION_FILE" "$WORKDIR" "$_sess_tmp" 2>/dev/null || {
     local _rc=$?
     rm -f "$_sess_tmp"
@@ -148,44 +140,27 @@ with open(sys.argv[3], "w") as f:
     return 1
   }
 
-  # Parse fields from flat JSON
-  _s_env_info=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['env_info'])" 2>/dev/null)
-  _s_git_enabled=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['git_enabled'])" 2>/dev/null)
-  _s_git_branch=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['git_branch'])" 2>/dev/null)
-  _s_provider=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['provider'])" 2>/dev/null)
-  _s_model=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['model'])" 2>/dev/null)
-  _s_base_url=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['base_url'])" 2>/dev/null)
-  _s_caveman=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['caveman_mode'])" 2>/dev/null)
-  _s_agent_mode=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['agent_mode'])" 2>/dev/null)
-  _s_auto_yes=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['auto_yes'])" 2>/dev/null)
-  _s_skills=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['active_skills'])" 2>/dev/null)
-  _s_file_cache=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['file_cache'])" 2>/dev/null)
-  _s_file_cache_order=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['file_cache_order'])" 2>/dev/null)
-  _s_repo_map=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['repo_map'])" 2>/dev/null)
-  _s_repo_map_mtimes=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['repo_map_mtimes'])" 2>/dev/null)
-  _s_repo_map_time=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['repo_map_time'])" 2>/dev/null)
-  _s_last_input=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['last_input'])" 2>/dev/null)
-  _s_age_h=$(python3 -c "import json; print(json.load(open('$_sess_tmp'))['age_h'])" 2>/dev/null)
+  # Source base64 vars and decode
+  source "$_sess_tmp" 2>/dev/null
   rm -f "$_sess_tmp"
 
-  # Store for lazy restore (don't apply until /resume)
-  _SESSION_RESTORE_ENV="$_s_env_info"
-  _SESSION_RESTORE_GIT="$_s_git_enabled"
-  _SESSION_RESTORE_BRANCH="$_s_git_branch"
-  _SESSION_RESTORE_PROVIDER="$_s_provider"
-  _SESSION_RESTORE_MODEL="$_s_model"
-  _SESSION_RESTORE_BASE_URL="$_s_base_url"
-  _SESSION_RESTORE_CAVEMAN="$_s_caveman"
-  _SESSION_RESTORE_MODE="$_s_agent_mode"
-  _SESSION_RESTORE_AUTO_YES="$_s_auto_yes"
-  _SESSION_RESTORE_SKILLS="$_s_skills"
-  _SESSION_RESTORE_CACHE="$_s_file_cache"
-  _SESSION_RESTORE_CACHE_ORDER="$_s_file_cache_order"
-  _SESSION_RESTORE_REPO_MAP="$_s_repo_map"
-  _SESSION_RESTORE_REPO_MTIMES="$_s_repo_map_mtimes"
-  _SESSION_RESTORE_REPO_TIME="$_s_repo_map_time"
-  _SESSION_RESTORE_LAST="$_s_last_input"
-  _SESSION_RESTORE_AGE="$_s_age_h"
+  _SESSION_RESTORE_ENV=$(printf '%s' "${_SL_env_info:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_GIT=$(printf '%s' "${_SL_git_enabled:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_BRANCH=$(printf '%s' "${_SL_git_branch:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_PROVIDER=$(printf '%s' "${_SL_provider:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_MODEL=$(printf '%s' "${_SL_model:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_BASE_URL=$(printf '%s' "${_SL_base_url:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_CAVEMAN=$(printf '%s' "${_SL_caveman_mode:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_MODE=$(printf '%s' "${_SL_agent_mode:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_AUTO_YES=$(printf '%s' "${_SL_auto_yes:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_SKILLS=$(printf '%s' "${_SL_active_skills:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_CACHE=$(printf '%s' "${_SL_file_cache:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_CACHE_ORDER=$(printf '%s' "${_SL_file_cache_order:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_REPO_MAP=$(printf '%s' "${_SL_repo_map:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_REPO_MTIMES=$(printf '%s' "${_SL_repo_map_mtimes:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_REPO_TIME=$(printf '%s' "${_SL_repo_map_time:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_LAST=$(printf '%s' "${_SL_last_input:-}" | base64 -d 2>/dev/null)
+  _SESSION_RESTORE_AGE=$(printf '%s' "${_SL_age_h:-}" | base64 -d 2>/dev/null)
   _SESSION_AVAILABLE=true
 
   return 0
@@ -240,7 +215,6 @@ session_apply() {
   echo -e "  \033[38;5;82m✓\033[0m Session restored (was ${_SESSION_RESTORE_AGE}h ago)"
   [ -n "$_SESSION_RESTORE_LAST" ] && echo -e "  \033[0;90m  Last task: ${_SESSION_RESTORE_LAST}\033[0m"
 
-  # Clear restore state
   _SESSION_AVAILABLE=false
 }
 
