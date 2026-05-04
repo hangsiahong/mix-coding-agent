@@ -39,7 +39,7 @@ for l in diff:
 if match_line > 0:
     ctx_start=max(0,match_line-2)
     ctx_end=min(len(lines),match_line+len(old_lines)+1)
-    sys.stdout.write(DIM+"    ┄ context (lines %d-%d of %d)\n"%RST % (ctx_start+1, ctx_end, len(lines)))
+    sys.stdout.write(DIM+"    ┄ context (lines %d-%d of %d)\n"% (ctx_start+1, ctx_end, len(lines))+RST)
     for i in range(ctx_start, ctx_end):
         marker = GRN+"▸"+RST if i >= match_line-1 and i < match_line-1+len(old_lines) else " "
         sys.stdout.write("    %s %s%d: %s%s\n" % (marker, DIM, i+1, RST, lines[i]))
