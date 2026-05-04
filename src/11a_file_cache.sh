@@ -26,22 +26,23 @@ file_cache_put() {
   local _flines
   _flines=$(printf '%s' "$_fc" | wc -l)
 
-  # Update JSON cache
-  _FILE_CACHE=$(printf '%s\n%s' "$_FILE_CACHE" "$_fp" "$_fc" "$_fmtime" "$_flines" | python3 -c '
-import json,sys
-lines = sys.stdin.read().split("\n", 4)
-cache = json.loads(lines[0])
-path = lines[1].strip()
-content = lines[2].rstrip("\n")
-mtime = lines[3].strip()
-nlines = lines[4].strip()
-cache[path] = {"content": content, "mtime": int(mtime), "atime": __import__("time").time(), "lines": int(nlines)}
-print(json.dumps(cache))
-' 2>/dev/null) || return
+  # Write content to temp file, pass cache + path + temp via argv
+  local _ctmp; _ctmp=$(mktemp -t mix-fc-XXXXXX)
+  printf '%s' "$_fc" > "$_ctmp"
 
-  # Update access order
-  local _escaped_path
-  _escaped_path=$(printf '%s' "$_fp" | sed 's/[&/\]/\\&/g')
+  _FILE_CACHE=$(python3 -c '
+import json,sys,os,time
+cache = json.loads(sys.argv[1])
+path = sys.argv[2]
+content = open(sys.argv[3]).read()
+mtime = int(sys.argv[4])
+nlines = int(sys.argv[5])
+cache[path] = {"content": content, "mtime": mtime, "atime": time.time(), "lines": nlines}
+print(json.dumps(cache))
+' "$_FILE_CACHE" "$_fp" "$_ctmp" "$_fmtime" "$_flines" 2>/dev/null) || { rm -f "$_ctmp"; return; }
+  rm -f "$_ctmp"
+
+  # Update access order: remove existing entry, append to end
   _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | tr '\n' ' ' | sed 's/^ *//')
   _FILE_CACHE_ORDER="$_FILE_CACHE_ORDER $_fp"
   _FILE_CACHE_ORDER="${_FILE_CACHE_ORDER# }"
