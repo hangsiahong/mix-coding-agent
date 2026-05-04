@@ -62,9 +62,9 @@ print(json.dumps(cache))
 
 # Validate cache entries — remove stale (externally modified) files
 file_cache_validate() {
-  _FILE_CACHE=$(printf '%s' "$_FILE_CACHE" | python3 -c '
+  _FILE_CACHE=$(python3 -c '
 import json,sys,os
-cache = json.loads(sys.stdin.read())
+cache = json.loads(sys.argv[1])
 stale = []
 for path, entry in cache.items():
     if not os.path.exists(path):
@@ -79,14 +79,15 @@ for path, entry in cache.items():
 for s in stale:
     del cache[s]
 print(json.dumps(cache))
-' 2>/dev/null) || _FILE_CACHE='{}'
+' "$_FILE_CACHE" 2>/dev/null) || _FILE_CACHE='{}'
 
   # Remove stale entries from order too
   local _new_order=""
   for _fp in $_FILE_CACHE_ORDER; do
-    printf '%s' "$_FILE_CACHE" | python3 -c "
+    [ -z "$_fp" ] && continue
+    python3 -c "
 import json,sys
-cache = json.loads(sys.stdin.read())
+cache = json.loads('''$_FILE_CACHE''')
 sys.exit(0 if '$_fp' in cache else 1)
 " 2>/dev/null && _new_order="$_new_order $_fp"
   done
