@@ -19,7 +19,7 @@ compact_history() {
   printf '%s' "$HISTORY" > "$_hist_tmp"
   python3 -c '
 import json,sys
-s=json.dumps("Summarize the conversation below into a single dense paragraph. Capture: goals, decisions made, files edited, commands run, errors resolved, current state. Be complete but concise. Output only the summary paragraph, nothing else.")
+s=json.dumps("Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else.")
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
 msg=[{"role":"system","content":s}]+h
