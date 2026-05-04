@@ -313,6 +313,9 @@ banner
 check_deps
 pick_dir
 download
+health_check
+version_install
+install_wrapper
 ensure_path
 setup_directories
 setup_key
