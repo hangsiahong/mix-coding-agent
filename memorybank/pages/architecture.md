@@ -55,3 +55,5 @@ User input → append_text("user") → [plan mode?] → while turns < MAX_TURNS 
 - **API key redaction**: save_history sed-replaces KCONSOLE_API_KEY before writing
 - **Trusted rc only**: only ~/.mix/rc.sh sourced, not project-local
 - **3x API retry with streaming fallback**: network drop → retry without streaming → retry → fail
+- **Batch history I/O**: parallel tool results appended in-memory via append_raw_nosave(), flushed once per batch to disk
+- **MAX_TURNS=100**: up from 30. Supports longer agent sessions without premature cutoff
