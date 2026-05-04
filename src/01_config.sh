@@ -27,7 +27,7 @@ fi
 BASE_URL="https://ai.koompi.cloud/v1"
 MODEL="${AGENT_MODEL:-glm-5}"
 HIST_FILE=".agent_history.json"
-MAX_TURNS="${MAX_TURNS:-50}"
+MAX_TURNS="${MAX_TURNS:-100}"
 MAX_HIST_MSGS="${MAX_HIST_MSGS:-60}"  # compact history after this many messages
 CTX_TOKENS="${CTX_TOKENS:-131072}"   # model context window size (for % display)
 STREAM="${STREAM:-true}"             # stream tokens live

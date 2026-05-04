@@ -19,11 +19,11 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 
 ## WORKERS (tmux)
 - Spawn parallel bash task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
-- Spawn parallel LLM subagent: REPL command /subagent <name> <task description> (logs to /tmp/<name>.log)
+- Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
-- REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
+- REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM (or use spawn_subagent tool), /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
 
 ## SKILLS (available in ~/.mix/skills/)
 - swe-precision:       better edit matches + auto-verification

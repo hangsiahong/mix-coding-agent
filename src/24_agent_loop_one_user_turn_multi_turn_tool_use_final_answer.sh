@@ -82,17 +82,74 @@ run_agent() {
 
     if [ -n "$tc_lines" ]; then
       [ "$INTERACTIVE" = false ] && printf "\r\033[K" >&2 || printf "\r\033[K" >/dev/tty 2>/dev/null  # clear spinner line
-      # Process each tool call individually (avoids stdin conflicts)
+
+      # PARALLEL EXECUTION:
+      # 1. Separate read-only (parallelizable) and write-active tools.
+      # 2. Parallel tools run in subshells, results captured in temp files.
+      # 3. Write tools run sequentially.
+
+      local _batch_dir; _batch_dir=$(mktemp -d -t mix-batch-XXXXXX)
+      local _tc_idx=0
+      local _parallel_refs=() # format "idx|tid|tname"
+      local _sequential_tcs=()
+
       while IFS= read -r tc; do
         [ -z "$tc" ] && continue
-        process_tc "$tc"
+
+        # Robust parsing
+        local _rest="${tc#TC:}"
+        local _tid="${_rest%%|||*}"
+        local _tname="${_rest#*|||}"
+        _tname="${_tname%%|||*}"
+
+        # Read-only tools can be parallelized
+        if [[ "$_tname" =~ ^(read_file|list_files|search_files)$ ]]; then
+          _tc_idx=$((_tc_idx + 1))
+          _parallel_refs+=("$_tc_idx|$_tid|$_tname")
+          (
+            # Subshell: run silently and capture output
+            local _res; _res=$(process_tc "$tc" "true")
+            echo "$_res" > "$_batch_dir/$_tc_idx"
+          ) &
+          echo -e "    \033[38;5;99m⚡\033[0m \033[1;36m$_tname\033[0m \033[0;90m(parallel)\033[0m"
+        else
+          _sequential_tcs+=("$tc")
+        fi
       done <<< "$tc_lines"
+
+      # Wait for all parallel tools
+      wait
+
+      # Process parallel results (append to history)
+      for _pref in "${_parallel_refs[@]}"; do
+        local _idx="${_pref%%|*}"
+        local _rest="${_pref#*|}"
+        local _tid="${_rest%%|*}"
+        local _tname="${_rest#*|}"
+        local _res; _res=$(cat "$_batch_dir/$_idx" 2>/dev/null || echo "Error: parallel tool failed")
+
+        # UI Feedback
+        local _disp="${_res:0:120}"
+        _disp=$(printf '%s' "$_disp" | tr '\n' ' ')
+        echo -e "      \033[38;5;244m└─ ${_disp}...\033[0m"
+
+        # Append to history
+        local _esc
+        _esc=$(printf '%s' "$_res" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || _esc='"(error)"'
+        append_raw "{\"role\":\"tool\",\"tool_call_id\":\"$_tid\",\"name\":\"$_tname\",\"content\":$_esc}"
+      done
+
+      # Process sequential tools (bash, edit, create)
+      for tc in "${_sequential_tcs[@]}"; do
+        process_tc "$tc"
+      done
+
+      rm -rf "$_batch_dir"
       # Loop continues — model will see tool results and respond
     elif [ -n "$text_line" ]; then
       # streaming already printed content live to /dev/tty; skip reprint
       if [ "$STREAM" != "true" ]; then
         local final="${text_line#TEXT:}"
-        echo -e "\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m"
         printf '    %s\n\n' "$final"
       fi
       break

@@ -9,7 +9,8 @@ run_tool() {
     edit_file)    printf "  \e[33m📝\e[0m \e[1medit\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
     create_file)  printf "  \e[32m➕\e[0m \e[1mcreate\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
     list_files)   printf "  \e[36m📂\e[0m \e[1mlist\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
-    search_files) printf "  \e[35m🔍\e[0m \e[1msearch\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("pattern",""))' 2>/dev/null)" ;;
+    search_files)    printf "  \e[35m🔍\e[0m \e[1msearch\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("pattern",""))' 2>/dev/null)" ;;
+    spawn_subagent)  printf "  \e[38;5;99m⚡\e[0m \e[1msubagent\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("name",""))' 2>/dev/null)" ;;
   esac
 
   case "$name" in
@@ -70,12 +71,17 @@ if count > 1:
 # 2. Fuzzy match: normalize trailing whitespace + line endings
 nc = normalize(content)
 no = normalize(o)
-fcount = nc.count(no)
-if fcount == 1:
-    idx = nc.index(no)
-    open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(no):])
-    print('Edited '+p+' (fuzzy whitespace match)')
-    sys.exit(0)
+if no in nc:
+    fcount = nc.count(no)
+    if fcount == 1:
+        # We apply the edit to the normalized version. 
+        # This is safe because normalize() only removes \r and trailing spaces.
+        open(p,'w').write(nc.replace(no, normalize(n), 1))
+        print('Edited '+p+' (fuzzy whitespace match)')
+        sys.exit(0)
+    if fcount > 1:
+        print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
+        sys.exit(0)
 
 # 3. Indent-agnostic match
 sc = strip_indent(nc)
@@ -165,6 +171,23 @@ print("Global memory updated.")
         else
           result="Error: old_text not found in global memory"
         fi
+      fi
+      ;;
+    spawn_subagent)
+      local _sa_name _sa_task _sa_tmp _sa_tty
+      _sa_name=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("name",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
+      _sa_task=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("task",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ -z "$TMUX" ]; then
+        result="Error: not in tmux — cannot spawn subagent"
+      elif [ -z "$_sa_name" ] || [ -z "$_sa_task" ]; then
+        result="Error: name and task are required"
+      else
+        _sa_tmp=$(mktemp -t mix-XXXXXX)
+        _sa_tty=$(tty 2>/dev/null || echo /dev/null)
+        printf '%s\n' "$_sa_task" > "$_sa_tmp"
+        tmux new-window -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m✓ Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
+          && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log" \
+          || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
       ;;
     *) result="Unknown tool: $name" ;;

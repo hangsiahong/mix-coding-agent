@@ -88,6 +88,9 @@ try:
             if tok:
                 if first:
                     kill_spinner()
+                    # Only print the header if we are NOT in the middle of a turn loop
+                    # Actually, the agent loop handles the header for non-streaming.
+                    # For streaming, we print it here.
                     tty.write("\r\033[K  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n    ")
                     tty.flush(); first=False
                 tok = tok.replace("\n", "\n    ")
