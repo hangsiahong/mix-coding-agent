@@ -358,6 +358,10 @@ document.getElementById('installCmd').addEventListener('click', function() {
       { cls: 'cmd', text: 'refactor the auth module' }
     ]},
     { type: 'out', text: '▸ reading src/auth.js (from cache)' },
+    { type: 'out', text: '' },
+    { type: 'cursor-row', parts: [
+      { cls: 'prompt', text: '> ' }
+    ]}
   ];
 
   let lineIdx = 0;
