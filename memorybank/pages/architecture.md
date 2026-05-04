@@ -15,7 +15,7 @@
 | 05_pre_edit_diff_preview.sh | 29 | show_edit_diff(): colored unified diff before edit confirmation |
 | 06_auto_read_logs_on_bash_failure.sh | 15 | auto_read_logs(): extracts .log/.err/.out paths from error, tails last 20 lines |
 | 07_environment_detection.sh | 29 | detect_env(): git branch, node/go/rust/python/docker detection, test runner detection |
-| 08_self_healing_bash_wrapper.sh | 45 | run_with_heal(): bash -c + auto-retry (sudo on EACCES, node_modules/.bin on not-found, npx for npm packages with guard) |
+| 08_self_healing_bash_wrapper.sh | 65 | run_with_heal(): bash -c + auto-retry. Smart output truncation (50/50 + error extraction from middle) |
 | 09_wiki_solutions_writer.sh | 20 | write_wiki_solution(): auto-creates solution md in memorybank/solutions/ |
 | 10_tools_openai_function_calling.sh | 3 | TOOLS_JSON: 7 tools (bash, read_file, create_file, edit_file, list_files, search_files, update_global_memory) |
 | 11b_repo_map.sh | 176 | build_repo_map(): regex-based code structure map. 10 languages, mtime-cached, ~1500 token budget. Injected into system prompt. /refresh to rebuild |
