@@ -19,9 +19,9 @@ if [ "$INTERACTIVE" = true ]; then
     local word="${cur##* }"
     local pre="${cur:0:$((READLINE_POINT - ${#word}))}"
     local matches=()
-    
+
     if [[ "$word" == /* ]]; then
-      for c in "/flush" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
+        for c in "/flush" "/refresh" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
@@ -38,7 +38,7 @@ if [ "$INTERACTIVE" = true ]; then
       done
     elif [[ "$word" == @* ]]; then
       local q="${word#@}"
-      
+
       # If the query itself starts with a dot, allow matching dotfiles. Otherwise hide them.
       local dotfile_filter
       if [[ "$q" == .* || "$q" == */.* ]]; then
@@ -60,7 +60,7 @@ if [ "$INTERACTIVE" = true ]; then
 
     if (( ${#matches[@]} == 1 )); then
       local new_word="${matches[0]}"
-      
+
       # Determine if a directory to add suffix
       # We check the raw path by removing @ if present
       local raw_path="${new_word#@}"
