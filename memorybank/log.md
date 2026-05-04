@@ -190,3 +190,7 @@ Types: `ingest` `query` `lint` `task`
   - 151/151 tests passing (27 mixrc + 24 extensions)
   - Updated: architecture.md, index.md, extension-system.md solution page
   - Pending: README update for extensions section
+
+## [2026-05-04] task | update memorybank and readme already right?
+
+## [2026-05-04] task | update our mix skill also so it know how to help user build the extension for mi
