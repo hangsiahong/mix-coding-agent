@@ -116,7 +116,7 @@ $_rh"
           FAIL_STREAK=0
           _TOOLS_USED=$((_TOOLS_USED + 1))
           if [[ "$result" == Edited* ]]; then
-            if [ "$GIT_ENABLED" = true ]; then
+            _ext_hook on_edit "$p"
               # Stage and show real git diff
               git -C "$WORKDIR" add "$p" 2>/dev/null || true
               local _gdiff
