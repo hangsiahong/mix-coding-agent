@@ -185,13 +185,23 @@ if full:
         rendered_lines.append(line)
     # Count lines streamed so we can erase them
     raw_display = "".join(content)
+    # Use a safe over-count: count newlines in streamed content + header + indent lines
+    # Each streamed line has "    " prefix but wraps differently than rendered.
+    # Strategy: move up generously, clear to bottom, reprint. Over-erase is safe.
     streamed_line_count = raw_display.count("\n") + 2  # +2 for header line + last line
-    # Move cursor up and erase, then reprint
-    tty.write(f"\033[{streamed_line_count}A\033[J")
-    tty.write("  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n")
-    for rl in rendered_lines:
-        tty.write("    " + rl + "\n")
-    tty.flush()
+    # For short responses (<8 lines), skip re-render entirely — raw stream is readable
+    if streamed_line_count <= 8:
+        # Just ensure we end on a clean newline
+        tty.write("\n")
+        tty.flush()
+    else:
+        # Move up with extra margin to handle wrapping safely
+        safe_count = streamed_line_count + 4
+        tty.write(f"\033[{safe_count}A\033[J")
+        tty.write("  \033[38;5;99m◆\033[0m \033[1mmix\033[0m\n")
+        for rl in rendered_lines:
+            tty.write("    " + rl + "\n")
+        tty.flush()
 msg={"role":"assistant","content":full}
 if tcs:
     msg["tool_calls"]=[{"id":tcs[i]["id"],"type":"function",
