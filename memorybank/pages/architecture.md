@@ -11,7 +11,9 @@
 | 01_config.sh | 125 | Config, defaults, provider system, env vars, session token counters |
 | 02_tmux_bootstrap.sh | 14 | Auto-launch/attach tmux session (bypass: MIX_NO_TMUX=1) |
 | 03_system_prompt_*.sh | 143 | build_system_prompt(): rebuilt per call, injects wiki/cavekit/global memory/skills |
+| 02_mixrc.sh | 107 | _mixrc_load(): walks parent dirs for .mixrc, 16 whitelisted keys. Project overrides defaults, env vars override .mixrc for proxied keys (MODEL/BASE_URL/PROVIDER) |
 | 04_project_local_extensions.sh | 7 | Sources ~/.mix/rc.sh only (project .agent/rc.sh removed for security) |
+| 04b_extension_system.sh | 245 | Drop-in plugins: ~/.mix/extensions/ + .mix/extensions/. Convention hooks (_init, _cmd, _tool, _on_edit, _on_create, _on_bash, _on_session, _on_shutdown). REPL: /ext [load|unload|create|reload|list] |
 | 05_pre_edit_diff_preview.sh | 29 | show_edit_diff(): colored unified diff before edit confirmation |
 | 06_auto_read_logs_on_bash_failure.sh | 15 | auto_read_logs(): extracts .log/.err/.out paths from error, tails last 20 lines |
 | 07_environment_detection.sh | 29 | detect_env(): git branch, node/go/rust/python/docker detection, test runner detection |
