@@ -59,7 +59,7 @@ SyntaxError: unexpected EOF while parsing"
 }
 
 @test "diagnose_failure detects shell syntax error" {
-    local output="script.sh: line 5: syntax error near unexpected token `fi'"
+    local output=$'script.sh: line 5: syntax error near unexpected token `fi'"'"
     run diagnose_failure "bash script.sh" "$output" "2"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Syntax error"* ]]
