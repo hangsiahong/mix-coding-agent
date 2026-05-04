@@ -25,6 +25,14 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM, /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
 
+## SKILLS (available in ~/.mix/skills/)
+- swe-precision:       better edit matches + auto-verification
+- bug-hunter:          repro scripts + root-cause isolation
+- security-hardener:   audit-first code + input sanitization
+- architect-evaluator: impact analysis + global refactoring
+- minimalist-refactor: bash-first + line-count reduction
+Suggest loading a skill if it matches the current task difficulty.
+
 ## WIKI PATTERN
 Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
 
