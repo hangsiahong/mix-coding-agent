@@ -578,6 +578,20 @@ $_fctx"
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
 GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, patterns, lessons. Update proactively with update_global_memory when you learn something reusable. Short bullet points only."
+
+  # Context budget warning — inject when history is consuming significant context
+  local _hist_chars=${#HISTORY}
+  local _est_ctx_tokens=$(( _hist_chars / 3 ))
+  local _ctx_pct=$(( _est_ctx_tokens * 100 / CTX_TOKENS ))
+  if [ "$_ctx_pct" -gt 60 ]; then
+    local _ctx_level=""
+    [ "$_ctx_pct" -gt 90 ] && _ctx_level="CRITICAL"
+    [ "$_ctx_pct" -gt 75 ] && [ "$_ctx_pct" -le 90 ] && _ctx_level="HIGH"
+    [ "$_ctx_pct" -gt 60 ] && [ "$_ctx_pct" -le 75 ] && _ctx_level="MODERATE"
+    base+="
+
+CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. Save key findings to memorybank before they get compacted. Avoid re-reading files you already have cached."
+  fi
   if [ -f "$_gmem_file" ]; then
     local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
     [ -n "$_gmem_content" ] && base+="
@@ -664,13 +678,24 @@ p,o,n=d.get("path","?"),d.get("old_text",""),d.get("new_text","")
 GRN,RED,DIM,RST="\033[0;32m","\033[0;31m","\033[0;90m","\033[0m"
 if not os.path.exists(p):
     sys.stdout.write(DIM+"    (new file)\n"+RST)
-    for l in n.splitlines(): sys.stdout.write("    "+GRN+"+ "+l+RST+"\n")
+    for i,l in enumerate(n.splitlines()[:15],1): sys.stdout.write("    "+GRN+"+ %3d: %s"%(i,l)+RST+"\n")
+    if len(n.splitlines())>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" % (len(n.splitlines())-15))
     sys.exit(0)
 content=open(p).read()
 if o not in content:
     sys.stdout.write("    \033[1;31m(old_text not found — edit will fail)\033[0m\n")
     sys.exit(0)
-diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),fromfile="before",tofile="after",n=2))
+# Find line number of match in file
+lines=content.splitlines()
+old_lines=o.splitlines()
+match_line=0
+for i in range(len(lines)):
+    if lines[i].rstrip()==old_lines[0].rstrip() if old_lines else True:
+        segment="\n".join(lines[i:i+len(old_lines)])
+        if segment.rstrip()==o.rstrip():
+            match_line=i+1
+            break
+diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),fromfile="before (line %d)"%match_line,tofile="after",n=2))
 if not diff:
     sys.stdout.write(DIM+"    (no change)\n"+RST)
 for l in diff:
@@ -1340,7 +1365,7 @@ compact_history() {
   printf '%s' "$HISTORY" > "$_hist_tmp"
   python3 -c '
 import json,sys
-s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else."
+s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\n\nRules:\n- Do NOT include full file contents — they are available in the file cache.\n- Do NOT repeat tool outputs verbatim — extract conclusions only.\n- Do NOT include diagnostic/verify output — only the final resolution.\n- Include: file paths edited, key variable names, error patterns resolved.\n- Be complete but concise. Output only the summary, nothing else."
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
 # Some providers refuse to answer if the last message is from the user
@@ -1547,6 +1572,17 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
       path=$(cat "$_ea_dir/p"); old_text=$(cat "$_ea_dir/o"); new_text=$(cat "$_ea_dir/n")
       rm -rf "$_ea_dir"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
+      # Detect external file modification since last cache read
+      if [ "$AUTO_VERIFY" != "off" ]; then
+        local _cached_mtime
+        _cached_mtime=$(printf '%s' "$_FILE_CACHE" | python3 -c "import json,sys;c=json.load(sys.stdin).get('$path',{});print(c.get('mtime',0))" 2>/dev/null) || _cached_mtime=0
+        if [ "$_cached_mtime" != "0" ]; then
+          local _current_mtime; _current_mtime=$(stat -c '%Y' "$path" 2>/dev/null) || echo "0"
+          if [ "$_current_mtime" != "$_cached_mtime" ] && [ "$_current_mtime" != "0" ]; then
+            echo "Warning: file modified externally since last read. Consider re-reading before editing."
+          fi
+        fi
+      fi
       result=$(python3 -c "
 import sys, re
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
