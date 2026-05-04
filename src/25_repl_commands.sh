@@ -678,6 +678,9 @@ Write policy: only flip §T status. All other spec edits via /spec. No sub-agent
 Report caveman grouped by severity. End with one-line remedy hints per class. Write nothing."
       run_agent "$_ci"
       ;;
+    /test*)
+      handle_test_cmd "$1"
+      ;;
     *) return 1 ;;
   esac
   return 0
