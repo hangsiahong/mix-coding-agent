@@ -40,6 +40,12 @@ import sys, re
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
 content=open(p).read()
 
+def normalize(s):
+    return '\n'.join(line.rstrip() for line in s.replace('\r\n','\n').replace('\r','\n').split('\n'))
+
+def strip_indent(s):
+    return '\n'.join(line.lstrip() for line in s.split('\n'))
+
 # 1. Exact match
 count=content.count(o)
 if count == 1:
@@ -51,36 +57,21 @@ if count > 1:
     sys.exit(0)
 
 # 2. Fuzzy match: normalize trailing whitespace + line endings
-def normalize(s):
-    return '\n'.join(line.rstrip() for line in s.replace('\r\n','\n').replace('\r','\n').split('\n'))
-
 nc = normalize(content)
 no = normalize(o)
 fcount = nc.count(no)
 if fcount == 1:
-    # Find the span in normalized content, map replacement back
     idx = nc.index(no)
-    # Rebuild: prefix + new_text normalized + suffix
     open(p,'w').write(nc[:idx] + normalize(n) + nc[idx+len(no):])
     print('Edited '+p+' (fuzzy whitespace match)')
     sys.exit(0)
-if fcount > 1:
-    print('Error: old_text not unique after fuzzy match ('+str(fcount)+' matches) in '+p)
-    sys.exit(0)
 
-# 3. Indent-agnostic match: strip all leading whitespace per line
-def strip_indent(s):
-    return '\n'.join(line.lstrip() for line in s.split('\n'))
-
+# 3. Indent-agnostic match
 sc = strip_indent(nc)
 so = strip_indent(no)
 icount = sc.count(so)
 if icount == 1:
-    # Apply: find the actual region in normalized content and replace
     idx = sc.index(so)
-    # Corrected: we need the length of the matching segment in the *normalized* string, 
-    # not the stripped string, to slice correctly.
-    # Actually, easier: find start/end indices in sc, map to nc.
     start_line = sc[:idx].count('\n')
     match_lines = so.count('\n') + 1
     nc_lines = nc.split('\n')
@@ -88,13 +79,29 @@ if icount == 1:
     open(p,'w').write('\n'.join(new_nc))
     print('Edited '+p+' (fuzzy indent match)')
     sys.exit(0)
-if icount > 1:
-    print('Error: old_text not unique after indent-agnostic match ('+str(icount)+' matches) in '+p)
-    sys.exit(0)
+
+# 4. Fallback: Block Header/Footer Anchor match
+# If old_text has multiple lines, try matching first and last lines uniquely
+o_lines = [l.strip() for l in no.split('\n') if l.strip()]
+if len(o_lines) > 2:
+    first, last = o_lines[0], o_lines[-1]
+    nc_lines = nc.split('\n')
+    matches = []
+    for i, line in enumerate(nc_lines):
+        if first in line:
+            # Look ahead for the last line within a reasonable range (len(o_lines) + 10)
+            for j in range(i + 1, min(i + len(o_lines) + 10, len(nc_lines))):
+                if last in nc_lines[j]:
+                    matches.append((i, j))
+    if len(matches) == 1:
+        i, j = matches[0]
+        new_nc = nc_lines[:i] + [normalize(n)] + nc_lines[j+1:]
+        open(p,'w').write('\n'.join(new_nc))
+        print('Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')')
+        sys.exit(0)
 
 print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
-      #return
       ;;
     list_files)
       local path
