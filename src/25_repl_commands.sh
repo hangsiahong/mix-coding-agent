@@ -387,15 +387,12 @@ handle_cmd() {
       ;;
     /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
              exit 0 ;;
-    /workers)
-      if [ -z "$TMUX" ]; then
-        echo "  Not in tmux."
-      else
-        echo "  Windows in this session:"
-        tmux list-windows -F '    #I: #W  (#F)' 2>/dev/null || echo "  (none)"
-      fi
+    /*)
+      # Unknown slash command — don't send to LLM
+      echo -e "  \033[1;31m✗ Unknown command:\033[0m $1"
+      echo "  Use /help to see available commands."
       ;;
-    /worker\ *)
+    *)
       local _wargs="${1#/worker }"
       local _wname="${_wargs%% *}"
       local _wcmd="${_wargs#* }"
