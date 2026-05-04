@@ -426,24 +426,18 @@ handle_cmd() {
         echo "  cd to the project directory first."
         return 0
       fi
-      # Build
+      # Build (build.sh handles versioning + self-test + wrapper install)
       _reload_out=$(cd "$_reload_root" && bash build.sh 2>&1)
       _reload_rc=$?
-      if [ $_reload_rc -ne 0 ]; then
-        # build.sh returns non-zero even on success sometimes (cp permission)
-        # Check if binary was actually produced
-        if [ ! -f "$_reload_root/mix.compiled" ]; then
-          echo -e "  \033[1;31m✗ Build failed:\033[0m"
-          echo "$_reload_out" | tail -10
-          return 0
-        fi
+      echo "$_reload_out"
+      if echo "$_reload_out" | grep -q "Self-test FAILED"; then
+        echo -e "  \033[1;31m✗ Build produced broken binary — not installed.\033[0m"
+        echo -e "  \033[0;90mPrevious version still active. Fix the issue and /reload again.\033[0m"
+        return 0
       fi
-      # Find the installed binary path
+      # Find the installed binary (wrapper or direct)
       [ -x "$HOME/.local/bin/mix" ] && _reload_bin="$HOME/.local/bin/mix"
       [ -x "$HOME/bin/mix" ] && _reload_bin="$HOME/bin/mix"
-      # Copy new build to install location
-      cp "$_reload_root/mix" "$_reload_bin" 2>/dev/null || _reload_bin="$_reload_root/mix"
-      echo -e "  \033[38;5;82m✓ Built\033[0m → $_reload_bin"
       echo -e "  \033[0;36m⟳ Restarting (session preserved)...\033[0m"
       # Save session, then exec new binary (EXIT trap also saves, but be explicit)
       session_save 2>/dev/null
