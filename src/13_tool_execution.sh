@@ -1,6 +1,17 @@
 # ─── Tool Execution ─────────────────────────────────────────────────────────
 run_tool() {
   local name="$1" args="$2" result=""
+  
+  # Professional TUI feedback
+  case "$name" in
+    bash*)        printf "  \e[32m⊚\e[0m \e[1mbash\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("command","")[:60])' 2>/dev/null)..." ;;
+    read_file)    printf "  \e[34m📖\e[0m \e[1mread\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    edit_file)    printf "  \e[33m📝\e[0m \e[1medit\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    create_file)  printf "  \e[32m➕\e[0m \e[1mcreate\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    list_files)   printf "  \e[36m📂\e[0m \e[1mlist\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("path",""))' 2>/dev/null)" ;;
+    search_files) printf "  \e[35m🔍\e[0m \e[1msearch\e[0m: \e[2m%s\e[0m\n" "$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("pattern",""))' 2>/dev/null)" ;;
+  esac
+
   case "$name" in
     bash)
       local cmd
