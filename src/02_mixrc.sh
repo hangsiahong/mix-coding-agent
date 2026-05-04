@@ -51,24 +51,26 @@ _mixrc_load() {
     # Strip surrounding quotes from value
     _val="${_val#\"}" ; _val="${_val%\"}"
     _val="${_val#\'}" ; _val="${_val%\'}"
-    # Only apply if env var NOT already set (env wins over .mixrc)
+    # Priority: env vars > .mixrc > defaults (01_config already ran)
+    # Only MODEL/BASE_URL/PROVIDER have dedicated env vars to check.
+    # All other keys: .mixrc always wins over built-in defaults.
     case "$_key" in
       MODEL)         [ -z "${AGENT_MODEL:-}" ]         && MODEL="$_val" ;;
       BASE_URL)      [ -z "${AGENT_BASE_URL:-}" ]      && BASE_URL="$_val" ;;
       PROVIDER)      [ -z "${AGENT_PROVIDER:-}" ]       && PROVIDER="$_val" ;;
-      CAVEMAN_MODE)  [ -z "${CAVEMAN_MODE:-}" ]         && CAVEMAN_MODE="$_val" ;;
-      AGENT_MODE)    [ -z "${AGENT_MODE:-}" ]           && AGENT_MODE="$_val" ;;
-      AUTO_YES)      [ -z "${AUTO_YES:-}" ]             && AUTO_YES="$_val" ;;
-      STREAM)        [ -z "${STREAM:-}" ]               && STREAM="$_val" ;;
-      MAX_TURNS)     [ -z "${MAX_TURNS:-}" ]            && MAX_TURNS="$_val" ;;
-      MAX_HIST_MSGS) [ -z "${MAX_HIST_MSGS:-}" ]        && MAX_HIST_MSGS="$_val" ;;
-      CTX_TOKENS)    [ -z "${CTX_TOKENS:-}" ]           && CTX_TOKENS="$_val" ;;
-      VERIFY_CMD)    [ -z "${VERIFY_CMD:-}" ]           && VERIFY_CMD="$_val" ;;
-      AUTO_VERIFY)   [ -z "${AUTO_VERIFY:-}" ]          && AUTO_VERIFY="$_val" ;;
-      MAX_FAIL_STREAK) [ -z "${MAX_FAIL_STREAK:-}" ]    && MAX_FAIL_STREAK="$_val" ;;
-      TEST_CMD)      [ -z "${TEST_CMD:-}" ]             && TEST_CMD="$_val" ;;
-      REPO_MAP_TTL)  [ -z "${REPO_MAP_TTL:-}" ]         && _REPO_MAP_TTL="$_val" ;;
-      GIT_ENABLED)   [ -z "${GIT_ENABLED:-}" ]          && GIT_ENABLED="$_val" ;;
+      CAVEMAN_MODE)  CAVEMAN_MODE="$_val" ;;
+      AGENT_MODE)    AGENT_MODE="$_val" ;;
+      AUTO_YES)      AUTO_YES="$_val" ;;
+      STREAM)        STREAM="$_val" ;;
+      MAX_TURNS)     MAX_TURNS="$_val" ;;
+      MAX_HIST_MSGS) MAX_HIST_MSGS="$_val" ;;
+      CTX_TOKENS)    CTX_TOKENS="$_val" ;;
+      VERIFY_CMD)    VERIFY_CMD="$_val" ;;
+      AUTO_VERIFY)   AUTO_VERIFY="$_val" ;;
+      MAX_FAIL_STREAK) MAX_FAIL_STREAK="$_val" ;;
+      TEST_CMD)      TEST_CMD="$_val" ;;
+      REPO_MAP_TTL)  _REPO_MAP_TTL="$_val" ;;
+      GIT_ENABLED)   GIT_ENABLED="$_val" ;;
     esac
     _count=$((_count + 1))
   done < "$_found"
