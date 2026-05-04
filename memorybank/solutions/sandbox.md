@@ -285,14 +285,11 @@ The sandbox uses `exec chroot` which correctly replaces PID 1 with the chrooted 
 4. `exec chroot` replaces the binary but preserves `/proc/1/environ` (kernel copies env at exec time)
 5. Result: `/proc/1/environ` leaks host user identity + desktop session details
 
-**Recommended fix**: Replace `unset` with `env -i` to start from clean environment:
+**Fix APPLIED**: Replaced `unset` with `env -i` to start from clean environment:
 ```bash
-# Current (leaks most host env):
-unset KCONSOLE_API_KEY ... && exec chroot ...
-
-# Proposed (clean environment):
 exec env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root chroot ...
 ```
+This eliminates `/proc/1/environ` leak — only `PATH` and `HOME` visible after fix.
 
 #### Overall Verdict
 
