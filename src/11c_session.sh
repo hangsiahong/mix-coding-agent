@@ -161,7 +161,7 @@ with open(sys.argv[3], "w") as f:
   _SESSION_RESTORE_REPO_TIME=$(printf '%s' "${_SL_repo_map_time:-}" | base64 -d 2>/dev/null)
   _SESSION_RESTORE_LAST=$(printf '%s' "${_SL_last_input:-}" | base64 -d 2>/dev/null)
   _SESSION_RESTORE_AGE=$(printf '%s' "${_SL_age_h:-}" | base64 -d 2>/dev/null)
-  _SESSION_AVAILABLE=${_SESSION_AVAILABLE:-false}
+  _SESSION_AVAILABLE=false
 
   return 0
 }
