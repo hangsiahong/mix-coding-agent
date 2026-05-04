@@ -19,7 +19,7 @@ compact_history() {
   printf '%s' "$HISTORY" > "$_hist_tmp"
   python3 -c '
 import json,sys
-s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else."
+s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\n\nRules:\n- Do NOT include full file contents — they are available in the file cache.\n- Do NOT repeat tool outputs verbatim — extract conclusions only.\n- Do NOT include diagnostic/verify output — only the final resolution.\n- Include: file paths edited, key variable names, error patterns resolved.\n- Be complete but concise. Output only the summary, nothing else."
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
 # Some providers refuse to answer if the last message is from the user
