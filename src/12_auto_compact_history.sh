@@ -13,16 +13,19 @@ compact_history() {
     [ -n "$_pkey" ] && _compact_key="$_pkey"
   fi
 
-  # Build payload via temp files (avoids ARG_MAX on large histories)
+  # Build payload via temp files
   local _payload_tmp; _payload_tmp=$(mktemp -t mix-compact-XXXXXX)
   local _hist_tmp; _hist_tmp=$(mktemp -t mix-hist-XXXXXX)
   printf '%s' "$HISTORY" > "$_hist_tmp"
   python3 -c '
 import json,sys
-s=json.dumps("Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else.")
+s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else."
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
-msg=[{"role":"user","content":s}]+h
+# Some providers refuse to answer if the last message is from the user
+# or if there is no user message to trigger a response.
+# We append the instruction as a final user message.
+msg=h+[{"role":"user","content":s}]
 json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
 ' "$_hist_tmp" "$MODEL" "$_payload_tmp" 2>/dev/null || {
     rm -f "$_payload_tmp" "$_hist_tmp"
