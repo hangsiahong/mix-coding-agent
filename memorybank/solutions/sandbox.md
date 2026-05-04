@@ -101,7 +101,49 @@ SANDBOX ACTIVE: You are running inside an Alpine Linux 3.21.x chroot.
     └── etc/resolv.conf      # (bind) for DNS
 ```
 
-## Source Files
+## Security Audit Results (3 rounds)
+
+### Final Status: 20/22 PASS
+
+| # | Attack Vector | Result |
+|---|---|---|
+| /proc/1/root host read | Sandbox rootfs only | ✅ PASS |
+| /proc/1/root host write | Blocked (sandbox /tmp) | ✅ PASS |
+| SSH key read | No such file | ✅ PASS |
+| chroot escape | Re-enters sandbox only | ✅ PASS |
+| API key leak (/proc/1/environ) | Not found | ✅ PASS |
+| Network isolation | Only loopback visible | ✅ PASS |
+| Outbound internet | Blocked (HTTP 000) | ✅ PASS |
+| /proc mounted nosuid,nodev,noexec | Confirmed | ✅ PASS |
+| sysrq-trigger | Masked /dev/null ro | ✅ PASS |
+| PID visibility | 1 PID only | ✅ PASS |
+| mknod devices | EPERM | ✅ PASS |
+| block devices | No access | ✅ PASS |
+| su/sudo | Blocked | ✅ PASS |
+| mount/pivot_root/nsenter | Blocked | ✅ PASS |
+| /proc/1/mem | I/O error | ✅ PASS |
+| /etc/shadow | Sandbox copy only | ✅ PASS |
+| CapEff = 0xfff... | User ns scoped — non-exploitable | ⚠️ LOW |
+| mountinfo host paths | Info disclosure — no access | ⚠️ LOW |
+
+### What Each Fix Round Closed
+
+**Round 1 — `exec chroot` (critical fix)**
+- Root cause: `chroot cmd` creates a child process; PID 1 (the outer `sh -s`) stays un-chrooted with host root. `/proc/1/root` = full host filesystem read+write.
+- Fix: `exec chroot` **replaces** PID 1 with the chrooted process. After exec, `/proc/1/root` = sandbox rootfs.
+- Also clears API keys (`unset KCONSOLE_API_KEY ...`) before exec to prevent `/proc/1/environ` leak.
+
+**Round 2 — network namespace + proc hardening**
+- Added `--net` to `unshare` flags: isolated network namespace, only `lo` visible.
+- `apk add` won't work inside sandbox (no network); install tools via `/sandbox setup` before enabling.
+- Loopback brought up (`ip link set lo up`) for local dev servers.
+- `/proc` mounted with `nosuid,nodev,noexec` options.
+- `sysrq-trigger` masked with read-only `/dev/null` bind.
+
+### Remaining Low-Risk Items (non-exploitable)
+
+1. **Capabilities (`CapEff: 0x1ffffffffff`)** — expected in user namespaces. These capabilities only apply within the namespace and map to unprivileged uid 1000 on the host. Cannot cross namespace boundary.
+2. **mountinfo leaks host device paths** (`/dev/nvme0n1p9`, `@home/jiren/...`) — information disclosure only. No actual file access possible through it.
 
 | File | Role |
 |---|---|

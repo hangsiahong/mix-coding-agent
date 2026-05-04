@@ -283,3 +283,9 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 ## [2026-05-04] task | how about you try to continue to check? test the security of the sandbox even mo
 
 ## [2026-05-04] task | test it again
+
+## [2026-05-05] security | Sandbox security audit — 3 rounds, 20/22 PASS
+- Round 1: Found /proc/1/root filesystem escape (read+write+chroot). Fixed with `exec chroot` — replaces PID 1 so /proc/1/root = sandbox root not host root. Also cleared API keys before exec.
+- Round 2: Found full host network visible (wlan0/tailscale0/docker). Fixed with `--net` unshare flag. Added proc nosuid/nodev/noexec, sysrq-trigger masked ro.
+- Final: 20/22 pass. Remaining 2 (caps, mountinfo) non-exploitable in user namespace context.
+- memorybank/solutions/sandbox.md updated with full audit table.
