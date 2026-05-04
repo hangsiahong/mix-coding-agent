@@ -62,16 +62,20 @@ for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
   fi
 
   local summary
-  summary=$(python3 -c 'import json;print(json.load(open(sys.argv[1]))["choices"][0]["message"]["content"])' "$_resp_tmp" 2>/dev/null)
-  if [ -z "$summary" ]; then
-    # Diagnostic: show raw response for debugging
+  local _py_err
+  _py_err=$(mktemp -t mix-compact-err-XXXXXX)
+  summary=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1],"rb")); print(d["choices"][0]["message"]["content"])' "$_resp_tmp" 2>"$_py_err")
+  local _py_rc=$?
+  if [ -z "$summary" ] || [ $_py_rc -ne 0 ]; then
     local _raw_preview; _raw_preview=$(head -c 500 "$_resp_tmp" 2>/dev/null)
-    rm -f "$_resp_tmp"
-    printf "\r\033[K  \033[0;33m↻ compact failed: empty summary\033[0m\n"
+    local _py_msg; _py_msg=$(cat "$_py_err" 2>/dev/null)
+    rm -f "$_resp_tmp" "$_py_err"
+    printf "\r\033[K  \033[0;33m↻ compact failed: empty summary (py rc=%d)\033[0m\n" "$_py_rc"
+    [ -n "$_py_msg" ] && printf "  \033[0;90mpython error: %s\033[0m\n" "$(printf '%s' "$_py_msg" | head -c 300)"
     printf "  \033[0;90mAPI response (first 500 chars): %s\033[0m\n" "$_raw_preview"
     return
   fi
-  rm -f "$_resp_tmp"
+  rm -f "$_resp_tmp" "$_py_err"
 
   # Keep last 10 messages verbatim
   local recent
