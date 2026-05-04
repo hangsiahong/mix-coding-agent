@@ -161,3 +161,5 @@ Types: `ingest` `query` `lint` `task`
 ╭╴☕ jiren   …/agent   16:08  testing  !?   3.14.4 
 
 ## [2026-05-04] task | push it
+
+## [2026-05-04] task | did our README is latest? and have every things that mix coding agent have right
