@@ -22,6 +22,7 @@ Update this file after every ingest or new page created.
 |---|---|
 | repo-map-structural-awareness.md | Regex-based codebase map (~1200 tokens) injected into system prompt. Eliminates 2-3 orientation tool calls per task. 10-language support, mtime-cached, /refresh to rebuild |
 | file-content-cache.md | Session-scoped file content cache surviving history compaction. Auto-caches on read/edit/create. ~1000 tokens in system prompt. /cache to inspect |
+| auto-verify-post-edit.md | Auto syntax/lint/typecheck after every edit_file/create_file. 10 languages, graceful degradation. [VERIFY: FAILED] in tool result |
 | copilot-provider.md | GitHub Copilot provider: device-flow OAuth, token cache, model list, streaming |
 | tool_feedback_system.md | Enhanced TUI tool execution system with professional icons and resilience strategies |
 | workers-and-parallelism.md | tmux workers vs subagents, limitations, source references |
