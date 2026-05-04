@@ -106,52 +106,42 @@ build_file_context() {
   # Budget: 3000 chars total, max 8 files, 400 chars per file
   local _budget=3000 _max_files=8 _per_file=400
 
-  # Get files in reverse access order (most recent first)
-  local _reversed
-  _reversed=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | tac | tr '\n' ' ')
+  # Get ordered paths from cache (most recent first via reversed order)
+  local _ordered_paths
+  _ordered_paths=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | sed '/^$/d' | tac | tr '\n' '|')
 
-  local _result=""
-  local _count=0
-  for _fp in $_reversed; do
-    [ "$_count" -ge "$_max_files" ] && break
-    [ -z "$_fp" ] && continue
-
-    local _entry
-    _entry=$(printf '%s' "$_FILE_CACHE" | python3 -c "
+  # Build context via single python3 call (avoids repeated json parsing)
+  printf '%s' "$_FILE_CACHE" | python3 -c '
 import json,sys
 cache = json.loads(sys.stdin.read())
-entry = cache.get('$_fp', {})
-content = entry.get('content', '')
-lines = content.split('\n')
-# Truncate to budget
-if len(content) > $_per_file:
-    # Keep first 70% and last 30%
-    keep = $_per_file - 50  # room for truncation notice
-    head_n = int(keep * 0.7)
-    content = content[:head_n] + '\n... (truncated) ...\n' + content[-(keep - head_n):]
-print(json.dumps({'content': content, 'lines': entry.get('lines', 0)}))
-" 2>/dev/null) || continue
+order_str = sys.argv[1]
+budget = int(sys.argv[2])
+max_files = int(sys.argv[3])
+per_file = int(sys.argv[4])
 
-    local _content _lines
-    _content=$(printf '%s' "$_entry" | python3 -c 'import json,sys;print(json.load(sys.stdin)["content"])' 2>/dev/null) || continue
-    _lines=$(printf '%s' "$_entry" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("lines","?"))' 2>/dev/null) || _lines="?"
+paths = [p for p in order_str.split("|") if p and p in cache]
+result_parts = []
+total_len = 0
 
-    local _block="$_fp ($_lines lines):
-\`\`\`
-$_content
-\`\`\`"
+for path in paths[:max_files]:
+    entry = cache[path]
+    content = entry["content"]
+    nlines = entry.get("lines", "?")
 
-    # Check budget
-    local _new_len
-    _new_len=$(( ${#_result} + ${#_block} + 2 ))
-    [ "$_new_len" -gt "$_budget" ] && break
+    # Truncate content to per-file budget
+    if len(content) > per_file:
+        keep = per_file - 50
+        head_n = int(keep * 0.7)
+        content = content[:head_n] + "\n... (truncated) ...\n" + content[-(keep - head_n):]
 
-    _result="$_result
+    block = f"{path} ({nlines} lines):\n```\n{content}\n```"
+    if total_len + len(block) + 2 > budget:
+        break
+    result_parts.append(block)
+    total_len += len(block) + 2
 
-$_block"
-    _count=$(( _count + 1 ))
-  done
-
-  [ -n "$_result" ] && printf '## CACHED FILES (recently read — use instead of re-reading)
-%s' "$_result"
+if result_parts:
+    print("## CACHED FILES (recently read — use instead of re-reading)\n")
+    print("\n\n".join(result_parts))
+' "$_ordered_paths" "$_budget" "$_max_files" "$_per_file" 2>/dev/null
 }
