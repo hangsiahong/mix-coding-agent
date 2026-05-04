@@ -51,14 +51,12 @@ print(json.dumps(cache))
 # Remove a file from cache
 file_cache_del() {
   local _fp="$1"
-  _FILE_CACHE=$(printf '%s\n%s' "$_FILE_CACHE" "$_fp" | python3 -c '
+  _FILE_CACHE=$(python3 -c '
 import json,sys
-lines = sys.stdin.read().split("\n", 1)
-cache = json.loads(lines[0])
-path = lines[1].strip()
-cache.pop(path, None)
+cache = json.loads(sys.argv[1])
+cache.pop(sys.argv[2], None)
 print(json.dumps(cache))
-' 2>/dev/null) || return
+' "$_FILE_CACHE" "$_fp" 2>/dev/null) || return
   _FILE_CACHE_ORDER=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | grep -vF "$_fp" | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
 }
 
