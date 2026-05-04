@@ -198,3 +198,5 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | commit and push
 
 ## [2026-05-04] task | check the script install, help me check make sure when user install the mix, it 
+
+## [2026-05-04] task | merge this to master
