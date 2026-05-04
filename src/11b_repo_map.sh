@@ -90,23 +90,21 @@ build_repo_map() {
   if [ "$_tree_line_count" -gt 60 ]; then
     # Show top-level dirs with file counts + root-level files
     local _collapsed=""
-    # Root-level files
+    # Root-level files (no slash in path)
     local _root_files
     _root_files=$(printf '%s' "$_tree_raw" | grep -v '/' | head -15)
-    # Top-level directories
+    # Top-level directories only (files that have at least one slash)
     local _top_dirs
-    _top_dirs=$(printf '%s' "$_tree_raw" | cut -d/ -f1 | sort -u)
+    _top_dirs=$(printf '%s' "$_tree_raw" | grep '/' | cut -d/ -f1 | sort -u)
     while IFS= read -r d; do
       [ -z "$d" ] && continue
-      # Count all files under this top-level dir (use grep -F for literal match)
-      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | grep -cF "$d/" 2>/dev/null || echo 1)
+      # Count files where this dir is the first path component (literal match)
+      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | grep -c "^${d}/" 2>/dev/null || echo 1)
       _collapsed="${_collapsed}${d}/ (${_cnt} files)
 "
     done <<< "$_top_dirs"
     _map="${_root_files}
 ${_collapsed}"
-    # Trim trailing blank line
-    _map="${_map%+([[:space:]])}"
   else
     _map="$_tree_raw"
   fi
