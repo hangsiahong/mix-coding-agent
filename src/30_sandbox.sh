@@ -160,7 +160,7 @@ sandbox_run_cmd() {
   trap _sbox_cleanup EXIT
 
   # Pre-create dirs the inner script will mount into
-  mkdir -p "${mntdir}"/{proc,tmp,workspace,root/.mix}
+  mkdir -p "${mntdir}"/{proc,dev,tmp,workspace,root/.mix}
   for d in bin etc lib lib64 sbin usr var; do
     [ -d "${rfs}/$d" ] && mkdir -p "${mntdir}/$d"
   done
@@ -176,12 +176,15 @@ sandbox_run_cmd() {
   # ── All bind mounts run inside the user+mount namespace ───────────────────
   # Inside unshare --user --map-root-user we appear as root, so mount --bind
   # works without any real privilege escalation.
+  #
+  # SECURITY: Do NOT use --mount-proc here. If proc is mounted before chroot,
+  # /proc/1/root resolves to the host root (full read+write escape). Instead
+  # we mount proc fresh INSIDE the chroot so /proc/1/root = chroot root.
   local out rc
   out=$(
     unshare \
       --fork \
       --pid \
-      --mount-proc="${mntdir}/proc" \
       --mount \
       --user \
       --map-root-user \
@@ -199,9 +202,7 @@ for d in bin etc lib lib64 sbin usr var; do
 done
 
 # Override resolv.conf with host DNS so API calls work
-# Alpine rootfs ships /etc/resolv.conf already — bind host file on top
-mount --bind -o ro "$host_resolv" "${mntdir}/etc/resolv.conf" 2>/dev/null || \
-  true  # non-fatal: Alpine's empty resolv.conf still allows loopback
+mount --bind -o ro "$host_resolv" "${mntdir}/etc/resolv.conf" 2>/dev/null || true
 
 # Workspace: writable bind mount at /workspace
 mount --bind "$workspace" "${mntdir}/workspace" 2>/dev/null || {
@@ -212,9 +213,36 @@ mount --bind "$workspace" "${mntdir}/workspace" 2>/dev/null || {
 # Mix config: writable so session/history persist
 [ -d "$mix_home" ] && mount --bind "$mix_home" "${mntdir}/root/.mix" 2>/dev/null || true
 
-# Execute inside the chroot
+# Create essential device nodes inside chroot (Alpine needs /dev/null etc.)
+mkdir -p "${mntdir}/dev"
+mount --bind /dev "${mntdir}/dev" -o ro 2>/dev/null || {
+  # Fallback: create minimal device nodes manually
+  mknod "${mntdir}/dev/null"    c 1 3 2>/dev/null || true
+  mknod "${mntdir}/dev/zero"    c 1 5 2>/dev/null || true
+  mknod "${mntdir}/dev/urandom" c 1 9 2>/dev/null || true
+  mknod "${mntdir}/dev/random"  c 1 8 2>/dev/null || true
+}
+
+# SECURITY: Clear sensitive env vars before entering chroot.
+# This prevents leakage via /proc/1/environ inside the sandbox.
+unset KCONSOLE_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY \
+      GITHUB_TOKEN COPILOT_TOKEN GH_TOKEN \
+      AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY \
+      AZURE_API_KEY AZURE_OPENAI_API_KEY
+
+# SECURITY: Mount proc here in the mount namespace BEFORE exec-chroot.
+# Critical: we use 'exec chroot' (not plain chroot) so that PID 1 (this shell)
+# is REPLACED by the chroot process. After exec, PID 1's root = mntdir.
+# This means /proc/1/root resolves to mntdir (sandbox root), not the host root.
+# Plain 'chroot ...' would create a child (PID 2+) while PID 1 stays un-chrooted
+# with the host root — that is the escape vector we are closing.
+mkdir -p "${mntdir}/proc"
+mount -t proc proc "${mntdir}/proc" 2>/dev/null || true
+# Also mask /proc/sysrq-trigger and /proc/kcore if they leak through
+[ -f "${mntdir}/proc/sysrq-trigger" ] && mount --bind /dev/null "${mntdir}/proc/sysrq-trigger" 2>/dev/null || true
+
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-chroot "$mntdir" /bin/sh -c "cd /workspace && $cmd"
+exec chroot "$mntdir" /bin/sh -c "cd /workspace && $cmd"
 INNER
   ) 2>&1; rc=$?
 

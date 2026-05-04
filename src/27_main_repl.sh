@@ -244,6 +244,15 @@ while true; do
         break
       fi
     }
+    # Drain any continuation lines from a raw terminal paste (Ctrl+Shift+V bypasses
+    # bracketed-paste mode and sends newlines literally into /dev/tty, so read only
+    # catches the first line). Collect the rest within a 60ms window.
+    if IFS= read -r -t 0.06 _extra_line < /dev/tty 2>/dev/null; then
+      INPUT+=$'\n'"$_extra_line"
+      while IFS= read -r -t 0.06 _extra_line < /dev/tty 2>/dev/null; do
+        INPUT+=$'\n'"$_extra_line"
+      done
+    fi
   else
     # Piped mode: read from stdin, exit after one task
     read -r INPUT || break
