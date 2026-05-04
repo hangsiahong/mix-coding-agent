@@ -8,6 +8,9 @@ start_spinner() {
   elif [[ "$ACTIVE_SKILLS" == *"security-hardener"* ]]; then color="38;5;208m" # orange
   elif [[ "$ACTIVE_SKILLS" == *"architect-evaluator"* ]]; then color="38;5;51m" # cyan
   elif [[ "$ACTIVE_SKILLS" == *"minimalist-refactor"* ]]; then color="38;5;82m" # green
+  # State-based colors: retry → orange, error recovery → red
+  elif [[ "$label" == *"retry"* ]]; then color="38;5;208m" # orange
+  elif [[ "$label" == *"error"* ]] || [[ "$label" == *"recovery"* ]]; then color="38;5;196m" # red
   fi
 
   (while :; do
