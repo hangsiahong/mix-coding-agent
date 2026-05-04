@@ -250,12 +250,12 @@ _test_init() {
   case "$_fw_name" in
     vitest)
       local _cfgf; _cfgf=$(_test_gen_vitest_config "$_dir")
-      [ -n "$_cfgf" ] && _created+=("$(_cfgf)")
+      [ -n "$_cfgf" ] && _created+=("$_cfgf")
       _test_ensure_script "$_dir" "vitest run"
       ;;
     jest)
       local _cfgf; _cfgf=$(_test_gen_jest_config "$_dir")
-      [ -n "$_cfgf" ] && _created+=("$(_cfgf)")
+      [ -n "$_cfgf" ] && _created+=("$_cfgf")
       _test_ensure_script "$_dir" "jest"
       ;;
   esac
