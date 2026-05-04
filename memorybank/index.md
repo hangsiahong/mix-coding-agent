@@ -30,6 +30,7 @@ Update this file after every ingest or new page created.
 | edit-suggestions.md | [SUGGESTION] context on edit_file failure. Shows surrounding lines. Model self-corrects in 1 turn without re-read |
 | smart-bash-truncation.md | 50/50 head+tail + error extraction from truncated middle. [KEY ERRORS] section preserves diagnostics |
 | token-tracking.md | Session token counters (prompt/completion/calls). ctx_bar stats line. /stats REPL command |
+| test-generation.md | /test system: init (detect+install+scaffold), generate (targeted or recent), run, coverage. Background via --bg. 6 frameworks. |
 
 ## sources
 
