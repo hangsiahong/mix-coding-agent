@@ -100,6 +100,20 @@ $_fctx"
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
 GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, patterns, lessons. Update proactively with update_global_memory when you learn something reusable. Short bullet points only."
+
+  # Context budget warning — inject when history is consuming significant context
+  local _hist_chars=${#HISTORY}
+  local _est_ctx_tokens=$(( _hist_chars / 3 ))
+  local _ctx_pct=$(( _est_ctx_tokens * 100 / CTX_TOKENS ))
+  if [ "$_ctx_pct" -gt 60 ]; then
+    local _ctx_level=""
+    [ "$_ctx_pct" -gt 90 ] && _ctx_level="CRITICAL"
+    [ "$_ctx_pct" -gt 75 ] && [ "$_ctx_pct" -le 90 ] && _ctx_level="HIGH"
+    [ "$_ctx_pct" -gt 60 ] && [ "$_ctx_pct" -le 75 ] && _ctx_level="MODERATE"
+    base+="
+
+CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. Save key findings to memorybank before they get compacted. Avoid re-reading files you already have cached."
+  fi
   if [ -f "$_gmem_file" ]; then
     local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
     [ -n "$_gmem_content" ] && base+="
