@@ -22,7 +22,7 @@
 | 11b_repo_map.sh | 217 | build_repo_map(): regex-based code structure map. 10 languages, mtime-cached, ~1500 token budget. Injected into system prompt. /refresh to rebuild |
 | 11_history.sh | 20 | JSON history load/save, API key redaction via sed |
 | 12_auto_compact_history.sh | 117 | compact_history(): LLM summarizes old messages, keeps last 10 verbatim. append_raw(): python3 JSON append via stdin pipe |
-| 13_tool_execution.sh | 170 | run_tool(): pure tool dispatch. edit_file has 4-strategy fuzzy matching (exact → whitespace → indent → anchor). spawn_subagent support. |
+| 13_tool_execution.sh | 256 | run_tool(): pure tool dispatch. edit_file has 4-strategy fuzzy matching + [SUGGESTION] context on failure. spawn_subagent support. |
 | 14_risk_scoring_*.sh | 48 | score_risk(): BLOCKED/HIGH/MED/LOW. Scans full command for fork-bombs, rm, sudo-destruct, remote-exec, pkg-install, git-write, file-write |
 | 15_confirm.sh | 12 | confirm(): reads /dev/tty (not stdin), respects AUTO_YES |
 | 16_api.sh | 52 | call_api(): non-streaming API call |
