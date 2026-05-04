@@ -202,7 +202,16 @@ $_rh"
       result=$(run_tool update_global_memory "$targs")
       FAIL_STREAK=0
       ;;
-    *) result="Unknown: $tname" ;;
+    *)
+      # Try extension tools before reporting unknown
+      local _ext_result
+      _ext_result=$(_ext_dispatch_tool "$tname" "$targs" 2>/dev/null) || true
+      if [ -n "$_ext_result" ]; then
+        result="$_ext_result"
+      else
+        result="Unknown: $tname"
+      fi
+      ;;
   esac
   [ -z "$result" ] && result="(no output)"
 
