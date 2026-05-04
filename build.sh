@@ -21,6 +21,7 @@ cat \
     src/06_auto_read_logs_on_bash_failure.sh \
     src/07_environment_detection.sh \
     src/08_self_healing_bash_wrapper.sh \
+    src/08a_failure_diagnostics.sh \
     src/09_wiki_solutions_writer.sh \
     src/10_tools_openai_function_calling.sh \
     src/11_history.sh \
