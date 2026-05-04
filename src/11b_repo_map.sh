@@ -82,30 +82,29 @@ build_repo_map() {
   local _token_budget=4500  # ~1500 tokens, at 3 chars/token
   local _chars_used=0
 
-  # File tree: compact non-code files, keep code files for structure
-  local _code_exts="sh py js ts go rs java rb c h jsx tsx"
-  local _tree_code="" _tree_other=""
-  while IFS= read -r f; do
-    local _rel="${f#./}"
-    local _ext="${_rel##*.}"
-    # Check if code file
-    local _is_code=0
-    for _ce in $_code_exts; do
-      [ "$_ext" = "$_ce" ] && _is_code=1 && break
-    done
-    if [ "$_is_code" -eq 1 ]; then
-      _tree_code="${_tree_code}${_rel}
-"
-    else
-      _tree_other="${_tree_other}${_rel}
-"
-    fi
-  done <<< "$_file_list"
+  # File tree: collapse directories, limit to 60 lines max
+  local _tree_raw
+  _tree_raw=$(printf '%s' "$_file_list" | sed 's|^\./||')
+  local _tree_line_count; _tree_line_count=$(printf '%s' "$_tree_raw" | wc -l)
 
-  # Compose: code files first (will get structure), then others truncated
-  _map="${_tree_code}"
-  local _other_lines; _other_lines=$(printf '%s' "$_tree_other" | head -50)
-  _map="${_map}${_other_lines}"
+  if [ "$_tree_line_count" -gt 60 ]; then
+    # Collapse: show directories with file counts, then individual files tail
+    local _dirs
+    _dirs=$(printf '%s' "$_tree_raw" | sed 's|/[^/]*$||' | sort -u | head -30)
+    local _collapsed=""
+    while IFS= read -r d; do
+      [ -z "$d" ] && continue
+      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | grep -c "^${d}/" 2>/dev/null || echo 1)
+      _collapsed="${_collapsed}${d}/ (${_cnt} files)
+"
+    done <<< "$_dirs"
+    # Append root-level files
+    local _root_files
+    _root_files=$(printf '%s' "$_tree_raw" | grep -v '/' | head -10)
+    _map="${_collapsed}${_root_files}"
+  else
+    _map="$_tree_raw"
+  fi
   _chars_used=${#_map}
 
   # Then structural extraction per file
