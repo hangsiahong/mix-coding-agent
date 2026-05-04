@@ -30,6 +30,7 @@ mix
 - **Sandbox**: Opt-in container-level isolation via Linux namespaces — no Docker required. `/sandbox setup` downloads Alpine rootfs (~26MB, one-time). `/sandbox on` enables chroot + PID/mount/user/network namespaces + cgroup v2 limits (512MB RAM, 50% CPU). Network is fully isolated inside bash tool calls (loopback only). Use `/sandbox install <pkg>` from the REPL to add packages (runs `apk add` with network, persists to rootfs). Project dir auto-mounted at `/workspace`. `--sandbox` flag enables on startup.
 - **Extensions**: Drop-in plugins. Put `.sh` in `~/.mix/extensions/` or `.mix/extensions/`. Convention hooks customize the harness without forking. See [Extensions](#extensions).
 - **Self-Healing Bash**: Failed commands get automatic diagnostics and recovery hints. Streak detection with fallback suggestions.
+- **Versioned Builds**: Every build is timestamped and stored in `~/.mix/versions/`. Health-gated — broken builds never install. Thin wrapper auto-falls back to the last working binary with `--doctor` mode. Auto-prunes old versions (keeps 5).
 - **Repo Map**: Aider-style code structure map injected into system prompt. Eliminates 2-3 orientation turns per task.
 - **File Cache**: Caches read file contents in-memory, auto-injects into system prompt. Survives history compaction.
 - **Spec-Driven Builds**: `/spec` defines features with §G/§C/§I/§V/§T sections. `/build` executes tasks. `/check` detects drift.
