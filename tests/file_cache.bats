@@ -123,8 +123,7 @@ setup() {
     file_cache_put "$_tmpfile" "temp content"
     rm -f "$_tmpfile"
 
-    run file_cache_validate
-    [ "$status" -eq 0 ]
+    file_cache_validate
     [[ "$_FILE_CACHE" != *"temp content"* ]]
 }
 
