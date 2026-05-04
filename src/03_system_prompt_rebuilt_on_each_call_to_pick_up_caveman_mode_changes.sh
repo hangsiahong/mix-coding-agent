@@ -10,6 +10,8 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Brief explanation, then act. No throat-clearing.
 - Tool succeeded → move on. No repeats.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.
+- After completing a non-trivial task (bug fix, new feature, architecture decision), proactively write findings to memorybank/solutions/ and update memorybank/log.md if they exist. Don't wait to be asked.
+- If history is getting long, proactively save key findings to memorybank before they get compacted away.
 - Concise final answer after done.
 - Bash failure ([FAILED exit=N]) = signal, not dead end. Diagnose, fix root cause, retry.
 - Same approach fails twice → try different tool, simpler command, or fallback strategy.
