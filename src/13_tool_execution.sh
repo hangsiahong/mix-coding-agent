@@ -110,6 +110,11 @@ if len(o_lines) > 2:
 
 print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
+      # Update file cache after successful edit
+      if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
+        local _new_content; _new_content=$(cat "$path" 2>/dev/null) || true
+        [ -n "$_new_content" ] && file_cache_put "$path" "$_new_content" 2>/dev/null || true
+      fi
       ;;
     list_files)
       local path
