@@ -38,6 +38,17 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
       path=$(cat "$_ea_dir/p"); old_text=$(cat "$_ea_dir/o"); new_text=$(cat "$_ea_dir/n")
       rm -rf "$_ea_dir"
       [ ! -f "$path" ] && { echo "Error: not found: $path"; return; }
+      # Detect external file modification since last cache read
+      if [ "$AUTO_VERIFY" != "off" ]; then
+        local _cached_mtime
+        _cached_mtime=$(printf '%s' "$_FILE_CACHE" | python3 -c "import json,sys;c=json.load(sys.stdin).get('$path',{});print(c.get('mtime',0))" 2>/dev/null) || _cached_mtime=0
+        if [ "$_cached_mtime" != "0" ]; then
+          local _current_mtime; _current_mtime=$(stat -c '%Y' "$path" 2>/dev/null) || echo "0"
+          if [ "$_current_mtime" != "$_cached_mtime" ] && [ "$_current_mtime" != "0" ]; then
+            echo "Warning: file modified externally since last read. Consider re-reading before editing."
+          fi
+        fi
+      fi
       result=$(python3 -c "
 import sys, re
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
