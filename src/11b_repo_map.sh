@@ -82,26 +82,31 @@ build_repo_map() {
   local _token_budget=4500  # ~1500 tokens, at 3 chars/token
   local _chars_used=0
 
-  # File tree: collapse directories, limit to 60 lines max
+  # File tree: collapse into top-level dirs when >60 files
   local _tree_raw
   _tree_raw=$(printf '%s' "$_file_list" | sed 's|^\./||')
   local _tree_line_count; _tree_line_count=$(printf '%s' "$_tree_raw" | wc -l)
 
   if [ "$_tree_line_count" -gt 60 ]; then
-    # Collapse: show directories with file counts, then individual files tail
-    local _dirs
-    _dirs=$(printf '%s' "$_tree_raw" | sed 's|/[^/]*$||' | sort -u | head -30)
+    # Show top-level dirs with file counts + root-level files
     local _collapsed=""
+    # Root-level files
+    local _root_files
+    _root_files=$(printf '%s' "$_tree_raw" | grep -v '/' | head -15)
+    # Top-level directories
+    local _top_dirs
+    _top_dirs=$(printf '%s' "$_tree_raw" | cut -d/ -f1 | sort -u)
     while IFS= read -r d; do
       [ -z "$d" ] && continue
-      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | grep -c "^${d}/" 2>/dev/null || echo 1)
+      # Count all files under this top-level dir (use grep -F for literal match)
+      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | grep -cF "$d/" 2>/dev/null || echo 1)
       _collapsed="${_collapsed}${d}/ (${_cnt} files)
 "
-    done <<< "$_dirs"
-    # Append root-level files
-    local _root_files
-    _root_files=$(printf '%s' "$_tree_raw" | grep -v '/' | head -10)
-    _map="${_collapsed}${_root_files}"
+    done <<< "$_top_dirs"
+    _map="${_root_files}
+${_collapsed}"
+    # Trim trailing blank line
+    _map="${_map%+([[:space:]])}"
   else
     _map="$_tree_raw"
   fi
