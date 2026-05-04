@@ -143,7 +143,10 @@ mix is built from 35 source files concatenated by `build.sh` into a single execu
 ```
 src/
 ├── 01_config.sh              # provider/model defaults, key loading
+├── 02_mixrc.sh               # .mixrc project overrides (walks parent dirs)
 ├── 03_system_prompt.sh       # system prompt builder (picks up caveman mode)
+├── 04_project_local.sh       # sources ~/.mix/rc.sh
+├── 04b_extension_system.sh   # drop-in plugins (~/.mix/extensions/ + .mix/extensions/)
 ├── 05_pre_edit_diff.sh       # diff preview before edits
 ├── 06_auto_read_logs.sh      # auto-attach logs on bash failure
 ├── 07_environment_detection.sh  # git, node, python, tool detection
