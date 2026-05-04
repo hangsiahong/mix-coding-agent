@@ -55,12 +55,120 @@ pick_dir() {
 # ── Download ──────────────────────────────────────────────────────────────────
 download() {
   info "downloading mix..."
-  local dest="$INSTALL_DIR/mix"
-  if ! curl -fsSL "$SCRIPT_URL" -o "$dest"; then
+  _TMP_BIN=$(mktemp /tmp/mix-install-XXXXXX.bin)
+  if ! curl -fsSL "$SCRIPT_URL" -o "$_TMP_BIN"; then
+    rm -f "$_TMP_BIN"
     die "download failed. check your internet connection."
   fi
-  chmod +x "$dest"
-  ok "installed: $dest"
+  chmod +x "$_TMP_BIN"
+  ok "downloaded"
+}
+
+# ── Health gate ───────────────────────────────────────────────────────────────
+health_check() {
+  info "running self-test..."
+  local _out
+  _out=$(timeout 5 bash "$_TMP_BIN" --self-test 2>&1)
+  if [ $? -ne 0 ] || [ "$_out" != "OK" ]; then
+    echo -e "${RED}  ⚠  Self-test failed:${RST}"
+    echo "$_out" | head -5 | sed 's/^/    /'
+    rm -f "$_TMP_BIN"
+    die "downloaded binary failed self-test. try again later."
+  fi
+  ok "self-test passed"
+}
+
+# ── Version ───────────────────────────────────────────────────────────────────
+version_install() {
+  local _vdir="$HOME/.mix/versions"
+  mkdir -p "$_vdir"
+
+  # Timestamped backup
+  local _ts
+  _ts=$(date +%s)
+  local _vbin="$_vdir/${_ts}.bin"
+  cp "$_TMP_BIN" "$_vbin"
+  ok "versioned → ${_ts}.bin"
+
+  # Update last_good (preserve previous current)
+  if [ -L "$_vdir/current" ] && [ -f "$_vdir/current" ]; then
+    local _prev
+    _prev=$(readlink -f "$_vdir/current" 2>/dev/null)
+    if [ -n "$_prev" ] && [ "$_prev" != "$_vbin" ]; then
+      ln -sfn "$_prev" "$_vdir/last_good"
+    fi
+  fi
+
+  # Update current symlink
+  ln -sfn "$_vbin" "$_vdir/current"
+  ok "current → ${_ts}.bin"
+
+  # Auto-prune: keep last 5
+  local _pruned=0
+  local _cur_target _lg_target
+  _cur_target=$(readlink -f "$_vdir/current" 2>/dev/null)
+  _lg_target=$(readlink -f "$_vdir/last_good" 2>/dev/null)
+  for _old in $(ls -1t "$_vdir/"*.bin 2>/dev/null | tail -n +6); do
+    local _old_real
+    _old_real=$(readlink -f "$_old" 2>/dev/null)
+    [ "$_old_real" = "$_cur_target" ] && continue
+    [ "$_old_real" = "$_lg_target" ] && continue
+    rm -f "$_old"
+    ((_pruned++)) || true
+  done
+  [ $_pruned -gt 0 ] && ok "pruned $_pruned old version(s)"
+
+  # Cleanup temp
+  rm -f "$_TMP_BIN"
+}
+
+# ── Install wrapper ───────────────────────────────────────────────────────────
+install_wrapper() {
+  local _dest="$INSTALL_DIR/mix"
+  cat > "$_dest" << 'WRAPPER'
+#!/bin/bash
+# mix wrapper — health-checks the current binary, falls back to last_good
+# This file is intentionally simple (~30 lines). It should NEVER break.
+MIX_DIR="$HOME/.mix/versions"
+CRASH_LOG="/tmp/mix-crash.log"
+CURRENT="$MIX_DIR/current"
+LAST_GOOD="$MIX_DIR/last_good"
+
+# No versions installed yet? Try running from source tree
+if [ ! -f "$CURRENT" ]; then
+  for _try in "./mix" "$(dirname "$0")/../mix"; do
+    [ -f "$_try" ] && exec bash "$_try" "$@"
+  done
+  echo "mix: no binary found. Run install.sh or build.sh first." >&2
+  exit 1
+fi
+
+# Quick health check — 3 second timeout
+_test_out=$(timeout 3 bash "$CURRENT" --self-test 2>"$CRASH_LOG")
+_test_rc=$?
+if [ $_test_rc -eq 0 ] && [ "$_test_out" = "OK" ]; then
+  exec bash "$CURRENT" "$@"
+fi
+
+# Current binary is broken — try last_good in --doctor mode
+echo "⚠️  Broken build detected." >&2
+if [ -f "$CRASH_LOG" ]; then
+  echo "  Last error:" >&2
+  head -3 "$CRASH_LOG" | sed 's/^/    /' >&2
+fi
+
+if [ -f "$LAST_GOOD" ]; then
+  echo "  Booting last_good in --doctor mode..." >&2
+  exec bash "$LAST_GOOD" --doctor "$@"
+fi
+
+# Catastrophic — no working binary
+echo "  No last_good binary available." >&2
+echo "  Manual recovery: cd to source dir and run 'bash build.sh'" >&2
+exit 1
+WRAPPER
+  chmod +x "$_dest"
+  ok "installed wrapper → $_dest"
 }
 
 # ── PATH reminder ─────────────────────────────────────────────────────────────
