@@ -194,12 +194,14 @@ sandbox_run_cmd() {
 mntdir="$1" rfs="$2" workspace="$3" mix_home="$4" host_resolv="$5"
 shift 5; cmd="$*"
 
-# Bind Alpine rootfs dirs (writable) — LLM can run "apk add rust typescript" etc.
-# Changes persist to ~/.mix/sandbox-rootfs/ between sessions, like a managed dev container.
+# Bind Alpine rootfs dirs READ-ONLY — prevents LLM from poisoning rootfs for persistence.
+# /workspace and /root/.mix remain writable (by design).
+# Only /sandbox install remounts these rw (via chroot without --net, outside code-exec path).
 for d in bin etc lib lib64 sbin usr var; do
   [ -d "${rfs}/$d" ] || continue
   mkdir -p "${mntdir}/$d"
   mount --bind "${rfs}/$d" "${mntdir}/$d" 2>/dev/null || true
+  mount --bind -o remount,ro "${mntdir}/$d" 2>/dev/null || true
 done
 
 # Override resolv.conf with host DNS so API calls work
@@ -380,8 +382,9 @@ sandbox_cmd_install() {
   local _rfs="$_SANDBOX_ROOTFS_DIR"
 
   # Run apk add WITHOUT --net so it can reach the Alpine package repos.
-  # This is safe: it's just package installation, not code execution.
-  # The rootfs is on the host filesystem so changes persist for sandbox runs.
+  # Rootfs dirs are normally read-only inside sandbox_run_cmd. Here we do a
+  # direct chroot (no --net flag, no remount restrictions) so apk can write
+  # to the rootfs on the host filesystem. Changes persist for future sandbox runs.
   local _out; _out=$(
     unshare --user --map-root-user --fork --mount \
       chroot "$_rfs" \

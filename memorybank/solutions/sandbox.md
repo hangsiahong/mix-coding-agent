@@ -140,6 +140,17 @@ SANDBOX ACTIVE: bash tool runs inside Alpine Linux 3.21.x chroot with full names
 - `/proc` mounted with `nosuid,nodev,noexec` options.
 - `sysrq-trigger` masked with read-only `/dev/null` bind.
 
+**Round 3 — file tool path guards**
+- `read_file`, `edit_file`, `create_file`, `list_files`, `search_files` restricted to `$WORKDIR` and `~/.mix` when `SANDBOX_ENABLED=true`.
+- Closes host filesystem escape via file tools (previously could read `/home/jiren/.ssh/id_rsa`, `~/.bashrc`, `/etc/passwd`).
+
+**Round 4 — rootfs read-only mounts**
+- Reverse shell penetration test confirmed: bash/python sockets, curl, DNS all blocked by `--net`.
+- `/tmp` confirmed isolated (not bind-mounted from host; ephemeral in sandbox-rootfs).
+- rootfs system dirs (`/bin`, `/etc`, `/lib`, `/sbin`, `/usr`, `/var`) now mounted **read-only** inside `sandbox_run_cmd`.
+- Prevents LLM from poisoning rootfs for cross-session persistence.
+- `/sandbox install` still writes to rootfs (direct chroot on host, outside the namespace).
+
 ### Remaining Low-Risk Items (non-exploitable)
 
 1. **Capabilities (`CapEff: 0x1ffffffffff`)** — expected in user namespaces. These capabilities only apply within the namespace and map to unprivileged uid 1000 on the host. Cannot cross namespace boundary.

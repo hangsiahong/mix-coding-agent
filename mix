@@ -3829,12 +3829,14 @@ sandbox_run_cmd() {
 mntdir="$1" rfs="$2" workspace="$3" mix_home="$4" host_resolv="$5"
 shift 5; cmd="$*"
 
-# Bind Alpine rootfs dirs (writable) — LLM can run "apk add rust typescript" etc.
-# Changes persist to ~/.mix/sandbox-rootfs/ between sessions, like a managed dev container.
+# Bind Alpine rootfs dirs READ-ONLY — prevents LLM from poisoning rootfs for persistence.
+# /workspace and /root/.mix remain writable (by design).
+# Only /sandbox install remounts these rw (via chroot without --net, outside code-exec path).
 for d in bin etc lib lib64 sbin usr var; do
   [ -d "${rfs}/$d" ] || continue
   mkdir -p "${mntdir}/$d"
   mount --bind "${rfs}/$d" "${mntdir}/$d" 2>/dev/null || true
+  mount --bind -o remount,ro "${mntdir}/$d" 2>/dev/null || true
 done
 
 # Override resolv.conf with host DNS so API calls work
@@ -4015,8 +4017,9 @@ sandbox_cmd_install() {
   local _rfs="$_SANDBOX_ROOTFS_DIR"
 
   # Run apk add WITHOUT --net so it can reach the Alpine package repos.
-  # This is safe: it's just package installation, not code execution.
-  # The rootfs is on the host filesystem so changes persist for sandbox runs.
+  # Rootfs dirs are normally read-only inside sandbox_run_cmd. Here we do a
+  # direct chroot (no --net flag, no remount restrictions) so apk can write
+  # to the rootfs on the host filesystem. Changes persist for future sandbox runs.
   local _out; _out=$(
     unshare --user --map-root-user --fork --mount \
       chroot "$_rfs" \
@@ -5552,27 +5555,51 @@ fi
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 echo ""
-echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m \033[0;90m· minimal coding agent\033[0m"
+echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
+echo ""
 
-# build status line
+# Row 1: model · provider  [git:branch]
 _provider_label="${PROVIDER:-default}"
-_status_line="    \033[0;90mprovider \033[0;33m${_provider_label}\033[0m \033[0;90m• model \033[1;36m${MODEL}\033[0m \033[0;90m• in \033[0m${WORKDIR}"
-[ "$AUTO_YES" = "true" ]      && _status_line+=" \033[0;90m•\033[0m \033[1;33m⚡ yolo\033[0m"
-[ "$CAVEMAN_MODE" != "off" ]  && _status_line+=" \033[0;90m•\033[0m \033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m"
-[ "$AGENT_MODE"   != "fast" ] && _status_line+=" \033[0;90m•\033[0m \033[0;36m◎ ${AGENT_MODE}\033[0m"
-[ "${SANDBOX_ENABLED:-false}" = "true" ] && _status_line+=" \033[0;90m•\033[0m \033[0;32m🔒 sandbox\033[0m"
-[ -n "$ENV_INFO" ]            && _status_line+=" \033[0;90m• [${ENV_INFO}]\033[0m"
-echo -e "$_status_line"
+_git_ref=""
+[ "$GIT_ENABLED" = true ] && _git_ref=$(git -C "$WORKDIR" branch --show-current 2>/dev/null)
+printf "    \033[1;36m%s\033[0m  \033[0;90m·\033[0m  \033[0;33m%s\033[0m" "${MODEL}" "${_provider_label}"
+[ -n "$_git_ref" ] && printf "  \033[0;90m[\033[0;36mgit:%s\033[0;90m]\033[0m" "$_git_ref"
+echo ""
+
+# Row 2: working directory (~ abbreviated)
+_short_wd="${WORKDIR:-$PWD}"
+_short_wd="${_short_wd/#$HOME/\~}"
+echo -e "    \033[0;90m${_short_wd}\033[0m"
+
+# Row 3: active mode flags — only printed when any are set
+_mix_flags=()
+[ "$AUTO_YES" = "true" ]                 && _mix_flags+=("\033[1;33m⚡ yolo\033[0m")
+[ "$CAVEMAN_MODE" != "off" ]             && _mix_flags+=("\033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m")
+[ "$AGENT_MODE"   != "fast" ]            && _mix_flags+=("\033[0;36m◎ ${AGENT_MODE}\033[0m")
+[ "${SANDBOX_ENABLED:-false}" = "true" ] && _mix_flags+=("\033[0;32m🔒 sandbox\033[0m")
+if [ ${#_mix_flags[@]} -gt 0 ]; then
+  _mix_flagline=""
+  for _mf in "${_mix_flags[@]}"; do
+    [ -n "$_mix_flagline" ] && _mix_flagline+="  \033[0;90m·\033[0m  "
+    _mix_flagline+="$_mf"
+  done
+  echo -e "    ${_mix_flagline}"
+fi
+
+echo ""
+
+# Spec/build hint (yellow when SPEC.md present, grey otherwise)
 if [ -f "$WORKDIR/SPEC.md" ]; then
   echo -e "    \033[0;33m/spec [bug:|amend]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]\033[0m"
 else
-  echo -e "    \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
+  echo -e "    \033[0;90m/spec <idea>  —  start a spec-driven project\033[0m"
 fi
-echo -e "    \033[0;90mcommands: /flush /refresh /compact /model [id] /models /caveman /mode /yolo /workers /exit\033[0m"
-echo -e "    \033[0;90mshortcuts: Tab=complete  Ctrl+E=editor  Ctrl+V=paste  /help=all commands\033[0m"
+
+# Single compact hint line
+echo -e "    \033[0;90m/help  ·  Tab=complete  ·  Ctrl+E=editor  ·  Ctrl+V=paste\033[0m"
 echo ""
 
-# tmux: rename window + initial status bar
+# tmux: rename window + status bar + session line
 if [ -n "$TMUX" ]; then
   _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
   tmux rename-window "mix" 2>/dev/null || true
