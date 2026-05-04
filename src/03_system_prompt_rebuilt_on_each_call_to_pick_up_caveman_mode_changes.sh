@@ -87,6 +87,14 @@ GIT: repo active. edit_file auto-commits. Use git freely."
 $_rmap"
   fi
 
+  # File content cache — recently accessed files, survives compaction
+  local _fctx; _fctx=$(build_file_context 2>/dev/null) || true
+  if [ -n "$_fctx" ]; then
+    base+="
+
+$_fctx"
+  fi
+
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
