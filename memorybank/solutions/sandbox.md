@@ -144,12 +144,13 @@ SANDBOX ACTIVE: bash tool runs inside Alpine Linux 3.21.x chroot with full names
 - `read_file`, `edit_file`, `create_file`, `list_files`, `search_files` restricted to `$WORKDIR` and `~/.mix` when `SANDBOX_ENABLED=true`.
 - Closes host filesystem escape via file tools (previously could read `/home/jiren/.ssh/id_rsa`, `~/.bashrc`, `/etc/passwd`).
 
-**Round 4 — rootfs read-only mounts**
+**Round 4 — rootfs read-only mounts + host-network routing**
 - Reverse shell penetration test confirmed: bash/python sockets, curl, DNS all blocked by `--net`.
 - `/tmp` confirmed isolated (not bind-mounted from host; ephemeral in sandbox-rootfs).
 - rootfs system dirs (`/bin`, `/etc`, `/lib`, `/sbin`, `/usr`, `/var`) now mounted **read-only** inside `sandbox_run_cmd`.
 - Prevents LLM from poisoning rootfs for cross-session persistence.
 - `/sandbox install` still writes to rootfs (direct chroot on host, outside the namespace).
+- **Host-network routing**: `git *`, `curl`, `wget`, `npm install`, `pip install` commands are transparently routed to the host (run in `$WORKDIR` with full network). Output prefixed with `[host]`. This lets LLMs use git and package managers normally without disabling sandbox. `_sandbox_needs_host_network()` in `src/13_tool_execution.sh` handles prefix-stripping (`cd /workspace &&`, env var assignments).
 
 ### Remaining Low-Risk Items (non-exploitable)
 
@@ -159,7 +160,7 @@ SANDBOX ACTIVE: bash tool runs inside Alpine Linux 3.21.x chroot with full names
 | File | Role |
 |---|---|
 | `src/30_sandbox.sh` | Full implementation: setup, on/off, run, cgroup, prereqs |
-| `src/13_tool_execution.sh` | Routes `bash` tool calls through `sandbox_run_cmd()` |
+| `src/13_tool_execution.sh` | Routes bash tool calls; host-network bypass for git/curl/npm |
 | `src/25_repl_commands.sh` | `/sandbox` REPL commands |
 | `src/27_main_repl.sh` | `--sandbox` CLI flag, tab-complete |
 | `src/01_config.sh` | `SANDBOX_ENABLED` default |
