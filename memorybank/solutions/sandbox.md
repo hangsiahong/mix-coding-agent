@@ -264,7 +264,7 @@ Step 4: Reverse shell connects out from host     → POSSIBLE (host has network)
 
 | Leak | Data Exposed | Severity | Exploitability |
 |---|---|---|---|
-| `/proc/1/environ` | Full host user env: `HOME=/home/jiren`, `USER=jiren`, `SHELL=/usr/bin/fish`, `DISPLAY=:0`, `WAYLAND_DISPLAY=wayland-0`, `TMUX=/tmp/tmux-1000/default,1236015,0`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR=/run/user/1000`, `KONSOLE_DBUS_*` | **MEDIUM** | Recon only — reveals username, desktop env, tmux session. No secrets after `unset` fix. |
+| `/proc/1/environ` | ~~Full host user env~~ → Only `PATH` and `HOME=/root` after `env -i` fix | ~~MEDIUM~~ → **FIXED** | Fixed with `exec env -i` in Round 6. |
 | `/proc/{version,cpuinfo,meminfo}` | Host kernel (`7.0.0-1-cachyos`), CPU model (`AMD Ryzen AI 9 HX 370`), RAM (`32GB`) | **LOW** | Recon only — hardware fingerprinting. |
 | `/proc/partitions` + `mountinfo` | Disk layout (`nvme0n1` with 9 partitions), btrfs subvol names (`@home`, `@`), host username in paths | **LOW** | Recon only — disk layout fingerprinting. |
 
