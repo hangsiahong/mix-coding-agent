@@ -22,8 +22,8 @@ score_risk() {
     && echo "HIGH git-force-push" && return
   printf '%s' "$c" | grep -qE '\brm\b.+-[^[:space:]]*[rR]' \
     && echo "HIGH rm-recursive" && return
-  # Writes to system dirs
-  if printf '%s' "$c" | grep -v '>/dev/null' | grep -v '2>/dev/null' | grep -qE '> */(etc|usr|var|boot|root|bin|sbin|lib|proc|sys|dev)'; then
+  # Writes to system dirs (exclude redirects to /dev/null — with or without spaces)
+  if printf '%s' "$c" | grep -vE '>\s*/dev/null' | grep -vE '2>\s*/dev/null' | grep -qE '> */(etc|usr|var|boot|root|bin|sbin|lib|proc|sys|dev)'; then
     echo "HIGH system-write" && return
   fi
   printf '%s' "$c" | grep -qE '\bsudo\b.+\b(rm|dd|mkfs)\b' \
