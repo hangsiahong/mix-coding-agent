@@ -22,7 +22,7 @@ import json,sys
 s=json.dumps("Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\nBe complete but concise. Output only the summary, nothing else.")
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
-msg=[{"role":"system","content":s}]+h
+msg=[{"role":"user","content":s}]+h
 json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
 ' "$_hist_tmp" "$MODEL" "$_payload_tmp" 2>/dev/null || {
     rm -f "$_payload_tmp" "$_hist_tmp"
