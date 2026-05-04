@@ -119,6 +119,44 @@ if len(o_lines) > 2:
         print('Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')')
         sys.exit(0)
 
+# Generate suggestion context for edit failure
+def suggest_context(content, old_text, reason):
+    lines = content.split(chr(10))
+    o_lines = old_text.strip().split(chr(10))
+    o_first = o_lines[0].strip() if o_lines else ''
+    suggestions = []
+    if 'not unique' in reason:
+        # Show all match locations with context
+        import re
+        for i, line in enumerate(lines):
+            if o_first and o_first in line:
+                start = max(0, i-1)
+                end = min(len(lines), i+min(len(o_lines),3)+1)
+                ctx = chr(10).join(f'{j+1}: {lines[j]}' for j in range(start, end))
+                suggestions.append(f'Match at line {i+1}:{chr(10)}{ctx}')
+                if len(suggestions) >= 3: break
+    else:
+        # not found: search for first line of old_text
+        if o_first:
+            found = False
+            for i, line in enumerate(lines):
+                if o_first in line:
+                    start = max(0, i-1)
+                    end = min(len(lines), i+min(len(o_lines),3)+1)
+                    ctx = chr(10).join(f'{j+1}: {lines[j]}' for j in range(start, end))
+                    suggestions.append(f'Found similar at line {i+1}:{chr(10)}{ctx}')
+                    found = True
+                    break
+            if not found:
+                # Show first 5 lines of file as context
+                ctx = chr(10).join(f'{i+1}: {lines[i]}' for i in range(min(5, len(lines))))
+                suggestions.append(f'File starts with:{chr(10)}{ctx}')
+        elif len(lines) > 0:
+            ctx = chr(10).join(f'{i+1}: {lines[i]}' for i in range(min(5, len(lines))))
+            suggestions.append(f'File starts with:{chr(10)}{ctx}')
+    if suggestions:
+        combined = chr(10).join(suggestions)[:500]
+        print(chr(10) + '[SUGGESTION] ' + combined)
 print('Error: old_text not found in '+p)
 " "$path" "$old_text" "$new_text")
       # Update file cache after successful edit
