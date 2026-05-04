@@ -158,6 +158,8 @@ def suggest_context(content, old_text, reason):
         combined = chr(10).join(suggestions)[:500]
         print(chr(10) + '[SUGGESTION] ' + combined)
 print('Error: old_text not found in '+p)
+suggest_content=open(p).read()
+suggest_context(suggest_content, o, 'not found')
 " "$path" "$old_text" "$new_text")
       # Update file cache after successful edit
       if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
