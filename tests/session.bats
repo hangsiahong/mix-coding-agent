@@ -85,11 +85,17 @@ teardown() {
 }
 
 @test "session_save truncates oversized file cache" {
-  # Create a cache entry > 40KB
-  local _big_content=""
-  for i in $(seq 1 5000); do _big_content+="line $i of padding data here\n"; done
-  _FILE_CACHE="{\"big.sh\":{\"content\":\"$_big_content\",\"mtime\":123,\"atime\":456,\"lines\":5000}}"
-  _FILE_CACHE_ORDER="big.sh"
+  # Create a cache with many entries totaling > 40KB via python3
+  _FILE_CACHE=$(python3 -c '
+import json
+cache = {}
+for i in range(20):
+    cache[f"/tmp/file_{i}.sh"] = {"content": "x" * 3000, "mtime": 123, "atime": 456, "lines": 100}
+print(json.dumps(cache))
+')
+  _FILE_CACHE_ORDER=$(python3 -c '
+print(" ".join(f"/tmp/file_{i}.sh" for i in range(20)))
+')
   _LAST_INPUT=""
   session_save
   local fsize
