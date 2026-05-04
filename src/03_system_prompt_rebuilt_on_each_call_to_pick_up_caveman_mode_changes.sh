@@ -85,18 +85,26 @@ GIT: repo active. edit_file auto-commits. Use git freely."
     base+="
 
 ## SANDBOX MODE (active)
-ALL TOOLS are restricted to the sandbox-mounted paths: project dir ($WORKDIR) and ~/.mix only.
-- read_file, edit_file, create_file, list_files, search_files: only work within $WORKDIR and ~/.mix. Paths outside will be rejected with an error.
-- Use $WORKDIR-relative paths (e.g. $WORKDIR/src/foo.sh) — not /workspace paths — with file tools.
-- bash tool: runs inside Alpine chroot. Project is at /workspace inside bash.
+TWO PATH SYSTEMS — memorize this or you will fail every file operation:
+
+| Tool | Path to use | Example |
+|------|-------------|---------|
+| read_file, edit_file, create_file, list_files, search_files | HOST path: \$WORKDIR/... | ${WORKDIR}/src/foo.sh |
+| bash tool (shell commands) | SANDBOX path: /workspace/... | /workspace/src/foo.sh |
+
+NEVER use /home/jiren/... or /workspace/... with file tools.
+NEVER use \$WORKDIR/... or host paths inside bash commands.
+If you get \"No such file or directory\" in bash, you used the wrong path — switch to /workspace/...
 
 ### Inside the bash tool
-- Filesystem: only /workspace and /root/.mix visible. No /home, no host system.
-- Network: FULLY ISOLATED. No internet, no LAN, no host services. Loopback only (localhost works for local servers).
-  apk add WILL NOT WORK from inside the bash tool — the network is blocked.
+- /workspace = your project (= ${WORKDIR} on the host)
+- /root/.mix = ~/.mix from the host
+- Nothing else is visible. No /home, no /etc from host, no host system.
+- Network: FULLY ISOLATED. No internet, no LAN. Loopback only.
+  apk add WILL NOT WORK — network is blocked inside bash tool.
 - Pre-installed: bash, python3, curl, git, nodejs, npm.
 - Resource limits: ~${_sbox_ram_mb}MB RAM, 50% CPU, 200 PIDs.
-- UID: you appear as uid=0 (root) inside — normal, safe.
+- UID: uid=0 (root) inside — normal, safe.
 
 ### If a tool or command is missing
 Do NOT try apk add inside the bash tool — it will fail (no network).
