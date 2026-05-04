@@ -163,3 +163,9 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] task | push it
 
 ## [2026-05-04] task | did our README is latest? and have every things that mix coding agent have right
+
+## [2026-05-04] task | commit and push the code
+
+## [2026-05-04] task | /yolo
+  Yolo mode ON  — auto-confirming commands (guardrails active).
+❯ commit a
