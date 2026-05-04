@@ -5,6 +5,8 @@
 
 _SESSION_FILE=".agent/session.json"
 _SESSION_VERSION=1
+_SESSION_AVAILABLE=false
+export _SESSION_AVAILABLE
 
 # Save current session state to disk
 session_save() {
@@ -161,7 +163,7 @@ with open(sys.argv[3], "w") as f:
   _SESSION_RESTORE_REPO_TIME=$(printf '%s' "${_SL_repo_map_time:-}" | base64 -d 2>/dev/null)
   _SESSION_RESTORE_LAST=$(printf '%s' "${_SL_last_input:-}" | base64 -d 2>/dev/null)
   _SESSION_RESTORE_AGE=$(printf '%s' "${_SL_age_h:-}" | base64 -d 2>/dev/null)
-  _SESSION_AVAILABLE=false
+  _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE
 
   return 0
 }
@@ -215,13 +217,13 @@ session_apply() {
   echo -e "  \033[38;5;82m✓\033[0m Session restored (was ${_SESSION_RESTORE_AGE}h ago)"
   [ -n "$_SESSION_RESTORE_LAST" ] && echo -e "  \033[0;90m  Last task: ${_SESSION_RESTORE_LAST}\033[0m"
 
-  _SESSION_AVAILABLE=false
+  _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE
 }
 
 # Clear session file — called by /flush
 session_clear() {
   rm -f "$_SESSION_FILE" 2>/dev/null
-  _SESSION_AVAILABLE=false
+  _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE
 }
 
 # Show startup hint if session available
