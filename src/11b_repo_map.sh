@@ -98,8 +98,8 @@ build_repo_map() {
     _top_dirs=$(printf '%s' "$_tree_raw" | grep '/' | cut -d/ -f1 | sort -u)
     while IFS= read -r d; do
       [ -z "$d" ] && continue
-      # Count files where this dir is the first path component (literal match)
-      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | grep -c "^${d}/" 2>/dev/null || echo 1)
+      # Count files where this dir is the first path component (literal match, anchored)
+      local _cnt; _cnt=$(printf '%s' "$_tree_raw" | awk -F/ -v dir="$d" '$1 == dir {c++} END {print c+0}')
       _collapsed="${_collapsed}${d}/ (${_cnt} files)
 "
     done <<< "$_top_dirs"
