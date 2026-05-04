@@ -82,10 +82,30 @@ build_repo_map() {
   local _token_budget=4500  # ~1500 tokens, at 3 chars/token
   local _chars_used=0
 
-  # File tree first (compact)
-  local _tree
-  _tree=$(printf '%s' "$_file_list" | sed 's|^\./||' | head -200)
-  _map="$_tree"
+  # File tree: compact non-code files, keep code files for structure
+  local _code_exts="sh py js ts go rs java rb c h jsx tsx"
+  local _tree_code="" _tree_other=""
+  while IFS= read -r f; do
+    local _rel="${f#./}"
+    local _ext="${_rel##*.}"
+    # Check if code file
+    local _is_code=0
+    for _ce in $_code_exts; do
+      [ "$_ext" = "$_ce" ] && _is_code=1 && break
+    done
+    if [ "$_is_code" -eq 1 ]; then
+      _tree_code="${_tree_code}${_rel}
+"
+    else
+      _tree_other="${_tree_other}${_rel}
+"
+    fi
+  done <<< "$_file_list"
+
+  # Compose: code files first (will get structure), then others truncated
+  _map="${_tree_code}"
+  local _other_lines; _other_lines=$(printf '%s' "$_tree_other" | head -50)
+  _map="${_map}${_other_lines}"
   _chars_used=${#_map}
 
   # Then structural extraction per file
