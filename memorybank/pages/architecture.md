@@ -18,6 +18,7 @@
 | 08_self_healing_bash_wrapper.sh | 45 | run_with_heal(): bash -c + auto-retry (sudo on EACCES, node_modules/.bin on not-found, npx for npm packages with guard) |
 | 09_wiki_solutions_writer.sh | 20 | write_wiki_solution(): auto-creates solution md in memorybank/solutions/ |
 | 10_tools_openai_function_calling.sh | 3 | TOOLS_JSON: 7 tools (bash, read_file, create_file, edit_file, list_files, search_files, update_global_memory) |
+| 11b_repo_map.sh | 176 | build_repo_map(): regex-based code structure map. 10 languages, mtime-cached, ~1500 token budget. Injected into system prompt. /refresh to rebuild |
 | 11_history.sh | 20 | JSON history load/save, API key redaction via sed |
 | 12_auto_compact_history.sh | 117 | compact_history(): LLM summarizes old messages, keeps last 10 verbatim. append_raw(): python3 JSON append via stdin pipe |
 | 13_tool_execution.sh | 170 | run_tool(): pure tool dispatch. edit_file has 4-strategy fuzzy matching (exact → whitespace → indent → anchor). spawn_subagent support. |
