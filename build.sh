@@ -14,6 +14,7 @@ done >> mix.compiled
 cat \
     src/00_header.sh \
     src/01_config.sh \
+    src/02_mixrc.sh \
     src/02_tmux_bootstrap.sh \
     src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_changes.sh \
     src/04_project_local_extensions.sh \
