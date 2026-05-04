@@ -8,7 +8,7 @@
 | File | Lines | Role |
 |---|---|---|
 | 00_header.sh | 8 | Comment header |
-| 01_config.sh | 120 | Config, defaults, provider system, env vars |
+| 01_config.sh | 125 | Config, defaults, provider system, env vars, session token counters |
 | 02_tmux_bootstrap.sh | 14 | Auto-launch/attach tmux session (bypass: MIX_NO_TMUX=1) |
 | 03_system_prompt_*.sh | 143 | build_system_prompt(): rebuilt per call, injects wiki/cavekit/global memory/skills |
 | 04_project_local_extensions.sh | 7 | Sources ~/.mix/rc.sh only (project .agent/rc.sh removed for security) |
