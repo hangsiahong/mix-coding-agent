@@ -117,7 +117,7 @@ Type these inside the mix prompt:
 | `/cache` | Show file cache contents |
 | `/verify` | Show auto-verify status |
 | `/afk setup` | Configure Telegram notifications for long-running tasks |
-| `/refresh` | Invalidate repo map (forces rebuild) |
+| `/reload` | Rebuild from source, version, and restart (uses versioning + health gate) |
 | `/sandbox` | Show sandbox status |
 | `/sandbox on` | Enable sandbox for all bash tool calls |
 | `/sandbox off` | Disable sandbox |
