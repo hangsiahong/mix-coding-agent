@@ -136,6 +136,46 @@ MODEL="gpt-4o"
 TEST_CMD="npm run test"
 ```
 
+Or use `.mixrc` in the project root (walks parent dirs):
+```
+MODEL=gpt-4o
+CAVEMAN_MODE=ultra
+AUTO_YES=true
+```
+
+## Extensions
+
+Drop-in plugins that customize the harness. Put a `.sh` file in `~/.mix/extensions/` (global) or `.mix/extensions/` (project — overrides global).
+
+### Convention Hooks
+
+Define functions following `<name>_<hook>` pattern:
+
+| Hook | When |
+|---|---|
+| `<name>_init` | On load |
+| `<name>_cmd` | REPL input (before built-in). Return 0 = handled |
+| `<name>_tool` | Custom tool dispatch. Print result, or return 1 |
+| `<name>_on_edit` | After successful edit_file |
+| `<name>_on_create` | After successful create_file |
+| `<name>_on_bash` | After successful bash |
+| `<name>_on_shutdown` | On exit |
+
+### Quick Start
+
+```bash
+# Scaffold a new extension
+/ext create my-linter
+
+# Edit the generated template
+vim ~/.mix/extensions/my-linter.sh
+
+# Load it
+/ext load my-linter
+```
+
+Extensions auto-load on next startup.
+
 ## Architecture
 
 mix is built from 35 source files concatenated by `build.sh` into a single executable:
