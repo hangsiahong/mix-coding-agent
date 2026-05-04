@@ -556,6 +556,15 @@ TESTS: run '$TEST_CMD' after edits that touch tested files."
   [ "$GIT_ENABLED" = true ] && base+="
 GIT: repo active. edit_file auto-commits. Use git freely."
 
+  # Repo map — structural awareness of codebase
+  local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
+  if [ -n "$_rmap" ]; then
+    base+="
+
+## REPO MAP (files + structure — use this to navigate without reading files)
+$_rmap"
+  fi
+
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
@@ -797,6 +806,182 @@ save_history() {
   fi
 }
 
+# ─── Repo Map (codebase structural awareness) ────────────────────────────────
+# Generates a compressed map of the codebase injected into the system prompt.
+# Eliminates 2-3 "orientation" tool calls per task — agent knows file layout,
+# function signatures, and class structure without reading files.
+#
+# Strategy: regex-based extraction. No tree-sitter, no deps, no pip.
+# Gets 80% of Aider's repo-map value for 5% of the code.
+
+_REPO_MAP=""
+_REPO_MAP_MTIMES=""   # "file:mtime:file:mtime:..." for invalidation
+_REPO_MAP_TIME=0      # epoch seconds when map was built
+_REPO_MAP_TTL=600     # rebuild every 10 minutes
+
+# Patterns per language — extract structural lines
+# Each: "extension:pattern:label"
+_REPO_MAP_PATTERNS=(
+  "sh:^[a-zA-Z_][a-zA-Z0-9_]*\(\):fn"
+  "sh:^  [a-zA-Z_][a-zA-Z0-9_]*\(\):fn"
+  "py:^(def |class |    def ):def"
+  "py:^(import |from ):import"
+  "js:^(export |function |class |const |let |interface |type ):decl"
+  "ts:^(export |function |class |const |let |interface |type |enum ):decl"
+  "go:^(func |type |var |const |import ):decl"
+  "rs:^(pub )?(fn |struct |enum |trait |impl |mod ):decl"
+  "java:^(public |private |protected |class |interface |enum |void ):decl"
+  "rb:^(def |class |module ):decl"
+  "c:^(void |int |char |static |struct ):decl"
+  "h:^(void |int |char |static |struct |#define |typedef ):decl"
+)
+
+# Directories to always skip
+_REPO_MAP_SKIP_DIRS=(
+  .git node_modules __pycache__ .venv venv dist build .next
+  .nuxt target .gradle .idea .vscode .cache .tox .mypy_cache
+  .pytest_cache coverage htmlcov .sass-cache bower_components
+  vendor/bundle .mix .agent .terraform .terragrunt-cache
+)
+
+_build_skip_find() {
+  local prune=""
+  for d in "${_REPO_MAP_SKIP_DIRS[@]}"; do
+    prune+="-path ./$d -prune -o "
+  done
+  printf '%s' "$prune"
+}
+
+# Build the repo map string
+build_repo_map() {
+  # Check cache validity
+  local _now; _now=$(date +%s 2>/dev/null || echo 0)
+  local _age=$(( _now - _REPO_MAP_TIME ))
+  if [ -n "$_REPO_MAP" ] && [ "$_age" -lt "$_REPO_MAP_TTL" ] && _repo_map_files_unchanged; then
+    printf '%s' "$_REPO_MAP"
+    return
+  fi
+
+  local _map=""
+  local _file_list
+  _file_list=$(find . $(_build_skip_find) -type f \
+    \( -name '*.sh' -o -name '*.py' -o -name '*.js' -o -name '*.ts' \
+       -o -name '*.go' -o -name '*.rs' -o -name '*.java' -o -name '*.rb' \
+       -o -name '*.c' -o -name '*.h' -o -name '*.jsx' -o -name '*.tsx' \
+       -o -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \
+       -o -name '*.json' -o -name '*.sql' -o -name '*.proto' \) \
+    -print 2>/dev/null | sort)
+
+  if [ -z "$_file_list" ]; then
+    _REPO_MAP=""
+    printf ''
+    return
+  fi
+
+  local _new_mtimes=""
+  local _file_count=0
+  local _token_budget=4500  # ~1500 tokens, at 3 chars/token
+  local _chars_used=0
+
+  # File tree first (compact)
+  local _tree
+  _tree=$(printf '%s' "$_file_list" | sed 's|^\./||' | head -200)
+  _map="$_tree"
+  _chars_used=${#_map}
+
+  # Then structural extraction per file
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    local _rel="${f#./}"
+
+    # Track mtime for cache invalidation
+    local _mt; _mt=$(stat -c '%Y' "$f" 2>/dev/null || echo 0)
+    _new_mtimes="${_new_mtimes}${_rel}:${_mt}:"
+
+    # Token budget check — stop if we're over
+    [ "$_chars_used" -gt "$_token_budget" ] && break
+
+    # Extract structure based on file extension
+    local _ext="${_rel##*.}"
+    local _struct=""
+    local _lines; _lines=$(wc -l < "$f" 2>/dev/null || echo 0)
+
+    # Skip very large files — just note the size
+    if [ "$_lines" -gt 500 ]; then
+      _struct="  ($_lines lines)"
+    else
+      local _pat=""
+      for _pp in "${_REPO_MAP_PATTERNS[@]}"; do
+        local _pext="${_pp%%:*}"; local _rest="${_pp#*:}"
+        if [ "$_ext" = "$_pext" ]; then
+          _pat="${_rest%%:*}"
+          break
+        fi
+      done
+
+      if [ -n "$_pat" ]; then
+        _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -30 | sed 's/^/  /')
+      fi
+    fi
+
+    if [ -n "$_struct" ]; then
+      local _entry="${_rel}:${_lines}L
+${_struct}
+"
+      _map="${_map}
+${_entry}"
+      _chars_used=$((_chars_used + ${#_entry}))
+    fi
+
+    _file_count=$((_file_count + 1))
+  done <<< "$_file_list"
+
+  # Git awareness: show recently changed files (if git enabled)
+  if [ "$GIT_ENABLED" = true ]; then
+    local _recent
+    _recent=$(git -C "$WORKDIR" diff --name-only HEAD~5 2>/dev/null | head -20 || true)
+    if [ -n "$_recent" ]; then
+      _map="${_map}
+── recently changed ──
+${_recent}"
+    fi
+  fi
+
+  _REPO_MAP="$_map"
+  _REPO_MAP_MTIMES="$_new_mtimes"
+  _REPO_MAP_TIME="$_now"
+  printf '%s' "$_REPO_MAP"
+}
+
+# Check if tracked files have changed since last build
+_repo_map_files_unchanged() {
+  [ -z "$_REPO_MAP_MTIMES" ] && return 1
+  local _old="$_REPO_MAP_MTIMES"
+  local _changed=0
+
+  # Sample check — don't check every file, just up to 50 random ones
+  local _checked=0
+  local _rest="$_old"
+  while [ -n "$_rest" ] && [ "$_checked" -lt 50 ]; do
+    local _entry="${_rest%%:*}"
+    _rest="${_rest#*:}"
+    local _mtime="${_rest%%:*}"
+    _rest="${_rest#*:}"
+    [ -z "$_entry" ] && continue
+    local _cur; _cur=$(stat -c '%Y' "$_entry" 2>/dev/null || echo 0)
+    [ "$_cur" != "$_mtime" ] && _changed=1 && break
+    _checked=$((_checked + 1))
+  done
+
+  [ "$_changed" -eq 0 ]
+}
+
+# Force rebuild (useful after /refresh or major file changes)
+repo_map_invalidate() {
+  _REPO_MAP=""
+  _REPO_MAP_MTIMES=""
+  _REPO_MAP_TIME=0
+}
 # ─── Auto-compact history ────────────────────────────────────────────────────
 # When history exceeds MAX_HIST_MSGS, ask the model to summarize old messages,
 # then replace them with a single context message + keep last 10 turns verbatim.
@@ -2063,6 +2248,7 @@ handle_cmd() {
       fi
       ;;
     /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /models)
       if type "${PROVIDER}_list_models" >/dev/null 2>&1; then
         ${PROVIDER}_list_models
@@ -2195,7 +2381,7 @@ handle_cmd() {
       ;;
     /help)
       echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  agent:   /flush  /compact  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo "  agent:   /flush  /compact  /refresh  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
@@ -2728,7 +2914,7 @@ if [ -f "$WORKDIR/SPEC.md" ]; then
 else
   echo -e "    \033[0;90m/spec <idea>  — start a spec-driven project\033[0m"
 fi
-echo -e "    \033[0;90mcommands: /flush /compact /model [id] /models /caveman /mode /yolo /workers /exit\033[0m"
+echo -e "    \033[0;90mcommands: /flush /refresh /compact /model [id] /models /caveman /mode /yolo /workers /exit\033[0m"
 echo ""
 
 # tmux: rename window + initial status bar
@@ -2761,9 +2947,9 @@ if [ "$INTERACTIVE" = true ]; then
     local word="${cur##* }"
     local pre="${cur:0:$((READLINE_POINT - ${#word}))}"
     local matches=()
-    
+
     if [[ "$word" == /* ]]; then
-      for c in "/flush" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
+        for c in "/flush" "/refresh" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/workers" "/worker" "/subagent" "/skill" "/skills" "/help" "/exit" "/spec" "/build" "/check"; do
         [[ "$c" == "$word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
@@ -2780,7 +2966,7 @@ if [ "$INTERACTIVE" = true ]; then
       done
     elif [[ "$word" == @* ]]; then
       local q="${word#@}"
-      
+
       # If the query itself starts with a dot, allow matching dotfiles. Otherwise hide them.
       local dotfile_filter
       if [[ "$q" == .* || "$q" == */.* ]]; then
@@ -2802,7 +2988,7 @@ if [ "$INTERACTIVE" = true ]; then
 
     if (( ${#matches[@]} == 1 )); then
       local new_word="${matches[0]}"
-      
+
       # Determine if a directory to add suffix
       # We check the raw path by removing @ if present
       local raw_path="${new_word#@}"

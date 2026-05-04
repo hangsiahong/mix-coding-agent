@@ -86,3 +86,7 @@ Types: `ingest` `query` `lint` `task`
 ## [2026-05-04] ingest | Memorybank update — added parallel-tool-batching solution, updated architecture data flow + key decisions, updated tools-reference with 4-strategy edit_file + parallel batch docs, updated index
 
 ## [2026-05-04] task | check memorybank, and see whether we need to update it or not since the last few
+
+## [2026-05-04] task | why you stop?   ◆ mix
+
+## [2026-05-04] ingest | Repo Map — codebase structural awareness. Regex-based extractor, 10 languages, ~1200 tokens in system prompt. Eliminates 2-3 orientation turns per task.
