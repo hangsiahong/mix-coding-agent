@@ -10,7 +10,7 @@ Update this file after every ingest or new page created.
 | file | summary |
 |---|---|
 | architecture.md | Full component map: 38 source files, ~5240 lines, data flow, key design decisions |
-| design-philosophy.md | Why bash, why python3 not jq/node, why cat compilation, why regex not AST, why no framework |
+| design-philosophy.md | 14-section deep dive: why bash, python3 not jq, cat build, regex repo map, context engineering (3 caches), 4-strategy edits, safety tiers, caveman mode, extensibility (skills/extensions/providers), memorybank compounding, cavekit specs, parallelism, self-hosting proof, decision record table |
 | why-minimal.md | Defense of minimal claim: zero framework, line budget breakdown, dependency comparison |
 | security.md | Security posture: all 4 critical audit issues resolved, risk scoring system, known limitations |
 | tools-reference.md | 7 tools (bash/read/edit/create/list/search/global_memory), 4-strategy edit_file, parallel batching for read-only tools, processing pipeline |
