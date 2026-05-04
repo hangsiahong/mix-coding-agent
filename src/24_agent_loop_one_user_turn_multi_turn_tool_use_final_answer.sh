@@ -116,9 +116,21 @@ run_agent() {
     local _slug; _slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
     local _sfile="$WORKDIR/memorybank/solutions/${_slug}.md"
     if [ ! -f "$_sfile" ]; then
+      # Extract last assistant text for a meaningful summary
+      local _last_answer; _last_answer=$(printf '%s' "$HISTORY" | python3 -c '
+import json,sys
+h=json.load(sys.stdin)
+for m in reversed(h):
+  if m.get("role")=="assistant" and m.get("content"):
+    print(m["content"][:500]); break
+' 2>/dev/null || true)
       mkdir -p "$WORKDIR/memorybank/solutions" 2>/dev/null || true
-      printf '# %s\nDate: %s\nInput: %s\n' \
-        "$_slug" "$(date '+%Y-%m-%d')" "${input:0:200}" > "$_sfile" 2>/dev/null || true
+      {
+        printf '# %s\n' "$_slug"
+        printf 'Date: %s\n' "$(date '+%Y-%m-%d')"
+        printf 'Input: %s\n' "${input:0:200}"
+        [ -n "$_last_answer" ] && printf '\n## Summary\n%s\n' "$_last_answer"
+      } > "$_sfile" 2>/dev/null || true
       echo -e "  \033[0;90m✓ memorybank/solutions/${_slug}.md\033[0m"
     fi
   fi
