@@ -35,14 +35,6 @@ for l in diff:
         sys.stdout.write("    "+RED+l.rstrip()+RST+"\n")
     else:
         sys.stdout.write("    "+DIM+l.rstrip()+RST+"\n")
-# Show context lines from original file around the edit
-if match_line > 0:
-    ctx_start=max(0,match_line-2)
-    ctx_end=min(len(lines),match_line+len(old_lines)+1)
-    sys.stdout.write(DIM+"    ┄ context (lines %d-%d of %d)\n"% (ctx_start+1, ctx_end, len(lines))+RST)
-    for i in range(ctx_start, ctx_end):
-        marker = GRN+"▸"+RST if i >= match_line-1 and i < match_line-1+len(old_lines) else " "
-        sys.stdout.write("    %s %s%d: %s%s\n" % (marker, DIM, i+1, RST, lines[i]))
 ' 2>/dev/null || echo -e "    \033[0;90m(diff unavailable)\033[0m"
 }
 

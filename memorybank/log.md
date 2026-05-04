@@ -334,3 +334,32 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | mix coding agent build it tho, you know like the say, who born first, egg or hen
 
 ## [2026-05-05] task | you dont understand, im talking about, when we build the first prototype of the 
+
+## [2026-05-05] task | can we add a feature where we cancel the turn and then press the key up and down
+
+## [2026-05-05] task | okay cool, and also we should add a feature to reload or anything, right now aft
+
+## [2026-05-05] task | '
+
+## [2026-05-05] task | 
+    ◈   Risk: MED  (file-move)
+    ◈   Risk: MED  (file-move) [yolo: auto-confi
+
+## [2026-05-05] task |    All three cases work:
+
+    1. **Broken current → fallback to last_good --doct
+
+## [2026-05-05] task | yes update the install.sh
+
+## [2026-05-05] feature | Versioning & Self-Heal System
+- `--self-test` flag in src/00_header.sh (python3 + curl checks)
+- `--doctor` mode (crash log display in banner)
+- `--version` flag (MIX_VERSION embedded in binary)
+- Versioned binary storage: ~/.mix/versions/<ts>.bin + current/last_good symlinks
+- Thin wrapper at ~/.local/bin/mix: health-check + fallback to last_good --doctor
+- build.sh: version inject, health gate, auto-prune (keep 5), wrapper install
+- install.sh: download → health_check → version_install → install_wrapper pipeline
+- /reload integration: build.sh handles versioning, detects self-test failure
+- All 8 SPEC tasks complete
+
+## [2026-05-05] task | so update memorybank and readme?

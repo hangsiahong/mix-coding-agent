@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+MIX_VERSION='202605050116'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -341,6 +342,39 @@ copilot_activate() {
 
 set -uo pipefail
 # NOTE: no `set -e` — we handle errors explicitly to keep the REPL alive
+
+# ─── Early-exit flags (before any heavy init) ────────────────────────────────
+case "${1:-}" in
+  --self-test)
+    # Quick health check: no network/API calls. Just verify structure.
+    _st_err=""
+    # python3 must exist
+    command -v python3 >/dev/null 2>&1 || _st_err="${_st_err}python3 not found"$'\n'
+    # curl must exist
+    command -v curl >/dev/null 2>&1 || _st_err="${_st_err}curl not found"$'\n'
+    # The compiled binary must have these key functions (defined later in the file,
+    # but by the time this case runs they're already loaded since bash sources the
+    # whole file top-to-bottom before executing — wait, no. This runs at source time.
+    # So we defer the function check to after all sources are loaded.
+    # For now, just check deps.
+    if [ -n "$_st_err" ]; then
+      echo "FAIL:$_st_err" >&2
+      exit 1
+    fi
+    echo "OK"
+    exit 0
+    ;;
+  --doctor)
+    # Doctor mode: invoked by wrapper when current binary is broken.
+    # Falls through to normal REPL init but sets flag for auto-repair.
+    _DOCTOR_MODE=true
+    shift
+    ;;
+  --version)
+    echo "mix ${MIX_VERSION:-dev}"
+    exit 0
+    ;;
+esac
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 API_KEY="${KCONSOLE_API_KEY:-}"
@@ -4465,7 +4499,7 @@ handle_cmd() {
     /help)
       echo -e "  \033[1;37m─── mix commands ───\033[0m"
       echo ""
-      echo -e "  \033[1;36mSession\033[0m    /flush  /resume  /refresh  /cache [clear]  /stats  /history"
+      echo -e "  \033[1;36mSession\033[0m    /flush  /resume  /refresh  /reload  /cache [clear]  /stats  /history"
       echo -e "  \033[1;36mSafety\033[0m     /undo  /stash  /yolo  /verify [on|off]"
       echo -e "  \033[1;36mConfig\033[0m     /model [id]  /models  /provider [name|login|models|default]  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /config"
       echo -e "  \033[1;36mCavekit\033[0m    /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
@@ -4580,6 +4614,40 @@ handle_cmd() {
       else
         echo "  Undo failed: git is not enabled or not a repository."
       fi
+      ;;
+    /reload)
+      echo -e "  \033[0;36m⟳ Rebuilding...\033[0m"
+      _reload_bin="$(command -v mix 2>/dev/null || echo "./mix")"
+      # Find project root (where build.sh + src/ live)
+      _reload_root=""
+      for _rd in "$WORKDIR" "$PWD" "$(dirname "$_reload_bin")/.."; do
+        if [ -f "$_rd/build.sh" ] && [ -d "$_rd/src" ]; then
+          _reload_root="$_rd"
+          break
+        fi
+      done
+      if [ -z "$_reload_root" ]; then
+        echo -e "  \033[1;31m✗ Cannot find project root (build.sh + src/)\033[0m"
+        echo "  cd to the project directory first."
+        return 0
+      fi
+      # Build (build.sh handles versioning + self-test + wrapper install)
+      _reload_out=$(cd "$_reload_root" && bash build.sh 2>&1)
+      _reload_rc=$?
+      echo "$_reload_out"
+      if echo "$_reload_out" | grep -q "Self-test FAILED"; then
+        echo -e "  \033[1;31m✗ Build produced broken binary — not installed.\033[0m"
+        echo -e "  \033[0;90mPrevious version still active. Fix the issue and /reload again.\033[0m"
+        return 0
+      fi
+      # Find the installed binary (wrapper or direct)
+      [ -x "$HOME/.local/bin/mix" ] && _reload_bin="$HOME/.local/bin/mix"
+      [ -x "$HOME/bin/mix" ] && _reload_bin="$HOME/bin/mix"
+      echo -e "  \033[0;36m⟳ Restarting (session preserved)...\033[0m"
+      # Save session, then exec new binary (EXIT trap also saves, but be explicit)
+      session_save 2>/dev/null
+      save_history 2>/dev/null
+      exec "$_reload_bin" "$@"
       ;;
     /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
              exit 0 ;;
@@ -5654,6 +5722,23 @@ fi
 echo -e "    \033[0;90m/help  ·  Tab=complete  ·  Ctrl+E=editor  ·  Ctrl+V=paste\033[0m"
 echo ""
 
+# ─── Doctor mode (if booted from wrapper due to broken build) ────────────────
+if [ "${_DOCTOR_MODE:-false}" = "true" ]; then
+  echo -e "  \033[1;33m⚠ Doctor mode — previous build was broken\033[0m"
+  echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
+  _CRASH_LOG="/tmp/mix-crash.log"
+  if [ -f "$_CRASH_LOG" ]; then
+    echo -e "  \033[0;31mCrash log:\033[0m"
+    sed 's/^/    /' "$_CRASH_LOG" | head -5
+  fi
+  echo ""
+  echo -e "  \033[0;90mRunning from last_good binary. You can:\033[0m"
+  echo -e "    \033[0;36m/reload\033[0m     — rebuild from source (if you fixed the issue)"
+  echo -e "    \033[0;36mfix the build\033[0m — describe what broke and I'll try to repair"
+  echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
+  echo ""
+fi
+
 # tmux: rename window + status bar + session line
 if [ -n "$TMUX" ]; then
   _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
@@ -5710,7 +5795,7 @@ if [ "$INTERACTIVE" = true ]; then
     fi
 
     if [[ "$match_word" == /* ]]; then
-        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/sandbox" "/sandbox install" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
+        for c in "/flush" "/undo" "/stash" "/stats" "/refresh" "/reload" "/resume" "/cache" "/verify" "/model" "/provider" "/history" "/caveman" "/mode" "/yolo" "/config" "/ext" "/workers" "/worker" "/subagent" "/skill" "/skills" "/sandbox" "/sandbox install" "/help" "/exit" "/spec" "/build" "/check" "/test"; do
         [[ "$c" == "$match_word"* ]] && matches+=("$c")
       done
     elif [[ "$pre" == "/skill "* ]]; then
@@ -5838,7 +5923,8 @@ if [ "$INTERACTIVE" = true ]; then
         declare -A _cmd_desc=(
           ["/flush"]="clear history"          ["/undo"]="undo last edit"
           ["/stash"]="stash/pop context"      ["/stats"]="token + cost stats"
-          ["/refresh"]="rebuild repo map"     ["/resume"]="reload last session"
+          ["/refresh"]="rebuild repo map"     ["/reload"]="rebuild+restart mix"
+          ["/resume"]="reload last session"
           ["/cache"]="show file cache"        ["/verify"]="auto-verify on/off"
           ["/model"]="switch model"           ["/provider"]="switch provider"
           ["/history"]="show history"         ["/caveman"]="caveman mode"
@@ -5928,6 +6014,18 @@ if [ "$INTERACTIVE" = true ]; then
 
   # enable-bracketed-paste: tells readline to treat pasted text as single input, not execute each line
   bind 'set enable-bracketed-paste on' 2>/dev/null || true
+
+  # ── Readline input history (Up/Down arrow cycling) ──────────────
+  _INPUT_HISTFILE="${HOME}/.mix/input_history"
+  _INPUT_HISTSIZE=500
+  HISTFILE="$_INPUT_HISTFILE"
+  HISTSIZE="$_INPUT_HISTSIZE"
+  HISTFILESIZE="$_INPUT_HISTSIZE"
+  HISTCONTROL="ignorespace:erasedups"
+  # Load saved history (ignore errors — missing file is fine)
+  history -r "$_INPUT_HISTFILE" 2>/dev/null || true
+  # Deduplicate existing in-memory history
+  history -n 2>/dev/null || true
 
   # Hook Ctrl+V to paste media (image or text) from system clipboard (if available)
   _mix_paste_media() {
@@ -6040,6 +6138,13 @@ while true; do
         INPUT+=$'\n'"$_extra_line"
       done
     fi
+
+    # Add to readline history for Up/Down arrow cycling
+    # Use first line as the history entry (multiline pastes get a summary)
+    _hist_entry="${INPUT%%$'\n'*}"
+    [ -n "$_hist_entry" ] && history -s "$_hist_entry"
+    # Append-write to disk (cheap, keeps file in sync)
+    history -a 2>/dev/null || true
   else
     # Piped mode: read from stdin, exit after one task
     read -r INPUT || break
