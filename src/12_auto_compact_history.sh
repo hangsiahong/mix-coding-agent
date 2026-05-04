@@ -47,10 +47,29 @@ for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
     fi
   fi
 
+  # Start spinner animation
+  local _spinner_pid
+  _spinner_anim() {
+    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local i=0
+    tput sc
+    while true; do
+      printf "\r\033[K  \033[0;36m%s\033[0m \033[0;90mcompacting history (%d msgs)...\033[0m" "${frames[$((i % ${#frames[@]}))]}" "$1"
+      i=$((i + 1))
+      sleep 0.08
+    done
+  }
+  _spinner_anim "$count" &
+  _spinner_pid=$!
+
   local _resp_tmp; _resp_tmp=$(mktemp -t mix-compact-resp-XXXXXX)
   local code
   code=$(curl "${_curl_args[@]}" -o "$_resp_tmp" -d @"$_payload_tmp" 2>/dev/null) || true
   rm -f "$_payload_tmp" "$_hist_tmp"
+
+  # Stop spinner
+  kill "$_spinner_pid" 2>/dev/null
+  wait "$_spinner_pid" 2>/dev/null
 
   if [ "$code" != "200" ]; then
     local _err; _err=$(cat "$_resp_tmp" 2>/dev/null | head -c 200)
