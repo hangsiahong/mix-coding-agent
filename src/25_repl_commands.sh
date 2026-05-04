@@ -269,9 +269,18 @@ handle_cmd() {
       _ext_list
       ;;
     /help)
-      echo "  cavekit: /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
-      echo "  testing: /test [init|generate|run|coverage]  — /test init to scaffold from scratch"
-      echo "  agent:   /flush  /undo  /stash  /stats  /compact  /refresh  /resume  /cache [clear]  /verify [on|off]  /model [id]  /models  /provider [name]  /history  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /yolo  /config  /ext [load|unload|create|reload|list]  /workers  /worker <name> <cmd>  /subagent <name> <task>  /afk [hint]  /afk log  /afk stop  /afk setup  /afk apply  /skill <name>  /skills  /help  /exit"
+      echo -e "  \033[1;37m─── mix commands ───\033[0m"
+      echo ""
+      echo -e "  \033[1;36mSession\033[0m    /flush  /resume  /refresh  /cache [clear]  /stats  /history"
+      echo -e "  \033[1;36mSafety\033[0m     /undo  /stash  /yolo  /verify [on|off]"
+      echo -e "  \033[1;36mConfig\033[0m     /model [id]  /models  /provider [name|login|models|default]  /caveman [off|lite|full|ultra]  /mode [fast|deep|plan]  /config"
+      echo -e "  \033[1;36mCavekit\033[0m    /spec [idea|bug:|amend|from-code]  /build [§T.n|--next|--all]  /check [§V|§I|§T|--all]"
+      echo -e "  \033[1;36mTesting\033[0m    /test [init|generate|run|coverage]"
+      echo -e "  \033[1;36mWorkers\033[0m    /worker <name> <cmd>  /subagent <name> <task>  /workers  /afk [hint|log|stop|setup|apply]"
+      echo -e "  \033[1;36mSkills\033[0m     /skill <name>  /skills  /ext [load|unload|create|reload|list]"
+      echo ""
+      echo -e "  \033[0;90mShortcuts:  Tab=autocomplete  Ctrl+E=editor  Ctrl+V=paste\033[0m"
+      echo -e "  \033[0;90mPiped mode: echo \"task\" | mix\033[0m"
       ;;
     /skills)
       if [ -z "$ACTIVE_SKILLS" ]; then
