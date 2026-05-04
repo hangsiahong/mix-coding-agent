@@ -23,7 +23,14 @@ handle_cmd() {
         echo "  Clipboard is empty or missing xclip/wl-paste/pbpaste"
       fi
       ;;
-    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; echo "  History cleared." ;;
+    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; session_clear; echo "  History + session cleared." ;;
+    /resume)
+      if [ "$_SESSION_AVAILABLE" = true ]; then
+        session_apply
+      else
+        echo "  No saved session to restore."
+      fi
+      ;;
     /undo)
       if [ "$GIT_ENABLED" != true ]; then
         echo "  /undo requires git (GIT_ENABLED=true)"
