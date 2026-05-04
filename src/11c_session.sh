@@ -90,9 +90,9 @@ session_load() {
     return 1
   }
 
-  # Read session into variables via python3
-  local _out
-  _out=$(python3 -c '
+  # Read session into variables via python3 (write to temp file for safety)
+  local _sess_tmp; _sess_tmp=$(mktemp -t mix-sess-load-XXXXXX)
+  python3 -c '
 import json, sys, os, time
 
 with open(sys.argv[1]) as f:
@@ -114,11 +114,13 @@ age_h = (time.time() - ts) / 3600
 if age_h > 168:  # 7 days
     sys.exit(3)  # too old
 
-# Output restorable fields as tab-separated
+# Serialize file_cache back to JSON string
 fc = s.get("file_cache", {})
 if isinstance(fc, dict):
     fc = json.dumps(fc)
-print("\t".join([
+
+# Write fields to temp file, one per line (safe for values with special chars)
+fields = [
     s.get("env_info", ""),
     str(s.get("git_enabled", False)),
     s.get("git_branch", ""),
@@ -136,18 +138,24 @@ print("\t".join([
     str(s.get("repo_map_time", 0)),
     s.get("last_input", ""),
     f"{age_h:.1f}"
-]))
-' "$_SESSION_FILE" "$WORKDIR" 2>/dev/null) || {
+]
+# Use null byte as delimiter (field separator) — safe for any content
+sys.stdout.write("\0".join(fields))
+' "$_SESSION_FILE" "$WORKDIR" > "$_sess_tmp" 2>/dev/null || {
     local _rc=$?
+    rm -f "$_sess_tmp"
     [ "$_rc" = "2" ] && echo "  Session from different project, skipping."
     [ "$_rc" = "3" ] && echo "  Session too old (>7d), skipping."
     return 1
   }
 
-  # Parse tab-separated output
-  IFS=$'\t' read -r _s_env_info _s_git_enabled _s_git_branch _s_provider _s_model _s_base_url \
+  # Parse null-delimited output
+  local _sess_data; _sess_data=$(cat "$_sess_tmp")
+  rm -f "$_sess_tmp"
+
+  IFS=$'\0' read -r _s_env_info _s_git_enabled _s_git_branch _s_provider _s_model _s_base_url \
     _s_caveman _s_agent_mode _s_auto_yes _s_skills _s_file_cache _s_file_cache_order \
-    _s_repo_map _s_repo_map_mtimes _s_repo_map_time _s_last_input _s_age_h <<< "$_out"
+    _s_repo_map _s_repo_map_mtimes _s_repo_map_time _s_last_input _s_age_h <<< "$_sess_data"
 
   # Store for lazy restore (don't apply until /resume)
   _SESSION_RESTORE_ENV="$_s_env_info"
