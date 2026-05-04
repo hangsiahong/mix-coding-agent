@@ -220,6 +220,15 @@ $_rh"
         echo -e "      \033[0;90m$_vl\033[0m"
       done
     fi
+    # Extract and display SUGGESTION results for edit failures
+    if printf '%s' "$result" | grep -q '\[SUGGESTION\]'; then
+      local _suggest_part
+      _suggest_part=$(printf '%s' "$result" | sed -n '/\[SUGGESTION\]/,$ p' | head -15)
+      echo -e "    \033[1;35m💡 suggestion:\033[0m"
+      printf '%s' "$_suggest_part" | while IFS= read -r _sl; do
+        echo -e "      \033[0;95m$_sl\033[0m"
+      done
+    fi
     # Simplify tool result text nicely aligned 
     local display_res="${result:0:300}"
     display_res=$(printf '%s' "$display_res" | tr '\n' ' ')
