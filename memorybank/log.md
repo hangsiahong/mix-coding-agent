@@ -5,6 +5,10 @@ Append-only task timeline. Format: `## [YYYY-MM-DD] type | description`
 
 Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems, provider system, config priority chain, test suite. Strengths, weaknesses, design decisions.
 
+## [2025-07-14] task | TUI Improvements — 12 changes
+
+12 TUI improvements implemented: re-render flicker fix, bash truncation marker, banner keybinding hints, grouped /help display, ctx_bar before first turn, MED risk yolo indicator, turn progress indicator, spinner color states, provider/extension autocomplete, turn separator, diff preview context lines, tmux live status. 166/166 tests pass.
+
 ## [2025-05-03] ingest | Initial codebase audit (1520 lines, 4 critical security issues)
 ## [2025-05-03] ingest | Copilot provider implementation
 ## [2025-05-04] ingest | /afk custom prompt support — `/afk <task>` replaces default analysis
