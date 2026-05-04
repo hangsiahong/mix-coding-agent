@@ -39,9 +39,12 @@
 
 ## Data Flow
 ```
-User input → append_text("user") → [plan mode?] → while turns < MAX_TURNS:
-  → call_api_stream() → parse_resp() → {TC lines: process_tc() each | TEXT: print + break}
-  → process_tc → score_risk → confirm → run_tool() → append_raw("tool") → loop
+User input → append_text("user") → [plan mode?] → while turns < MAX_TURNS (100):
+  → call_api_stream() → parse_resp() → classify tools (read-only vs write)
+  → [Parallel batch]: read_file/list_files/search_files run concurrently in subshells
+    → results → temp batch dir → append_raw_nosave() per tool → single save_history flush
+  → [Sequential batch]: bash/edit_file/create_file run one-by-one via process_tc()
+    → process_tc → score_risk → confirm → run_tool() → append_raw("tool")
   → ctx_bar + tmux_update + memorybank log append
 ```
 
