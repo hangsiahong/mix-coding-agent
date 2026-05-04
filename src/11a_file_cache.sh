@@ -107,7 +107,7 @@ build_file_context() {
 
   # Get ordered paths from cache (most recent first via reversed order)
   local _ordered_paths
-  _ordered_paths=$(printf '%s' "$_FILE_CACHE_ORDER" | tr -s ' ' '\n' | sed '/^$/d' | tac | tr '\n' '|')
+  _ordered_paths=$(printf '%s\n' "$_FILE_CACHE_ORDER" | tr -s ' ' '\n' | sed '/^$/d' | tac | tr '\n' '|')
 
   # Build context via single python3 call (avoids repeated json parsing)
   printf '%s' "$_FILE_CACHE" | python3 -c '
