@@ -88,6 +88,8 @@ google_activate() {
     BASE_URL="https://${region}-aiplatform.googleapis.com/v1/projects/${project_id}/locations/${region}/endpoints/openapi"
     PROVIDER="google"
     [ -z "${MODEL:-}" ] && MODEL="gemini-2.5-pro"
+    # Vertex OpenAI-compat needs 'google/' prefix in model field
+    _GOOGLE_VERTEX_MODEL_PREFIX="google/"
     echo -e "  \033[38;5;82m✓\033[0m Google Vertex AI activated"
     echo "  Model: $MODEL | Project: $project_id | Region: $region"
     _mix_save_defaults
