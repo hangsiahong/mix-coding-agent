@@ -138,8 +138,14 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - **Fix 3 — Wiki pattern compressed:** 1,834 chars → ~300 chars. Kept key operations, dropped verbose layout.
 - **Fix 4 — SPEC.md capped:** `head -200` replaced with 1,500 char budget. Full spec still available via `read_file`.
 - **Result:** System prompt: 7,084 → 4,079 tokens (43% reduction). All 184 tests pass.
-- Manual cleanup of `~/.mix/memory.md`: 30 bullets (6,810 chars) → 21 bullets (2,338 chars). Dropped stale sandbox audit details, duplicate entries, formatting artifacts.
+- Manual cleanup of `~/.mix/memory.md`: 30 bullets (6,810 chars) → 21 bullets (2,338 chars).
 - memorybank/solutions/prompt-optimization.md created with full audit.
+
+## [2026-07-15] bugfix | Mid-loop auto-compact not triggering during tool-use turns
+- **Problem:** `compact_history` only called at top of `run_agent()` (before user message appended). During multi-turn tool-use loop (up to MAX_TURNS=100), history grows unbounded — no compact check between turns.
+- **Impact:** Heavy sessions (20+ tool calls) could hit context limit mid-loop without triggering compact.
+- **Fix:** Added `compact_history` call at top of while loop in `src/24_agent_loop...sh`, after turn > 1. Cheap count gate (`[ "$count" -lt "$MAX_HIST_MSGS" ]`) means no API call until threshold hit.
+- **Cost:** Negligible — python json count is ~1ms per turn. Real compact (API call) only fires at MAX_HIST_MSGS threshold.
 - Removed `review_hunks()` (132 lines) from `src/05_pre_edit_diff_preview.sh`
 - Removed hunk review calls from `src/13_tool_execution.sh` — direct `mv .next` replacement
 - Deleted `tests/hunk_review.bats` (3 tests). Net -401 lines, -3 tests → 184/184 passing
