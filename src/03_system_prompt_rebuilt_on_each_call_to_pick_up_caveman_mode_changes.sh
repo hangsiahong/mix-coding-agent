@@ -20,7 +20,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Never give up after 1 error. Junior devs persist. So do you.
 
 ## WORKERS (tmux)
-- Spawn parallel bash task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
+- Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
 - Kill worker: tmux kill-window -t <name>
