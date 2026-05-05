@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605060022'
+MIX_VERSION='202605060026'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -4125,7 +4125,7 @@ ctx_bar() {
   [ "$bat_idx" -gt 10 ] && bat_idx=10
   local bat_icon
   eval "bat_icon=\${I_BAT_${bat_idx}:-}"
-  printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
+  printf "  %b%s %d%%%b  %dk / %dk tokens\033[0m\n" \
     "$color" "$bat_icon" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
   if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
     local _total_tok=$(( _SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS ))
