@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605060026'
+MIX_VERSION='202605060048'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1311,12 +1311,13 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Never give up after 1 error. Junior devs persist. So do you.
 
 ## WORKERS (tmux)
-- Spawn parallel bash task: bash → tmux new-window -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
+- Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM (or use spawn_subagent tool), /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
+- Testing/Orchestration: For interactive REPL/bug-hunting, isolate via `tmux new-session -d -s test_env "mix"`, then `tmux send-keys -t test_env "/cmd" Enter`, sleep, and `tmux capture-pane -p -t test_env`. Never block the main agent.
 
 ## SKILLS (available in ~/.mix/skills/)
 - swe-precision:       better edit matches + auto-verification
@@ -3435,7 +3436,7 @@ else:
         _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
-        tmux new-window -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
+        tmux new-window -d -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
           && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log" \
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
@@ -5633,11 +5634,6 @@ handle_cmd() {
       ;;
     /exit)   echo "  Bye!"; # clean up tmux worker windows on exit if desired
              exit 0 ;;
-    /*)
-      # Unknown slash command — don't send to LLM
-      echo -e "  \033[1;31m$I_FAIL Unknown command:\033[0m $1"
-      echo "  Use /help to see available commands."
-      ;;
     /worker\ *)
       local _wargs="${1#/worker }"
       local _wname="${_wargs%% *}"
@@ -5647,7 +5643,7 @@ handle_cmd() {
       elif [ -z "$_wname" ] || [ "$_wname" = "$_wargs" ]; then
         echo "  Usage: /worker <name> <command>"
       else
-        tmux new-window -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
+        tmux new-window -d -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
           && echo "  ↳ worker [$_wname] spawned" \
           || echo "  Failed to spawn worker."
       fi
@@ -5666,7 +5662,7 @@ handle_cmd() {
         _stmp=$(mktemp -t mix-$$-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
-        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
+        tmux new-window -d -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
           && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
           || echo "  Failed to spawn subagent."
       fi
@@ -5928,7 +5924,7 @@ AFK_WORKER_END
       chmod +x "$_worker_tmp"
 
       local _mytty; _mytty=$(tty 2>/dev/null || echo "")
-      tmux new-window -n "mix-afk" \
+      tmux new-window -d -n "mix-afk" \
         "bash '$_worker_tmp' '$_prompt_tmp' '$_apply_tmp' '$_plan_save' '$PWD' '$_mytty' '$_use_tg'; rm -f '$_prompt_tmp' '$_apply_tmp' '$_worker_tmp'" \
         2>/dev/null
       if [ $? -eq 0 ]; then
@@ -5990,6 +5986,11 @@ Report caveman grouped by severity. End with one-line remedy hints per class. Wr
       ;;
     /test*)
       handle_test_cmd "$1"
+      ;;
+    /*)
+      # Unknown slash command — don't send to LLM
+      echo -e "  \033[1;31m$I_FAIL Unknown command:\033[0m $1"
+      echo "  Use /help to see available commands."
       ;;
     *) return 1 ;;
   esac
@@ -6512,7 +6513,7 @@ printf '[test-gen] Done. %%s\n' "\$(date)" | tee -a "\$LOG_FILE"
 TESTGEN_WORKER_EOF
   chmod +x "$_worker_tmp"
 
-  tmux new-window -n "mix-testgen" \
+  tmux new-window -d -n "mix-testgen" \
     "bash '$_worker_tmp' '$_prompt_tmp' '$_dir' '$_mytty'; rm -f '$_prompt_tmp' '$_worker_tmp'" \
     2>/dev/null
 
