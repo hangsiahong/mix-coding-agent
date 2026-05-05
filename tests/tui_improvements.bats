@@ -98,8 +98,8 @@ setup() {
   [ $status -eq 0 ]
   # Should show unified diff
   echo "$output" | grep -q "line THREE"
-  # Should show context section
-  echo "$output" | grep -q "context"
+  # Should show hunk separator
+  echo "$output" | grep -q "L1"
   rm -f "$_tmpf"
 }
 
