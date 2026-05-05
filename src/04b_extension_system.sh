@@ -51,7 +51,7 @@ _ext_load_all() {
 
   # Trim trailing space
   _MIX_EXTENSIONS_LOADED="${_MIX_EXTENSIONS_LOADED% }"
-  
+
   if type "_ext_rebuild_tools" >/dev/null 2>&1; then
     _ext_rebuild_tools
   fi
@@ -139,8 +139,11 @@ _ext_load_one() {
     ${_name}_init 2>/dev/null || true
   fi
   _MIX_EXTENSIONS_LOADED+="$_name "
+
+  if type "_ext_rebuild_tools" >/dev/null 2>&1; then
+    _ext_rebuild_tools
+  fi
   echo -e "  \033[38;5;82m$I_OK\033[0m Extension $_name loaded"
-  return 0
 }
 
 # ─── Unload extension ──────────────────────────────────────────────────────
