@@ -34,13 +34,16 @@ run_agent() {
       if [ "$STREAM" = "true" ]; then
         parsed=$(call_api_stream)
         _SESSION_API_CALLS=$((_SESSION_API_CALLS + 1))
-        local _usage_line _pt _ct
+        local _usage_line _pt _ct _cache
         _usage_line=$(printf '%s' "$parsed" | grep '^USAGE:' | head -1 || true)
         if [ -n "$_usage_line" ]; then
           _pt=${_usage_line#USAGE:}; _pt=${_pt%%:*}
-          _ct=${_usage_line##*:}
+          local _rest=${_usage_line#USAGE:}; _rest=${_rest#*:}
+          _ct=${_rest%%:*}
+          _cache=${_rest#*:}
           _SESSION_PROMPT_TOKENS=$((_SESSION_PROMPT_TOKENS + _pt))
           _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
+          _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         fi
         if [[ "$parsed" == FAIL:network_drop* ]]; then
           [ "$INTERACTIVE" = false ] \
