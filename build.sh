@@ -28,6 +28,7 @@ for f in \
     src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_changes.sh \
     src/04_project_local_extensions.sh \
     src/04b_extension_system.sh \
+    src/04b_extension_rebuild_tools.sh \
     src/05_pre_edit_diff_preview.sh \
     src/06_auto_read_logs_on_bash_failure.sh \
     src/11c_session.sh \
@@ -65,6 +66,7 @@ for f in \
 done >> mix.compiled
 
 # Main REPL loop — MUST come last, since it blocks forever
+echo "if [[ \"\${BASH_SOURCE[0]}\" != \"\${0}\" ]]; then return 0 2>/dev/null || true; fi" >> mix.compiled
 cat src/27_main_repl.sh >> mix.compiled
 echo "" >> mix.compiled
 
