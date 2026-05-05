@@ -74,7 +74,7 @@ handle_cmd() {
     /repomap)
       echo -e "  \033[1;37mRepo Map:\033[0m"
       build_repo_map
-      echo "$REPO_MAP"
+      echo ""
       ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
