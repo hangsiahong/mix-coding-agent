@@ -524,15 +524,29 @@ google_filter_history() {
 import json, sys
 history = json.load(sys.stdin)
 # Google Vertex AI strictly requires every tool_call in the history to have a 
-# "thought_signature" field (even an empty one) if using thinking models, 
+# "thought_signature" field under extra_content.google if using thinking models, 
 # otherwise it throws a 400 Bad Request. 
-# We simply inject an empty string for any tool call missing it, preserving the 
-# JSON structure so the model doesn"t learn to hallucinate text tools!
+# For missing signatures (e.g. standard tools or older turns), the official doc 
+# specifies using "skip_thought_signature_validator". 
 for msg in history:
     if msg.get("role") == "assistant" and msg.get("tool_calls"):
         for tc in msg["tool_calls"]:
-            if "thought_signature" not in tc:
-                tc["thought_signature"] = ""
+            if "extra_content" not in tc:
+                tc["extra_content"] = {}
+            if "google" not in tc["extra_content"]:
+                tc["extra_content"]["google"] = {}
+            
+            # OpenAI compatible endpoint accepts it at the root OR under extra_content.google.
+            # If our streaming parser already saved it as `tc["thought_signature"]` from a previous run:
+            sig = tc.pop("thought_signature", None)
+            if not sig:
+                sig = tc["extra_content"]["google"].get("thought_signature", "")
+            
+            if not sig:
+                sig = "skip_thought_signature_validator"
+                
+            tc["extra_content"]["google"]["thought_signature"] = sig
+            
 print(json.dumps(history))
 '
 }

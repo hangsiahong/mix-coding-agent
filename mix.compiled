@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052156'
+MIX_VERSION='202605052210'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -863,15 +863,29 @@ google_filter_history() {
 import json, sys
 history = json.load(sys.stdin)
 # Google Vertex AI strictly requires every tool_call in the history to have a 
-# "thought_signature" field (even an empty one) if using thinking models, 
+# "thought_signature" field under extra_content.google if using thinking models, 
 # otherwise it throws a 400 Bad Request. 
-# We simply inject an empty string for any tool call missing it, preserving the 
-# JSON structure so the model doesn"t learn to hallucinate text tools!
+# For missing signatures (e.g. standard tools or older turns), the official doc 
+# specifies using "skip_thought_signature_validator". 
 for msg in history:
     if msg.get("role") == "assistant" and msg.get("tool_calls"):
         for tc in msg["tool_calls"]:
-            if "thought_signature" not in tc:
-                tc["thought_signature"] = ""
+            if "extra_content" not in tc:
+                tc["extra_content"] = {}
+            if "google" not in tc["extra_content"]:
+                tc["extra_content"]["google"] = {}
+            
+            # OpenAI compatible endpoint accepts it at the root OR under extra_content.google.
+            # If our streaming parser already saved it as `tc["thought_signature"]` from a previous run:
+            sig = tc.pop("thought_signature", None)
+            if not sig:
+                sig = tc["extra_content"]["google"].get("thought_signature", "")
+            
+            if not sig:
+                sig = "skip_thought_signature_validator"
+                
+            tc["extra_content"]["google"]["thought_signature"] = sig
+            
 print(json.dumps(history))
 '
 }
@@ -2253,6 +2267,7 @@ for msg in h:
     if msg.get("tool_calls"):
         for tc in msg["tool_calls"]:
             tc.pop("thought_signature", None)
+            tc.pop("extra_content", None)
 print(json.dumps(h))
 ' 2>/dev/null) || true
     [ -z "$hist" ] && hist="$1"
@@ -3646,7 +3661,13 @@ try:
                 i=tc.get("index",0)
                 if i not in tcs: tcs[i]={"id":"","name":"","args":"","sig":""}
                 if tc.get("id"): tcs[i]["id"]+=tc["id"]
-                if tc.get("thought_signature"): tcs[i]["sig"]+=tc["thought_signature"]
+                
+                # Google OpenAI-compat preview models might stream it at root or under extra_content
+                _ts = tc.get("thought_signature")
+                if not _ts and tc.get("extra_content", {}).get("google", {}).get("thought_signature"):
+                    _ts = tc["extra_content"]["google"]["thought_signature"]
+                if _ts: tcs[i]["sig"]+=_ts
+                
                 f=tc.get("function",{})
                 if f.get("name"): tcs[i]["name"]+=f["name"]
                 if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
@@ -3800,7 +3821,12 @@ stop_spinner() {
 # ─── Context window % bar ─────────────────────────────────────────────────────
 ctx_bar() {
   local hist_chars=${#HISTORY}
-  local est_tokens=$(( hist_chars / 3 ))
+  local sys_chars tools_chars
+  sys_chars=$(build_system_prompt | wc -c) || sys_chars=0
+  tools_chars=${#TOOLS_JSON}
+  
+  local total_chars=$(( hist_chars + sys_chars + tools_chars ))
+  local est_tokens=$(( total_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
   local filled=$(( pct * 20 / 100 )) i bar=""
@@ -3811,13 +3837,14 @@ ctx_bar() {
   [ "$pct" -gt 90 ] && color="\033[0;31m"
   local ktok=$(( est_tokens / 1000 ))
   local _usage_info=""
-  if [ "$_SESSION_API_CALLS" -gt 0 ]; then
+  if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
     local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) / 1000 ))
     _usage_info="  \033[0;90m│ session: ${_SESSION_API_CALLS} calls, ~${_total_tok}k tokens used\033[0m"
   fi
   printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
     "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
   [ -n "$_usage_info" ] && printf '%b\n' "$_usage_info"
+  return 0
 }
 
 # ─── Tmux status updater ──────────────────────────────────────────────────────

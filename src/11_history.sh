@@ -42,6 +42,7 @@ for msg in h:
     if msg.get("tool_calls"):
         for tc in msg["tool_calls"]:
             tc.pop("thought_signature", None)
+            tc.pop("extra_content", None)
 print(json.dumps(h))
 ' 2>/dev/null) || true
     [ -z "$hist" ] && hist="$1"

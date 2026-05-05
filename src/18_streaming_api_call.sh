@@ -121,7 +121,13 @@ try:
                 i=tc.get("index",0)
                 if i not in tcs: tcs[i]={"id":"","name":"","args":"","sig":""}
                 if tc.get("id"): tcs[i]["id"]+=tc["id"]
-                if tc.get("thought_signature"): tcs[i]["sig"]+=tc["thought_signature"]
+                
+                # Google OpenAI-compat preview models might stream it at root or under extra_content
+                _ts = tc.get("thought_signature")
+                if not _ts and tc.get("extra_content", {}).get("google", {}).get("thought_signature"):
+                    _ts = tc["extra_content"]["google"]["thought_signature"]
+                if _ts: tcs[i]["sig"]+=_ts
+                
                 f=tc.get("function",{})
                 if f.get("name"): tcs[i]["name"]+=f["name"]
                 if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
