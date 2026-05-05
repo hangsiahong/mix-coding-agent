@@ -92,16 +92,11 @@ teardown() {
 @test "google_get_api_key: studio mode reads GOOGLE_API_KEY env" {
   source "$PROJECT_ROOT/src/providers/google.sh"
   GOOGLE_API_KEY="env-key-456"
-  printf 'mode=studio\nproject_id=\nregion=us-central1\n' > "$_GOOGLE_CONFIG_FILE"
-  # The function reads config file at hardcoded path, so mock the file there
-  local _real_config="$HOME/.mix/google_provider"
-  local _real_key="$HOME/.mix/google_api_key"
   mkdir -p "$HOME/.mix"
-  printf 'mode=studio\nproject_id=\nregion=us-central1\n' > "$_real_config"
-  run google_get_api_key
-  [ "$status" -eq 0 ]
-  [ "$output" = "env-key-456" ]
-  rm -f "$_real_config"
+  printf 'mode=studio\nproject_id=\nregion=us-central1\n' > "$HOME/.mix/google_provider"
+  result=$(google_get_api_key)
+  [ "$result" = "env-key-456" ]
+  rm -f "$HOME/.mix/google_provider"
 }
 
 # ─── Config save ───────────────────────────────────────────────────────────
