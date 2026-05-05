@@ -159,6 +159,27 @@ myext_cmd() {
   return 1
 }
 
+myext_tool_schema() {
+  # Print valid JSON representing the tool schema
+  # The core engine will automatically validate and minify this into a single line.
+  cat << 'EOF'
+{
+  "type": "function",
+  "function": {
+    "name": "my_custom_tool",
+    "description": "Does a custom thing",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "arg": { "type": "string" }
+      },
+      "required": ["arg"]
+    }
+  }
+}
+EOF
+}
+
 myext_tool() {
   # $1 = tool name, $2 = json args. Print result or return 1.
   case "$1" in
