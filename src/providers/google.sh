@@ -278,9 +278,17 @@ google_get_api_key() {
     printf '%s' "$key"
     return 0
   elif [ "$mode" = "vertex" ]; then
-    # Vertex: short-lived access token with cache + refresh
-    _google_vertex_token
-    return $?
+    # Vertex: use API key (same key, just different header delivery)
+    local key="${GOOGLE_API_KEY:-}"
+    if [ -z "$key" ] && [ -f "$_GOOGLE_KEY_FILE" ]; then
+      key=$(cat "$_GOOGLE_KEY_FILE")
+    fi
+    if [ -z "$key" ]; then
+      echo -e "  \033[1;33mNo Google API key. Run: /provider google login\033[0m" >&2
+      return 1
+    fi
+    printf '%s' "$key"
+    return 0
   else
     echo -e "  \033[1;33mGoogle provider not configured. Run: /provider google login\033[0m" >&2
     return 1
