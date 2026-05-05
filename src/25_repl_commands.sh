@@ -62,10 +62,13 @@ handle_cmd() {
       ;;
     /stats)
       local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) ))
+      local _cache_pct=0
+      [ "${_SESSION_PROMPT_TOKENS:-0}" -gt 0 ] && _cache_pct=$(( _SESSION_CACHE_TOKENS * 100 / _SESSION_PROMPT_TOKENS ))
       echo -e "  \033[1;37mSession Stats\033[0m"
       echo "  API calls:     $_SESSION_API_CALLS"
       echo "  Prompt tokens:  $_SESSION_PROMPT_TOKENS"
       echo "  Output tokens:  $_SESSION_COMPLETION_TOKENS"
+      echo "  Cache tokens:   $_SESSION_CACHE_TOKENS (${_cache_pct}%)"
       echo "  Total tokens:   $_total_tok"
       echo "  Tools used:     $_TOOLS_USED"
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
