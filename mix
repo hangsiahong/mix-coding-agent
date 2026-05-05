@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052012'
+MIX_VERSION='202605052149'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -441,7 +441,11 @@ google_activate() {
     if [[ "${MODEL:-}" =~ $_GOOGLE_GLOBAL_MODELS_RE ]]; then
       effective_region="global"
     fi
-    BASE_URL="https://aiplatform.googleapis.com/v1/projects/${project_id}/locations/${effective_region}/endpoints/openapi"
+    if [ "$effective_region" = "global" ]; then
+      BASE_URL="https://aiplatform.googleapis.com/v1/projects/${project_id}/locations/${effective_region}/endpoints/openapi"
+    else
+      BASE_URL="https://${effective_region}-aiplatform.googleapis.com/v1/projects/${project_id}/locations/${effective_region}/endpoints/openapi"
+    fi
     PROVIDER="google"
     [ -z "${MODEL:-}" ] && MODEL="gemini-2.5-pro"
     # Vertex OpenAI-compat needs 'google/' prefix in model field
@@ -858,32 +862,11 @@ google_filter_history() {
   python3 -c '
 import json, sys
 history = json.load(sys.stdin)
-result = []
-skip_tool_ids = set()
-for msg in history:
-    if msg.get("role") == "assistant" and msg.get("tool_calls"):
-        bad = [tc for tc in msg["tool_calls"] if not tc.get("thought_signature")]
-        good = [tc for tc in msg["tool_calls"] if tc.get("thought_signature")]
-        if bad:
-            skip_tool_ids.update(tc.get("id","") for tc in bad)
-            tc_text = " | ".join(
-                tc["function"]["name"] + "(" + (tc["function"].get("arguments","{}") or "{}")[:60] + ")"
-                for tc in bad
-            )
-            new_content = (msg.get("content") or "")
-            new_content = (new_content + "\n[Used tools: " + tc_text + "]").strip()
-            new_msg = {"role": "assistant", "content": new_content}
-            if good:
-                new_msg["tool_calls"] = good
-            result.append(new_msg)
-        else:
-            result.append(msg)
-    elif msg.get("role") == "tool" and msg.get("tool_call_id","") in skip_tool_ids:
-        # Fold orphaned tool result into a user message so history stays valid
-        result.append({"role": "user", "content": "[Tool result]: " + (msg.get("content") or "")})
-    else:
-        result.append(msg)
-print(json.dumps(result))
+# On Vertex/Gemini, if we mess with tool calls and turn them into text strings 
+# like "[Used tools: ...]", the model will see this in the history and start 
+# hallucinating text-based tool calls instead of using the JSON API!
+# We just pass the history as-is.
+print(json.dumps(history))
 '
 }
 
