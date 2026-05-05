@@ -4,6 +4,9 @@ else
   INTERACTIVE=false
 fi
 
+# ─── Initialize Extensions (After all base tools are defined) ────────────────
+_ext_load_all
+
 # ─── CLI shortcuts (after all functions loaded) ────────────────────
 case "${_CLI_ARG:-}" in
   --repomap)
