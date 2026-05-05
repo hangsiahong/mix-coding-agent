@@ -35,10 +35,13 @@ for line in sys.stdin:
         d = json.loads(line)
         kind = d.get("kind", "")
         name = d.get("name", "")
+        sig = d.get("signature", "")
         line_num = d.get("line", 0)
         # Skip internal/noisy kinds
         if kind in ("variable", "local", "member", "namespace", "import"): continue
-        symbols.append((line_num, f"{name} ({kind})"))
+        if not name and kind: name = f"[{kind}]"
+        display = f"{name}{sig} ({kind})"
+        symbols.append((line_num, display))
     except: continue
 # Sort by line number
 symbols.sort()
