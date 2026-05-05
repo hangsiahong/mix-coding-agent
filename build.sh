@@ -56,7 +56,7 @@ cat \
     src/25_repl_commands.sh \
     src/29_telegram.sh \
     src/26a_test_commands.sh \
-    src/26_banner.sh
+    src/26_banner.sh >> mix.compiled
 
 # Main REPL loop — MUST come last, since it blocks forever
 cat src/27_main_repl.sh >> mix.compiled
