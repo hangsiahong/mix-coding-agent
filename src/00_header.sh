@@ -37,5 +37,14 @@ case "${1:-}" in
     echo "mix ${MIX_VERSION:-dev}"
     exit 0
     ;;
+  --repomap)
+    # CLI shortcut: print repo map and exit
+    WORKDIR="$(pwd)"
+    GIT_ENABLED=false
+    if git rev-parse --git-dir >/dev/null 2>&1; then GIT_ENABLED=true; fi
+    source src/11b_repo_map.sh 2>/dev/null || true
+    # If functions not available (compiled binary), they're already loaded
+    build_repo_map 2>/dev/null
+    exit 0
+    ;;
 esac
-
