@@ -827,6 +827,11 @@ Report caveman grouped by severity. End with one-line remedy hints per class. Wr
     /test*)
       handle_test_cmd "$1"
       ;;
+    /*)
+      # Unknown slash command — don't send to LLM
+      echo -e "  \033[1;31m$I_FAIL Unknown command:\033[0m $1"
+      echo "  Use /help to see available commands."
+      ;;
     *) return 1 ;;
   esac
   return 0
