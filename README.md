@@ -20,15 +20,14 @@ Treat `mix` as a tier-1 production-ready autonomous coding system.
 
 ---
 
-## Why mix?
+## Why Choose mix as Your AI Coding Agent?
 
-- **Zero Bloat**: No 500MB `node_modules`. No broken `pip` environments. One 200KB script.
-- **Terminal Native**: Designed for tmux, vim, and heavy CLI users.
-- **Context Focused**: Aider-style repo maps and file caching built-in.
-- **Precision**: Universal Ctags support for accurate codebase structural awareness.
-- **Safety**: Git-integrated hunk-level diff review before applying changes.
-- **Intelligence**: Proactive memory auto-extracts lessons learned to your wiki.
-- **Privacy First**: Optional sandboxed execution via Linux namespaces.
+- **Zero Bloat (No Dependencies)**: Forget 500MB `node_modules` or broken `pip` environments. One 200KB script.
+- **Terminal & CLI Native**: Optimized for `tmux`, `vim`, `neovim`, and developers who live in the command line.
+- **Context-Aware Architecture**: Built-in repo maps (Aider-style) and intelligent file caching to feed the LLM context window efficiently.
+- **AST-Aware Precision**: Uses Universal Ctags to understand multi-language codebases (Python, TypeScript, Rust, Go, C++, etc.) at the structural level.
+- **Safe & Autonomous Execution**: Interactive Git-integrated hunk-level diff reviews before applying changes, plus opt-in Linux namespace sandboxing.
+- **Proactive Intelligence**: The built-in memory bank automatically extracts lessons learned into a local wiki for continuous compounding knowledge.
 
 ## Comparison
 
