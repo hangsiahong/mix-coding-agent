@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052238'
+MIX_VERSION='202605052303'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -929,9 +929,11 @@ case "${1:-}" in
     echo "mix ${MIX_VERSION:-dev}"
     exit 0
     ;;
+  --repomap)
+    _CLI_ARG="--repomap"  # deferred to after functions load
+    _SKIP_BANNER=true
+    ;;
 esac
-
-
 # ─── Config ──────────────────────────────────────────────────────────────────
 API_KEY="${KCONSOLE_API_KEY:-}"
 if [ -z "$API_KEY" ]; then
@@ -5235,8 +5237,9 @@ handle_cmd() {
       echo "  History msgs:   $_hist_n"
       ;;
     /repomap)
-      echo -e "  \033[1;37mRepo Map:\033[0m"
-      build_repo_map
+      echo -e "  \033[1;37mRepo Map:\033[0m (building...)"
+      local _map_out; _map_out=$(build_repo_map)
+      echo "$_map_out"
       echo ""
       ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
@@ -5328,7 +5331,8 @@ handle_cmd() {
     /provider\ default)
       PROVIDER="default"
       BASE_URL="https://ai.koompi.cloud/v1"
-      if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+      API_KEY="${KCONSOLE_API_KEY:-}"
+      if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
       MODEL="${AGENT_MODEL:-glm-5}"
       echo "  Provider → default (koompi proxy)"
       _mix_save_defaults
@@ -5342,7 +5346,8 @@ handle_cmd() {
       if [ "$_pname" = "default" ]; then
         PROVIDER="default"
         BASE_URL="https://ai.koompi.cloud/v1"
-        if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+        API_KEY="${KCONSOLE_API_KEY:-}"
+        if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
         MODEL="${AGENT_MODEL:-glm-5}"
         echo "  Provider → default (koompi proxy)"
       elif _load_provider "$_pname"; then
@@ -5988,7 +5993,6 @@ Report caveman grouped by severity. End with one-line remedy hints per class. Wr
   esac
   return 0
 }
-
 # ─── Telegram Integration ─────────────────────────────────────────────────────
 _TELEGRAM_CONFIG_FILE="${HOME}/.mix/telegram"
 
@@ -6654,6 +6658,7 @@ if [ "$SANDBOX_ENABLED" != "true" ] && [ -f "${WORKDIR:-$PWD}/.mix/sandbox" ]; t
 fi
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
+[ "${_SKIP_BANNER:-}" = true ] || {
 echo ""
 echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
 echo ""
@@ -6715,22 +6720,29 @@ if [ "${_DOCTOR_MODE:-false}" = "true" ]; then
   echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
   echo ""
 fi
+} # end banner block
 
 # tmux: rename window + status bar + session line
-if [ -n "$TMUX" ]; then
+if [ "${_SKIP_BANNER:-}" != true ] && [ -n "$TMUX" ]; then
   _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
   tmux rename-window "mix" 2>/dev/null || true
   tmux_update
   echo -e "    \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd>  │  /workers\033[0m"
   echo ""
 fi
-
-
 if [ -t 0 ]; then
   INTERACTIVE=true
 else
   INTERACTIVE=false
 fi
+
+# ─── CLI shortcuts (after all functions loaded) ────────────────────
+case "${_CLI_ARG:-}" in
+  --repomap)
+    build_repo_map
+    exit 0
+    ;;
+esac
 
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
@@ -7191,4 +7203,3 @@ print(re.sub(r"\[paste _([a-zA-Z0-9_]+): [^\]]+\]", repl, out), end="")
   # Piped mode: exit after processing one task
   [ "$INTERACTIVE" = false ] && break
 done
-
