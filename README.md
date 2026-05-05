@@ -13,6 +13,17 @@ mix is an autonomous terminal coding agent designed for speed and precision. It 
 - **Context Focused**: Aider-style repo maps and file caching built-in.
 - **Privacy First**: Optional sandboxed execution via Linux namespaces.
 
+## Comparison
+
+| Feature | mix | Aider | Cline / Roo |
+|---|---|---|---|
+| **Runtime** | Bash/Python (Native) | Python | Node/TypeScript |
+| **Install Size** | < 1MB | ~50MB | ~200MB+ |
+| **Sandbox** | Native Linux (opt-in) | Docker (complex) | None / Docker |
+| **Self-Healing** | Built-in | Limited | Manual |
+| **Subagents** | Yes (tmux) | No | No |
+| **Portability** | Single file | Package | Extension/Desktop |
+
 ## Install
 
 ```bash
