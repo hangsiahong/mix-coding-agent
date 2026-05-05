@@ -171,12 +171,8 @@ teardown() {
 
 @test "_google_vertex_token: returns cached token if fresh" {
   source "$PROJECT_ROOT/src/providers/google.sh"
-  printf 'cached-token-xyz' > "$_GOOGLE_TOKEN_CACHE"
-  # Can't override internal path easily — test concept with real cache path
-  local _real_cache="/tmp/mix-google-access-token"
-  printf 'cached-token-xyz' > "$_real_cache"
-  run _google_vertex_token
-  [ "$status" -eq 0 ]
-  [ "$output" = "cached-token-xyz" ]
-  rm -f "$_real_cache"
+  printf 'cached-token-xyz' > "/tmp/mix-google-access-token"
+  result=$(_google_vertex_token)
+  [ "$result" = "cached-token-xyz" ]
+  rm -f "/tmp/mix-google-access-token"
 }
