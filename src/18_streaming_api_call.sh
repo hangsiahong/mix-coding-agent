@@ -240,7 +240,7 @@ if full:
 elif not tcs:
     sys.stdout.write("TEXT:(empty)\n")
 if usage:
-    sys.stdout.write("USAGE:"+str(usage.get("prompt_tokens",0))+":"+str(usage.get("completion_tokens",0))+"\n")
+    sys.stdout.write("USAGE:"+str(usage.get("prompt_tokens",0))+":"+str(usage.get("completion_tokens",0))+":"+str(usage.get("prompt_tokens_details",{}).get("cached_tokens",0))+"\n")
 sys.stdout.flush()
 ' <<< "$payload" > "$tmp_out"
 
