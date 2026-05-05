@@ -143,7 +143,7 @@ run_agent() {
             local _res; _res=$(process_tc "$tc" "true")
             echo "$_res" > "$_batch_dir/$_tc_idx"
           ) &
-          echo -e "    \033[38;5;99m⚡\033[0m \033[1;36m$_tname\033[0m \033[0;90m(parallel)\033[0m"
+          echo -e "    \033[38;5;99m$I_TOOL\033[0m \033[1;36m$_tname\033[0m \033[0;90m(parallel)\033[0m"
         else
           _sequential_tcs+=("$tc")
         fi
