@@ -33,6 +33,7 @@ cat \
     src/08_self_healing_bash_wrapper.sh \
     src/08a_failure_diagnostics.sh \
     src/09_wiki_solutions_writer.sh \
+    src/09b_proactive_memory.sh \
     src/10_tools_openai_function_calling.sh \
     src/11_history.sh \
     src/11a_file_cache.sh \
