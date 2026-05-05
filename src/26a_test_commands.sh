@@ -241,7 +241,7 @@ _test_init() {
 
   # Install if needed
   if [ "$_needs_install" = true ]; then
-    echo -e "  \033[0;33m⚠\033[0m No test framework found — installing $_fw_name"
+    echo -e "  \033[0;33m$I_WARN\033[0m No test framework found — installing $_fw_name"
     _test_install_framework "$_dir" "$_fw_name"
   fi
 
@@ -264,7 +264,7 @@ _test_init() {
   mkdir -p "$_dir/$_testdir" 2>/dev/null
 
   # Now delegate to LLM to write the actual first tests
-  echo -e "  \033[38;5;99m⚡\033[0m Generating first tests..."
+  echo -e "  \033[38;5;99m$I_TOOL\033[0m Generating first tests..."
   echo ""
 
   local _init_prompt="[TEST INIT] Project: $_dir | Language: $_lang | Framework: $_fw_name | Test dir: $_testdir | File ext: $_ext
@@ -303,7 +303,7 @@ _test_run() {
   # Handle recommended-but-not-installed
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed."
       echo "  Run /test init first."
       return
       ;;
@@ -319,7 +319,7 @@ _test_run() {
   if [ $_ec -eq 0 ]; then
     echo -e "  \033[38;5;82m✓ Tests passed\033[0m"
   else
-    echo -e "  \033[1;31m✗ Tests failed (exit $_ec)\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Tests failed (exit $_ec)\033[0m"
   fi
   echo "$_result" | tail -30
 }
@@ -334,7 +334,7 @@ _test_generate() {
 
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed."
       echo "  Run /test init first."
       return
       ;;
@@ -398,7 +398,7 @@ _test_generate_bg() {
   local _target="$2"
 
   if [ -z "$TMUX" ]; then
-    echo -e "  \033[1;31m✗\033[0m Background mode requires tmux. Run mix inside tmux."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Background mode requires tmux. Run mix inside tmux."
     return
   fi
 
@@ -408,7 +408,7 @@ _test_generate_bg() {
 
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed. Run /test init first."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed. Run /test init first."
       return
       ;;
   esac
@@ -453,7 +453,7 @@ TESTGEN_WORKER_EOF
     2>/dev/null
 
   if [ $? -eq 0 ]; then
-    echo -e "  \033[38;5;99m⚡\033[0m Test generation running in background"
+    echo -e "  \033[38;5;99m$I_TOOL\033[0m Test generation running in background"
     echo "  Worker: mix-testgen"
     echo "  Log:    /tmp/mix-testgen.log"
     echo "  Check:  /workers or tail -f /tmp/mix-testgen.log"
@@ -472,7 +472,7 @@ _test_coverage() {
 
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed. Run /test init first."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed. Run /test init first."
       return
       ;;
   esac
@@ -517,7 +517,7 @@ _test_coverage() {
           done
         done
         if [ "$_found_test" = false ]; then
-          echo -e "    \033[0;33m⚠\033[0m $_src"
+          echo -e "    \033[0;33m$I_WARN\033[0m $_src"
         else
           _tested_count=$((_tested_count + 1))
         fi
@@ -536,7 +536,7 @@ _test_coverage() {
           fi
         done
         if [ "$_found_test" = false ]; then
-          echo -e "    \033[0;33m⚠\033[0m $_src"
+          echo -e "    \033[0;33m$I_WARN\033[0m $_src"
         else
           _tested_count=$((_tested_count + 1))
         fi
@@ -547,7 +547,7 @@ _test_coverage() {
         [ -z "$_src" ] && continue
         _src_count=$((_src_count + 1))
         if [ ! -f "${_src%.go}_test.go" ]; then
-          echo -e "    \033[0;33m⚠\033[0m $_src"
+          echo -e "    \033[0;33m$I_WARN\033[0m $_src"
         else
           _tested_count=$((_tested_count + 1))
         fi
