@@ -3,13 +3,49 @@
 # Eliminates 2-3 "orientation" tool calls per task — agent knows file layout,
 # function signatures, and class structure without reading files.
 #
-# Strategy: regex-based extraction. No tree-sitter, no deps, no pip.
+# Strategy: regex-based extraction with ctags fallback.
 # Gets 80% of Aider's repo-map value for 5% of the code.
 
 _REPO_MAP=""
 _REPO_MAP_MTIMES=""   # "file:mtime:file:mtime:..." for invalidation
 _REPO_MAP_TIME=0      # epoch seconds when map was built
 _REPO_MAP_TTL=600     # rebuild every 10 minutes
+_CTAGS_EXE=""
+
+# Detect ctags once
+_detect_ctags() {
+  if [ -n "$_CTAGS_EXE" ]; then return; fi
+  if command -v ctags >/dev/null 2>&1; then
+    if ctags --version 2>/dev/null | grep -iq "Universal Ctags"; then
+      _CTAGS_EXE=$(command -v ctags)
+    fi
+  fi
+}
+
+_repo_map_ctags() {
+  local f="$1"
+  [ -z "$_CTAGS_EXE" ] && return 1
+  
+  # Universal Ctags JSON output is very rich
+  "$_CTAGS_EXE" --output-format=json --fields=nSK --languages=Python,JavaScript,TypeScript,Go,Rust,Java,C,C++,Ruby,Sh -f - "$f" 2>/dev/null | python3 -c '
+import json, sys
+symbols = []
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        kind = d.get("kind", "")
+        name = d.get("name", "")
+        line_num = d.get("line", 0)
+        # Skip internal/noisy kinds
+        if kind in ("variable", "local", "member", "namespace", "import"): continue
+        symbols.append((line_num, f"{name} ({kind})"))
+    except: continue
+# Sort by line number
+symbols.sort()
+for l, s in symbols[:20]:
+    print(f"  {s}")
+'
+}
 
 # Patterns per language — extract structural lines
 # Each: "extension:pattern:label"
