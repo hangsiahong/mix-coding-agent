@@ -26,6 +26,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM (or use spawn_subagent tool), /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
+- Testing/Orchestration: For interactive REPL/bug-hunting, isolate via `tmux new-session -d -s test_env "mix"`, then `tmux send-keys -t test_env "/cmd" Enter`, sleep, and `tmux capture-pane -p -t test_env`. Never block the main agent.
 
 ## SKILLS (available in ~/.mix/skills/)
 - swe-precision:       better edit matches + auto-verification
