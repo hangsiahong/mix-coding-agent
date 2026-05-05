@@ -1,6 +1,17 @@
-# mix
+# mix — Autonomous Terminal Coding Agent (LLM CLI)
 
-A minimal terminal coding agent. Single bash script, ~4700 lines. No heavy dependencies — just `bash`, `curl`, and `python3`.
+**High-performance, zero-dependency AI coding assistant for the terminal.**
+
+> Single bash binary. No Node, no pip, no venv. Just `bash`, `curl`, and `python3`.
+
+mix is an autonomous terminal coding agent designed for speed and precision. It compiles into a single self-contained file and features a full tool suite (read, edit, create, bash, search) with live streaming. Supports **GitHub Copilot**, **Google Gemini 2.0/3**, and **Claude 3.5 Sonnet** via KConsole. Built-in sandboxing, session recovery, and a self-growing knowledge base (memorybank) make it a powerful alternative to Aider or Cline for terminal power users.
+
+## Why mix?
+
+- **Zero Bloat**: No 500MB `node_modules`. No broken `pip` environments. One 200KB script.
+- **Terminal Native**: Designed for tmux, vim, and heavy CLI users.
+- **Context Focused**: Aider-style repo maps and file caching built-in.
+- **Privacy First**: Optional sandboxed execution via Linux namespaces.
 
 ## Install
 
@@ -13,7 +24,7 @@ Run it from any folder:
 mix
 ```
 
-*Note: Needs a free [KConsole AI](https://koompi.cloud) key. Set `export KCONSOLE_API_KEY=your_key` in your shell — or use GitHub Copilot (see [Providers](#providers) below).*
+*Note: Needs a [KConsole AI](https://koompi.cloud) key, a GitHub Copilot subscription, or a Google AI/Vertex key. See [Providers](#providers) below.*
 
 ## Features
 
@@ -70,6 +81,14 @@ Supports Google AI Studio (API Key) and Google Cloud Vertex AI (gcloud auth).
 
 For Vertex, ensure `gcloud` is installed and you have an active project. Preview models (e.g., `gemini-3`) automatically use the `global` region.
 
+Gemini 3/2.5 models support thinking-level control to reduce verbose reasoning overhead:
+```
+/provider google thinking low     # minimal thinking for faster tool calls
+/provider google thinking high    # deep reasoning for hard problems
+/provider google thinking         # show current level
+```
+Valid levels: `minimal`, `low`, `medium`, `high` (Gemini 3) or `off`, `low`, `medium`, `high` (Gemini 2.5).
+
 To reset back to default:
 ```
 /provider default
@@ -120,7 +139,8 @@ Type these inside the mix prompt:
 | `/mode <level>` | Change reasoning (`fast`/`deep`/`plan`) |
 | `/model <name>` | Swap the AI model |
 | `/models` | List all models available from current provider |
-| `/provider <name>` | Switch provider (e.g. `copilot`, `default`) |
+| `/provider <name>` | Switch provider (e.g. `copilot`, `google`, `default`) |
+| `/provider google thinking <level>` | Set Gemini thinking level (`minimal`/`low`/`medium`/`high`) |
 | `/yolo` | Toggle command auto-confirm on/off |
 | `/test init` | Detect test framework, install, scaffold first tests |
 | `/test generate` | Generate tests for a file or recent edits |
