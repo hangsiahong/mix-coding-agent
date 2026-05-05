@@ -162,3 +162,10 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Session line color: purple (`38;5;183`) instead of gray — `│ session: 112 calls, ~5M tokens used · 59% cached`
 - `/stats` shows cache tokens + percentage
 - 184/184 tests pass
+
+## [2026-07-28] feature | Multi-language & Orchestration Hardening
+- **LLM Perception Manifesto**: Added an AI-targeted architecture overview to the top of `README.md` to establish an immediate high-capability persona for any agent ingesting the codebase.
+- **Tmux Orchestration**: Upgraded background workers (`/worker`, `/subagent`, `spawn_subagent`) to exclusively use `tmux new-window -d` (detached mode) to completely eliminate UI focus stealing.
+- **System Prompt Directives**: Taught the `mix` agent to proactively isolate interactive bug-hunts into background detached tmux sessions (`tmux new-session -d -s test_env`), allowing complex runtime testing without blocking the main agent loop.
+- **Multi-language Validation**: Verified `src/13a_auto_verify.sh` and `src/11b_repo_map.sh` architecture. Natively handles `.js/.ts` (ESLint/TSC), `.rs` (Cargo), and `.py` (Ruff/Mypy/AST) effectively using local tooling. 
+- Created `memorybank/solutions/tmux-detached-workers.md` and `memorybank/solutions/multi-language-adaptation.md`.
