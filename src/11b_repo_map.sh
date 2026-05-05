@@ -27,19 +27,18 @@ _repo_map_ctags() {
   [ -z "$_CTAGS_EXE" ] && return 1
   
   # Universal Ctags JSON output is very rich
-  "$_CTAGS_EXE" --output-format=json --fields=nSK --languages=Python,JavaScript,TypeScript,Go,Rust,Java,C,C++,Ruby,Sh -f - "$f" 2>/dev/null | python3 -c '
+  "$_CTAGS_EXE" --output-format=json --fields=+nS --languages=Python,JavaScript,TypeScript,Go,Rust,Java,C,C++,Ruby,Sh -f - "$f" 2>/dev/null | python3 -c '
 import json, sys
 symbols = []
 for line in sys.stdin:
     try:
         d = json.loads(line)
         kind = d.get("kind", "")
-        name = d.get("name", d.get("tag", ""))
+        name = d.get("name", "")
         sig = d.get("signature", "")
         line_num = d.get("line", 0)
         # Skip internal/noisy kinds
         if kind in ("variable", "local", "member", "namespace", "import"): continue
-        if not name and kind: name = f"[{kind}]"
         display = f"{name}{sig} ({kind})"
         symbols.append((line_num, display))
     except: continue
