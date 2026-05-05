@@ -266,15 +266,7 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       if [[ "$result" == Created* ]]; then
         local _cfp; _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
         if [ -f "$_cfp.next" ]; then
-           local _reviewed_content
-           _reviewed_content=$(review_hunks "$_cfp" "/dev/null" "$_cfp.next")
-           local _rev_ec=$?
-           if [ $_rev_ec -eq 0 ] && [ -n "$_reviewed_content" ]; then
-              printf '%s' "$_reviewed_content" > "$_cfp"
-           else
-              result="Creation aborted by user."
-           fi
-           rm -f "$_cfp.next"
+           mv "$_cfp.next" "$_cfp"
         fi
       fi
 
