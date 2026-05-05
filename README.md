@@ -58,7 +58,17 @@ Use your existing Copilot subscription — no extra key needed.
 /model claude-sonnet-4.5   # pick one
 ```
 
-Supported models include: `gpt-4o`, `gpt-4.1`, `claude-sonnet-4.6`, `claude-opus-4.7`, `gemini-3.1-pro-preview`, and more.
+### Google (AI Studio & Vertex AI)
+
+Supports Google AI Studio (API Key) and Google Cloud Vertex AI (gcloud auth).
+
+```
+/provider google login     # interactive setup (choose Studio or Vertex)
+/provider google           # activate for this session
+/model gemini-1.5-pro      # select model
+```
+
+For Vertex, ensure `gcloud` is installed and you have an active project. Preview models (e.g., `gemini-3`) automatically use the `global` region.
 
 To reset back to default:
 ```
