@@ -20,10 +20,10 @@ _ext_rebuild_tools() {
     
     if type "${_ext}_tool_schema" >/dev/null 2>&1; then
       local _schema
-      _schema=$(${_ext}_tool_schema 2>/dev/null)
+      _schema=$(${_ext}_tool_schema 2>/dev/null | python3 -c 'import json,sys;print(json.dumps(json.load(sys.stdin)))' 2>/dev/null)
       if [ -n "$_schema" ]; then
         if [ "$_first" = false ]; then
-          _new_json+=", "
+          _new_json+=","
         fi
         _new_json+="$_schema"
         _first=false
