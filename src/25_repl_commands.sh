@@ -478,7 +478,7 @@ handle_cmd() {
       elif [ -z "$_wname" ] || [ "$_wname" = "$_wargs" ]; then
         echo "  Usage: /worker <name> <command>"
       else
-        tmux new-window -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
+        tmux new-window -d -n "$_wname" "bash -c '$_wcmd; read -p done' " 2>/dev/null \
           && echo "  ↳ worker [$_wname] spawned" \
           || echo "  Failed to spawn worker."
       fi
@@ -497,7 +497,7 @@ handle_cmd() {
         _stmp=$(mktemp -t mix-$$-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
-        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
+        tmux new-window -d -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
           && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
           || echo "  Failed to spawn subagent."
       fi
