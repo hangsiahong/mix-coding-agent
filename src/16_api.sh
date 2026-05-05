@@ -25,23 +25,35 @@ print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
     [ -n "$_pkey" ] && _api_key="$_pkey"
   fi
 
-  # Build curl headers
-  local _curl_args=(-s -w "%{http_code}" --max-time 1800
-    "${BASE_URL}/chat/completions"
-    -H "Authorization: Bearer $_api_key"
-    -H "Content-Type: application/json")
-
-  # Provider extra headers
+  # Build curl headers — merge default + provider extras (null = suppress)
+  local _suppress_auth=false
+  local _extra_pairs=""
   if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
     local _pheaders; _pheaders=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
     if [ -n "$_pheaders" ]; then
-      while IFS= read -r _hk _hv; do
-        [ -n "$_hk" ] && _curl_args+=(-H "$_hk: $_hv")
-      done < <(printf '%s' "$_pheaders" | python3 -c '
+      _extra_pairs=$(printf '%s' "$_pheaders" | python3 -c '
 import json,sys
-for k,v in json.load(sys.stdin).items(): print(f"{k} {v}")
-' 2>/dev/null)
+for k,v in json.load(sys.stdin).items():
+    if v is None:
+        if k.lower()=="authorization": print("SUPPRESS_AUTH")
+    else:
+        print(f"{k}\t{v}")
+' 2>/dev/null) || true
+      echo "$_extra_pairs" | grep -q '^SUPPRESS_AUTH' && _suppress_auth=true
     fi
+  fi
+
+  local _curl_args=(-s -w "%{http_code}" --max-time 1800
+    "${BASE_URL}/chat/completions"
+    -H "Content-Type: application/json")
+  [ "$_suppress_auth" = "false" ] && _curl_args+=(-H "Authorization: Bearer $_api_key")
+
+  # Add provider extra headers (skip SUPPRESS_AUTH marker)
+  if [ -n "$_extra_pairs" ]; then
+    while IFS=$'\t' read -r _hk _hv; do
+      [ "$_hk" = "SUPPRESS_AUTH" ] && continue
+      [ -n "$_hk" ] && [ -n "$_hv" ] && _curl_args+=(-H "$_hk: $_hv")
+    done <<< "$_extra_pairs"
   fi
 
   local tmp; tmp=$(mktemp -t mix-XXXXXX)
