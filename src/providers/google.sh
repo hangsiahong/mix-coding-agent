@@ -90,6 +90,12 @@ google_activate() {
     [ -z "${MODEL:-}" ] && MODEL="gemini-2.5-pro"
     # Vertex OpenAI-compat needs 'google/' prefix in model field
     _GOOGLE_VERTEX_MODEL_PREFIX="google/"
+    # Store API key for Vertex (used via x-goog-api-key header)
+    local api_key="${GOOGLE_API_KEY:-}"
+    if [ -z "$api_key" ] && [ -f "$_GOOGLE_KEY_FILE" ]; then
+      api_key=$(cat "$_GOOGLE_KEY_FILE")
+    fi
+    API_KEY="$api_key"
     echo -e "  \033[38;5;82m✓\033[0m Google Vertex AI activated"
     echo "  Model: $MODEL | Project: $project_id | Region: $region"
     _mix_save_defaults
