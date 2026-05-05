@@ -18,7 +18,8 @@ for pf in src/providers/*.sh; do
   echo ""
 done >> mix.compiled
 
-cat \
+# Concatenate core files with newlines to prevent syntax corruption
+for f in \
     src/00_header.sh \
     src/01_config.sh \
     src/02_mixrc.sh \
@@ -56,12 +57,14 @@ cat \
     src/25_repl_commands.sh \
     src/29_telegram.sh \
     src/26a_test_commands.sh \
-    src/26_banner.sh >> mix.compiled
+    src/26_banner.sh; do
+  [ -f "$f" ] || continue
+  cat "$f"
+  echo ""
+done >> mix.compiled
 
 # Main REPL loop — MUST come last, since it blocks forever
 cat src/27_main_repl.sh >> mix.compiled
-
-# Safety: ensure newline at end of binary
 echo "" >> mix.compiled
 
 cp mix.compiled mix
