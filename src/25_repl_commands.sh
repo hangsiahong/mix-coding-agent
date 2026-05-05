@@ -759,7 +759,7 @@ AFK_WORKER_END
       chmod +x "$_worker_tmp"
 
       local _mytty; _mytty=$(tty 2>/dev/null || echo "")
-      tmux new-window -n "mix-afk" \
+      tmux new-window -d -n "mix-afk" \
         "bash '$_worker_tmp' '$_prompt_tmp' '$_apply_tmp' '$_plan_save' '$PWD' '$_mytty' '$_use_tg'; rm -f '$_prompt_tmp' '$_apply_tmp' '$_worker_tmp'" \
         2>/dev/null
       if [ $? -eq 0 ]; then
