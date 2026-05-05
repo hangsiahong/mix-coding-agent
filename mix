@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052210'
+MIX_VERSION='202605052238'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -931,6 +931,7 @@ case "${1:-}" in
     ;;
 esac
 
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 API_KEY="${KCONSOLE_API_KEY:-}"
 if [ -z "$API_KEY" ]; then
@@ -1057,6 +1058,7 @@ if [ "$PROVIDER" != "default" ]; then
   fi
 fi
 
+
 # ─── Project Overrides (.mixrc) ──────────────────────────────────────────────
 # Loads per-project settings from .mixrc file in WORKDIR.
 # Priority: env vars > .mixrc > ~/.mix/defaults
@@ -1164,6 +1166,7 @@ _mixrc_show() {
 
 # Load on source
 _mixrc_load
+
 # ─── Tmux bootstrap ──────────────────────────────────────────────
 # Auto-launch or attach a project-scoped tmux session.
 # Bypass with: MIX_NO_TMUX=1 mix
@@ -1177,6 +1180,7 @@ if [ -z "${TMUX:-}" ] && [ -t 0 ] && [ "${MIX_NO_TMUX:-}" != "1" ] \
     exec tmux new-session -s "$_MIX_SESSION" "$0" "$@"
   fi
 fi
+
 
 # ─── System Prompt (rebuilt on each call to pick up caveman mode changes) ────
 # Base prompt encodes Karpathy LLM-wiki pattern in caveman-compressed prose.
@@ -1417,12 +1421,14 @@ $(cat "$_skill" 2>/dev/null)
   printf '%s\n\n%s' "$base" "$cave_rules"
 }
 
+
 # ─── Project-local extensions ────────────────────────────────────────────────
 # Only source from ~/.mix/rc.sh — trusted user-controlled location.
 # Project-local .agent/rc.sh is NOT auto-sourced (untrusted working directory).
 if [ -f "$HOME/.mix/rc.sh" ]; then
   source "$HOME/.mix/rc.sh"
 fi
+
 
 # ─── Extension System ────────────────────────────────────────────────────────
 # Drop-in extensions from ~/.mix/extensions/ and .mix/extensions/
@@ -1669,6 +1675,7 @@ _ext_reload() {
 
 # Load on source
 _ext_load_all
+
 # ─── Pre-edit diff preview ──────────────────────────────────────────────────
 show_edit_diff() {
   local targs="$1"
@@ -1719,6 +1726,142 @@ for l in diff:
 ' 2>/dev/null || echo -e "    \033[0;90m(diff unavailable)\033[0m"
 }
 
+# ─── Interactive hunk review ───────────────────────────────────────────────
+# Returns 0 if accepted, 1 if rejected. 
+# If hunks are split, writes partially accepted content to stdout.
+review_hunks() {
+  local path="$1"
+  local old_file="$2"
+  local new_file="$3"
+  
+  # If not interactive or disabled, accept all
+  if [[ "${AGENT_INTERACTIVE_DIFF:-true}" != "true" ]] || [[ ! -t 0 ]] || [[ ! -t 1 ]]; then
+    cat "$new_file"
+    return 0
+  fi
+
+  # Create an empty file to compare if old_file doesn't exist
+  local _temp_old=""
+  if [ ! -f "$old_file" ]; then
+    _temp_old=$(mktemp)
+    old_file="$_temp_old"
+  fi
+
+  python3 -c '
+import sys, os, difflib, re
+
+path = sys.argv[1]
+old_p = sys.argv[2]
+new_p = sys.argv[3]
+
+with open(old_p, "r") as f: old_lines = f.readlines()
+with open(new_p, "r") as f: new_lines = f.readlines()
+
+diff = list(difflib.unified_diff(old_lines, new_lines, fromfile=path, tofile=path, n=3))
+if not diff:
+    with open(new_p, "r") as f: sys.stdout.write(f.read())
+    sys.exit(0)
+
+def get_hunks(diff):
+    hunks = []
+    current_hunk = []
+    for line in diff:
+        if line.startswith("@@"):
+            if current_hunk: hunks.append(current_hunk)
+            current_hunk = [line]
+        elif current_hunk:
+            current_hunk.append(line)
+    if current_hunk: hunks.append(current_hunk)
+    return hunks
+
+hunks = get_hunks(diff)
+if not hunks:
+    with open(new_p, "r") as f: sys.stdout.write(f.read())
+    sys.exit(0)
+
+accepted_hunks = []
+GRN, RED, DIM, RST, BOLD = "\033[0;32m", "\033[0;31m", "\033[0;90m", "\033[0m", "\033[1;37m"
+
+sys.stderr.write(f"\n{BOLD}Reviewing changes for {path}:{RST}\n")
+
+apply_all = False
+for i, hunk in enumerate(hunks):
+    if apply_all:
+        accepted_hunks.append(hunk)
+        continue
+
+    # Show hunk
+    for line in hunk:
+        if line.startswith("@@"):
+            sys.stderr.write(f"{DIM}{line.strip()}{RST}\n")
+        elif line.startswith("+"):
+            sys.stderr.write(f"{GRN}{line.rstrip()}{RST}\n")
+        elif line.startswith("-"):
+            sys.stderr.write(f"{RED}{line.rstrip()}{RST}\n")
+        else:
+            sys.stderr.write(f"{line.rstrip()}\n")
+    
+    while True:
+        sys.stderr.write(f"{BOLD}Accept hunk {i+1}/{len(hunks)}? [y,n,a,q,?] {RST}")
+        sys.stderr.flush()
+        # Read from /dev/tty to avoid consuming stdin
+        with open("/dev/tty", "r") as tty:
+            choice = tty.readline().strip().lower()
+        
+        if choice == "y":
+            accepted_hunks.append(hunk)
+            break
+        elif choice == "n":
+            break
+        elif choice == "a":
+            accepted_hunks.append(hunk)
+            apply_all = True
+            break
+        elif choice == "q":
+            sys.stderr.write("Aborting all changes.\n")
+            sys.exit(1)
+        elif choice == "?":
+            sys.stderr.write("y: accept hunk\nn: reject hunk\na: accept all remaining\nq: quit (reject all)\n")
+        else:
+            sys.stderr.write("Invalid choice.\n")
+
+if not accepted_hunks:
+    with open(old_p, "r") as f: sys.stdout.write(f.read())
+    sys.exit(0)
+
+# Re-construct file from accepted hunks using patch logic (simplified)
+# We use a temporary patch file and the "patch" command if available, 
+# but for zero-deps we can do it in python.
+# Simplified approach: If we rejected some hunks, we need to apply only some.
+# Better approach: Generate a new patch containing only accepted hunks.
+
+patch_lines = diff[:2] # Header
+for hunk in accepted_hunks:
+    patch_lines.extend(hunk)
+
+with open("hunk.patch", "w") as f:
+    f.writelines(patch_lines)
+
+# Apply patch to old_file and stream to stdout
+import subprocess
+try:
+    # Use patch command for robustness
+    subprocess.run(["patch", "-p0", "-o", "-", old_p, "hunk.patch"], stdout=sys.stdout, check=True, stderr=subprocess.DEVNULL)
+except:
+    # Fallback to applying manually if patch fails or not found (complex but needed for zero-deps)
+    # For now, let is assume patch exists or we fail.
+    # Actually, lets use a simpler python-based applier for basic hunks.
+    sys.stderr.write("Error applying patch. Defaulting to original.\n")
+    with open(old_p, "r") as f: sys.stdout.write(f.read())
+finally:
+    if os.path.exists("hunk.patch"): os.remove("hunk.patch")
+' "$path" "$old_file" "$new_file"
+  local _ec=$?
+  [ -n "$_temp_old" ] && rm -f "$_temp_old"
+  return $_ec
+}
+
+
 # ─── Auto-read logs on bash failure ─────────────────────────────────────────
 auto_read_logs() {
   local err="$1" log_ctx=""
@@ -1733,6 +1876,7 @@ auto_read_logs() {
   done <<< "$paths"
   printf '%s' "$log_ctx"
 }
+
 
 # ─── Session Persistence (/resume) ───────────────────────────────────────────
 # Saves session state on exit, restores on /resume.
@@ -1968,6 +2112,7 @@ session_hint() {
     echo -e "  \033[0;90mPrevious session found (${_SESSION_RESTORE_AGE}h ago). /resume to restore.\033[0m"
   fi
 }
+
 # ─── Environment Detection ──────────────────────────────────────────
 detect_env() {
   local info=""
@@ -1997,6 +2142,11 @@ detect_env() {
   command -v shellcheck >/dev/null 2>&1 && info+=" shellcheck"
   command -v ruff >/dev/null 2>&1 && info+=" ruff"
   command -v mypy >/dev/null 2>&1 && info+=" mypy"
+  command -v ctags >/dev/null 2>&1 && {
+    if ctags --version 2>/dev/null | grep -iq "Universal Ctags"; then
+      info+=" ctags(universal)"
+    fi
+  }
   ENV_INFO="${info# }"  # trim leading space
 }
 
@@ -2005,6 +2155,7 @@ detect_env
 # Try loading previous session (sets _SESSION_AVAILABLE=true if found)
 session_load 2>/dev/null
 session_hint
+
 # ─── Self-healing bash wrapper ───────────────────────────────────────────────
 run_with_heal() {
   local cmd="$1" out rc
@@ -2069,6 +2220,7 @@ $_diag"
 
   printf '%s' "$out"
 }
+
 
 # ─── Smart Failure Diagnostics ────────────────────────────────────────────────
 # After bash failure, analyze error output and inject structured diagnostics.
@@ -2200,6 +2352,7 @@ diagnose_failure() {
     printf '%s' "[DIAGNOSTIC]$hints"
   fi
 }
+
 # ─── Wiki solutions writer ────────────────────────────────────────────────────
 # Call after a successful task: write_wiki_solution "title" "problem" "fix" "cmd"
 write_wiki_solution() {
@@ -2220,8 +2373,74 @@ Date: %s
   fi
 }
 
+
+# ─── Proactive Memory ────────────────────────────────────────────────────────
+# Analyzes recent history to extract lessons and updates memorybank.
+
+proactive_memory() {
+  local input="$1"
+  local tools_used="$2"
+  
+  # Only trigger if tools were used and memorybank exists
+  [ "$tools_used" -le 0 ] && return
+  [ ! -d "$WORKDIR/memorybank" ] && return
+  
+  # Check if we should log based on history (e.g., success markers)
+  if printf '%s' "$HISTORY" | grep -q '"role": "tool", "content": "Edited'; then
+    local slug; slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
+    local sfile="$WORKDIR/memorybank/solutions/${slug}.md"
+    
+    # If solution file already exists, maybe append? For now, only create if new.
+    if [ ! -f "$sfile" ]; then
+      # Use a small reflection turn if possible, but for now just extract
+      local _summary; _summary=$(printf '%s' "$HISTORY" | python3 -c '
+import json,sys
+h=json.load(sys.stdin)
+content = ""
+for m in reversed(h):
+    if m.get("role")=="assistant" and m.get("content"):
+        content = m["content"][:1000]
+        break
+print(content)
+' 2>/dev/null || true)
+
+      mkdir -p "$WORKDIR/memorybank/solutions" 2>/dev/null
+      {
+        echo "# Task: $input"
+        echo "Date: $(date '+%Y-%m-%d')"
+        echo ""
+        echo "## Result"
+        echo "$_summary"
+        echo ""
+        echo "## Files Modified"
+        printf '%s' "$HISTORY" | python3 -c '
+import json,sys,re
+h=json.load(sys.stdin)
+files = set()
+for m in h:
+    if m.get("role")=="tool" and m.get("name")=="edit_file":
+        res = m.get("content","")
+        match = re.search(r"Edited ([^ ]+)", res)
+        if match: files.add(match.group(1))
+for f in sorted(files): print(f"- {f}")
+' 2>/dev/null
+      } > "$sfile"
+      
+      # Update log.md
+      printf '## [%s] ingest | %s\n' "$(date '+%Y-%m-%d')" "$input" >> "$WORKDIR/memorybank/log.md"
+      # Update index.md if it exists
+      if [ -f "$WORKDIR/memorybank/index.md" ]; then
+         printf '- [%s](solutions/%s.md): %s\n' "$input" "$slug" "$input" >> "$WORKDIR/memorybank/index.md"
+      fi
+      
+      echo -e "  \033[0;90m✓ Proactive memory logged to solutions/${slug}.md\033[0m"
+    fi
+  fi
+}
+
 # ─── Tools (OpenAI function calling) ────────────────────────────────────────
 TOOLS_JSON='[{"type":"function","function":{"name":"spawn_subagent","description":"Spawn a parallel mix LLM subagent in a new tmux window. Runs independently and logs to /tmp/<name>.log. Requires tmux.","parameters":{"type":"object","properties":{"name":{"type":"string","description":"Short identifier for the subagent window (no spaces)"},"task":{"type":"string","description":"Full task description to send to the subagent"}},"required":["name","task"]}}},{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"create_file","description":"Create a new file with given content. Fails if file already exists — use edit_file to modify existing files.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"},"content":{"type":"string","description":"Full file content"}},"required":["path","content"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace in existing file. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}},{"type":"function","function":{"name":"search_files","description":"Search file contents by regex pattern (grep -rn). Returns matching lines with file:line context.","parameters":{"type":"object","properties":{"pattern":{"type":"string","description":"Regex search pattern"},"path":{"type":"string","description":"Absolute directory or file path to search in"}},"required":["pattern","path"]}}},{"type":"function","function":{"name":"update_global_memory","description":"Append or update a note in ~/.mix/memory.md — persistent cross-project memory. Use proactively to record user preferences, recurring patterns, useful tricks, and lessons learned. Short bullet points.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["append","replace"],"description":"append: add new bullet to end. replace: find old_text and replace with new_text."},"content":{"type":"string","description":"For append: the new bullet text. For replace: the replacement text."},"old_text":{"type":"string","description":"For replace only: exact text to find."}},"required":["action","content"]}}}]'
+
 
 # ─── History ─────────────────────────────────────────────────────────────────
 HISTORY='[]'
@@ -2275,6 +2494,7 @@ print(json.dumps(h))
 
   printf '%s' "$hist"
 }
+
 
 # ─── File Content Cache ──────────────────────────────────────────────────────
 # Session-scoped file content cache. Survives history compaction.
@@ -2422,18 +2642,57 @@ if result_parts:
     print("\n\n".join(result_parts))
 ' "$_ordered_paths" "$_budget" "$_max_files" "$_per_file" 2>/dev/null
 }
+
 # ─── Repo Map (codebase structural awareness) ────────────────────────────────
 # Generates a compressed map of the codebase injected into the system prompt.
 # Eliminates 2-3 "orientation" tool calls per task — agent knows file layout,
 # function signatures, and class structure without reading files.
 #
-# Strategy: regex-based extraction. No tree-sitter, no deps, no pip.
+# Strategy: regex-based extraction with ctags fallback.
 # Gets 80% of Aider's repo-map value for 5% of the code.
 
 _REPO_MAP=""
 _REPO_MAP_MTIMES=""   # "file:mtime:file:mtime:..." for invalidation
 _REPO_MAP_TIME=0      # epoch seconds when map was built
 _REPO_MAP_TTL=600     # rebuild every 10 minutes
+_CTAGS_EXE=""
+
+# Detect ctags once
+_detect_ctags() {
+  if [ -n "$_CTAGS_EXE" ]; then return; fi
+  if command -v ctags >/dev/null 2>&1; then
+    if ctags --version 2>/dev/null | grep -iq "Universal Ctags"; then
+      _CTAGS_EXE=$(command -v ctags)
+    fi
+  fi
+}
+
+_repo_map_ctags() {
+  local f="$1"
+  [ -z "$_CTAGS_EXE" ] && return 1
+  
+  # Universal Ctags JSON output is very rich
+  "$_CTAGS_EXE" --output-format=json --fields=+nS --languages=Python,JavaScript,TypeScript,Go,Rust,Java,C,C++,Ruby,Sh -f - "$f" 2>/dev/null | python3 -c '
+import json, sys
+symbols = []
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        kind = d.get("kind", "")
+        name = d.get("name", "")
+        sig = d.get("signature", "")
+        line_num = d.get("line", 0)
+        # Skip internal/noisy kinds
+        if kind in ("variable", "local", "member", "namespace", "import"): continue
+        display = f"{name}{sig} ({kind})"
+        symbols.append((line_num, display))
+    except: continue
+# Sort by line number
+symbols.sort()
+for l, s in symbols[:20]:
+    print(f"  {s}")
+'
+}
 
 # Patterns per language — extract structural lines
 # Each: "extension:pattern:label"
@@ -2478,6 +2737,7 @@ _build_skip_find() {
 
 # Build the repo map string
 build_repo_map() {
+  _detect_ctags
   # Check cache validity
   local _now; _now=$(date +%s 2>/dev/null || echo 0)
   local _age=$(( _now - _REPO_MAP_TIME ))
@@ -2561,17 +2821,23 @@ ${_collapsed}"
     if [ "$_lines" -gt 500 ]; then
       _struct="  ($_lines lines)"
     else
-      local _pat=""
-      for _pp in "${_REPO_MAP_PATTERNS[@]}"; do
-        local _pext="${_pp%%:*}"; local _rest="${_pp#*:}"
-        if [ "$_ext" = "$_pext" ]; then
-          _pat="${_rest%%:*}"
-          break
-        fi
-      done
+      if [ -n "$_CTAGS_EXE" ]; then
+        _struct=$(_repo_map_ctags "$f")
+      fi
 
-      if [ -n "$_pat" ]; then
-        _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -20 | sed 's/^/  /')
+      if [ -z "$_struct" ]; then
+        local _pat=""
+        for _pp in "${_REPO_MAP_PATTERNS[@]}"; do
+          local _pext="${_pp%%:*}"; local _rest="${_pp#*:}"
+          if [ "$_ext" = "$_pext" ]; then
+            _pat="${_rest%%:*}"
+            break
+          fi
+        done
+
+        if [ -n "$_pat" ]; then
+          _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -20 | sed 's/^/  /')
+        fi
       fi
     fi
 
@@ -2639,6 +2905,7 @@ repo_map_invalidate() {
   _REPO_MAP_MTIMES=""
   _REPO_MAP_TIME=0
 }
+
 # ─── Auto-compact history ────────────────────────────────────────────────────
 # When history exceeds MAX_HIST_MSGS, ask the model to summarize old messages,
 # then replace them with a single context message + keep last 10 turns verbatim.
@@ -2843,6 +3110,7 @@ append_text() {
   append_raw "{\"role\":\"$role\",\"content\":$escaped}"
 }
 
+
 # ─── Tool Execution ─────────────────────────────────────────────────────────
 
 # Sandbox path guard — in sandbox mode, file tools are restricted to mounted paths only.
@@ -2955,7 +3223,7 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
         fi
       fi
       result=$(python3 -c "
-import sys, re
+import sys, re, os
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
 content=open(p).read()
 
@@ -2965,7 +3233,6 @@ def normalize(s):
 def strip_indent(s):
     return '\n'.join(line.lstrip() for line in s.split('\n'))
 
-# Suggestion context for edit failures — helps model self-correct without re-reading
 def suggest_context(content, old_text, reason):
     lines = content.split(chr(10))
     o_lines = old_text.strip().split(chr(10))
@@ -2998,72 +3265,95 @@ def suggest_context(content, old_text, reason):
             suggestions.append(f'File starts with:{chr(10)}{ctx}')
     if suggestions:
         combined = chr(10).join(suggestions)[:500]
-        print(chr(10) + '[SUGGESTION] ' + combined)
+        sys.stderr.write(chr(10) + '[SUGGESTION] ' + combined + chr(10))
+
+new_content = None
+msg = ''
 
 # 1. Exact match
 count=content.count(o)
 if count == 1:
-    open(p,'w').write(content.replace(o,n,1))
-    print('Edited '+p)
-    sys.exit(0)
-if count > 1:
+    new_content = content.replace(o,n,1)
+    msg = 'Edited '+p
+elif count > 1:
     print('Error: old_text not unique ('+str(count)+' matches) in '+p)
     suggest_context(content, o, 'not unique')
     sys.exit(0)
+else:
+    # 2. Fuzzy match
+    nc = normalize(content)
+    no = normalize(o)
+    if no in nc:
+        fcount = nc.count(no)
+        if fcount == 1:
+            new_content = nc.replace(no, normalize(n), 1)
+            msg = 'Edited '+p+' (fuzzy whitespace match)'
+        elif fcount > 1:
+            print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
+            suggest_context(content, o, 'not unique')
+            sys.exit(0)
+    else:
+        # 3. Indent-agnostic match
+        sc = strip_indent(nc)
+        so = strip_indent(no)
+        icount = sc.count(so)
+        if icount == 1:
+            idx = sc.index(so)
+            start_line = sc[:idx].count('\n')
+            match_lines = so.count('\n') + 1
+            nc_lines = nc.split('\n')
+            new_nc = nc_lines[:start_line] + [normalize(n)] + nc_lines[start_line + match_lines:]
+            new_content = '\n'.join(new_nc)
+            msg = 'Edited '+p+' (fuzzy indent match)'
+        else:
+            # 4. Fallback: Block Header/Footer Anchor match
+            o_lines = [l.strip() for l in no.split('\n') if l.strip()]
+            if len(o_lines) > 2:
+                first, last = o_lines[0], o_lines[-1]
+                nc_lines = nc.split('\n')
+                matches = []
+                for i, line in enumerate(nc_lines):
+                    if first in line:
+                        for j in range(i + 1, min(i + len(o_lines) + 10, len(nc_lines))):
+                            if last in nc_lines[j]:
+                                matches.append((i, j))
+                if len(matches) == 1:
+                    i, j = matches[0]
+                    new_nc = nc_lines[:i] + [normalize(n)] + nc_lines[j+1:]
+                    new_content = '\n'.join(new_nc)
+                    msg = 'Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')'
 
-# 2. Fuzzy match: normalize trailing whitespace + line endings
-nc = normalize(content)
-no = normalize(o)
-if no in nc:
-    fcount = nc.count(no)
-    if fcount == 1:
-        # We apply the edit to the normalized version. 
-        # This is safe because normalize() only removes \r and trailing spaces.
-        open(p,'w').write(nc.replace(no, normalize(n), 1))
-        print('Edited '+p+' (fuzzy whitespace match)')
-        sys.exit(0)
-    if fcount > 1:
-        print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
-        suggest_context(content, o, 'not unique')
-        sys.exit(0)
-
-# 3. Indent-agnostic match
-sc = strip_indent(nc)
-so = strip_indent(no)
-icount = sc.count(so)
-if icount == 1:
-    idx = sc.index(so)
-    start_line = sc[:idx].count('\n')
-    match_lines = so.count('\n') + 1
-    nc_lines = nc.split('\n')
-    new_nc = nc_lines[:start_line] + [normalize(n)] + nc_lines[start_line + match_lines:]
-    open(p,'w').write('\n'.join(new_nc))
-    print('Edited '+p+' (fuzzy indent match)')
-    sys.exit(0)
-
-# 4. Fallback: Block Header/Footer Anchor match
-# If old_text has multiple lines, try matching first and last lines uniquely
-o_lines = [l.strip() for l in no.split('\n') if l.strip()]
-if len(o_lines) > 2:
-    first, last = o_lines[0], o_lines[-1]
-    nc_lines = nc.split('\n')
-    matches = []
-    for i, line in enumerate(nc_lines):
-        if first in line:
-            # Look ahead for the last line within a reasonable range (len(o_lines) + 10)
-            for j in range(i + 1, min(i + len(o_lines) + 10, len(nc_lines))):
-                if last in nc_lines[j]:
-                    matches.append((i, j))
-    if len(matches) == 1:
-        i, j = matches[0]
-        new_nc = nc_lines[:i] + [normalize(n)] + nc_lines[j+1:]
-        open(p,'w').write('\n'.join(new_nc))
-        print('Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')')
-        sys.exit(0)
-
-print('Error: old_text not found in '+p)
-suggest_context(content, o, 'not found')
+if new_content is not None:
+    # Write potential new content to a temp file for bash to handle
+    with open(p + '.next', 'w') as f:
+        f.write(new_content)
+    print(msg)
+else:
+    print('Error: old_text not found in '+p)
+    suggest_context(content, o, 'not found')
 " "$path" "$old_text" "$new_text")
+
+      if [[ "$result" == Edited* ]] && [ -f "$path.next" ]; then
+        # Hunk review
+        local _reviewed_content
+        _reviewed_content=$(review_hunks "$path" "$path" "$path.next")
+        local _rev_ec=$?
+        
+        if [ $_rev_ec -eq 0 ]; then
+           # If reviewed content is same as original, it means user rejected all or it was same
+           local _orig_md5; _orig_md5=$(md5sum "$path" | cut -d' ' -f1)
+           printf '%s' "$_reviewed_content" > "$path"
+           local _new_md5; _new_md5=$(md5sum "$path" | cut -d' ' -f1)
+           
+           if [ "$_orig_md5" == "$_new_md5" ]; then
+             result="Edit rejected by user (no hunks applied)."
+           fi
+        else
+           result="Edit aborted by user."
+        fi
+        rm -f "$path.next"
+      fi
+
       # Update file cache after successful edit
       if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
         local _new_content; _new_content=$(cat "$path" 2>/dev/null) || true
@@ -3096,10 +3386,28 @@ p=d["path"]
 if os.path.exists(p):
     print("Error: file already exists: "+p+" (use edit_file to modify)")
     sys.exit(0)
+# Instead of writing, we write to .next
 os.makedirs(os.path.dirname(p) or ".",exist_ok=True)
-open(p,"w").write(d["content"])
+with open(p + ".next", "w") as f:
+    f.write(d["content"])
 print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
 ' 2>/dev/null) || result="Error: bad args"
+      
+      if [[ "$result" == Created* ]]; then
+        local _cfp; _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
+        if [ -f "$_cfp.next" ]; then
+           local _reviewed_content
+           _reviewed_content=$(review_hunks "$_cfp" "/dev/null" "$_cfp.next")
+           local _rev_ec=$?
+           if [ $_rev_ec -eq 0 ] && [ -n "$_reviewed_content" ]; then
+              printf '%s' "$_reviewed_content" > "$_cfp"
+           else
+              result="Creation aborted by user."
+           fi
+           rm -f "$_cfp.next"
+        fi
+      fi
+
       # Cache newly created file
       if [[ "$result" == Created* ]]; then
         local _cfp _cfc
@@ -3175,6 +3483,7 @@ else:
   [ -z "$result" ] && result="(no output)"
   printf '%s' "$result"
 }
+
 
 # ─── Auto-Verify (post-edit verification) ────────────────────────────────────
 # After edit_file/create_file succeeds, auto-run verification:
@@ -3377,6 +3686,7 @@ auto_verify() {
   fi
   # If all passed and no warnings, return empty (don't clutter output)
 }
+
 # ─── Risk Scoring: BLOCKED | HIGH | MED | LOW <reason> ──────────────────────
 # Usage: read -r _risk _reason <<< "$(score_risk "$cmd")"
 score_risk() {
@@ -3425,6 +3735,7 @@ score_risk() {
   echo "LOW ok"
 }
 
+
 # ─── Ask user for confirmation (reads from /dev/tty, not stdin) ─────────────
 confirm() {
   local prompt="$1"
@@ -3436,6 +3747,7 @@ confirm() {
     *) return 0 ;;
   esac
 }
+
 
 # ─── API ─────────────────────────────────────────────────────────────────────
 call_api() {
@@ -3515,6 +3827,7 @@ for k,v in json.load(sys.stdin).items():
   printf '%s' "$body"
 }
 
+
 # ─── Response Parser ─────────────────────────────────────────────────────────
 # Returns lines:
 #   RAW:<base64 of assistant message object>
@@ -3537,6 +3850,7 @@ else:
   print("TEXT:(empty)")
 ' 2>/dev/null || echo "FAIL:parse"
 }
+
 
 # ─── Streaming API call ───────────────────────────────────────────────────────
 # Streams content tokens live to /dev/tty. Returns same RAW/TC/TEXT format.
@@ -3789,6 +4103,7 @@ sys.stdout.flush()
   printf '%s' "$result"
 }
 
+
 # ─── Spinner (background process) ────────────────────────────────────────────
 _SPIN_PID=""
 start_spinner() {
@@ -3817,6 +4132,7 @@ stop_spinner() {
   _SPIN_PID=""
   [ "$INTERACTIVE" = false ] && printf "\r\033[K" >&2 || printf "\r\033[K" >/dev/tty 2>/dev/null
 }
+
 
 # ─── Context window % bar ─────────────────────────────────────────────────────
 ctx_bar() {
@@ -3847,6 +4163,7 @@ ctx_bar() {
   return 0
 }
 
+
 # ─── Tmux status updater ──────────────────────────────────────────────────────
 tmux_update() {
   [ -z "$TMUX" ] && return
@@ -3872,6 +4189,7 @@ tmux_update() {
     " #[fg=white,bold]mix#[nobold] #[fg=cyan]${MODEL}${branch_str}${mode_str}${tool_str} #[fg=white]| ctx ${ctx_color}${pct}%#[fg=white] #[default]" \
     2>/dev/null || true
 }
+
 
 
 # ─── Process one tool call ──────────────────────────────────────────────────
@@ -4131,6 +4449,7 @@ $_rh"
   fi
 }
 
+
 # ─── Lightweight planning call (plan mode) ───────────────────────────────────
 call_api_plan() {
   local payload
@@ -4158,6 +4477,7 @@ print(json.dumps({"model":m,"messages":msg}))
   [ "$code" = "200" ] && printf '%s' "$body" | python3 -c \
     'import json,sys; print(json.load(sys.stdin)["choices"][0]["message"].get("content",""))' 2>/dev/null || true
 }
+
 
 # ─── Agent Loop (one user turn → multi-turn tool use → final answer) ────────
 run_agent() {
@@ -4349,36 +4669,11 @@ run_agent() {
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
   ctx_bar       # show context window usage after every agent turn
   tmux_update   # refresh tmux status bar
-  # Auto-append to memorybank/log.md if memorybank exists and tools were used
-  if [ "$_TOOLS_USED" -gt 0 ] && [ -f "$WORKDIR/memorybank/log.md" ]; then
-    printf '\n## [%s] task | %s\n' "$(date '+%Y-%m-%d')" "${input:0:80}" \
-      >> "$WORKDIR/memorybank/log.md" 2>/dev/null || true
-  fi
-  # Auto memorybank solution: if edit succeeded in git repo, look for "committed" marker in history
-  if [ "$_TOOLS_USED" -gt 0 ] && [ "$GIT_ENABLED" = true ] && \
-     [ -d "$WORKDIR/memorybank" ] && printf '%s' "$HISTORY" | grep -q '"committed"'; then
-    local _slug; _slug=$(printf '%s' "$input" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)
-    local _sfile="$WORKDIR/memorybank/solutions/${_slug}.md"
-    if [ ! -f "$_sfile" ]; then
-      # Extract last assistant text for a meaningful summary
-      local _last_answer; _last_answer=$(printf '%s' "$HISTORY" | python3 -c '
-import json,sys
-h=json.load(sys.stdin)
-for m in reversed(h):
-  if m.get("role")=="assistant" and m.get("content"):
-    print(m["content"][:500]); break
-' 2>/dev/null || true)
-      mkdir -p "$WORKDIR/memorybank/solutions" 2>/dev/null || true
-      {
-        printf '# %s\n' "$_slug"
-        printf 'Date: %s\n' "$(date '+%Y-%m-%d')"
-        printf 'Input: %s\n' "${input:0:200}"
-        [ -n "$_last_answer" ] && printf '\n## Summary\n%s\n' "$_last_answer"
-      } > "$_sfile" 2>/dev/null || true
-      echo -e "  \033[0;90m✓ memorybank/solutions/${_slug}.md\033[0m"
-    fi
-  fi
+
+  # Proactive memory: auto-log lessons learned
+  proactive_memory "$input" "$_TOOLS_USED"
 }
+
 
 # ─── Sandbox ─────────────────────────────────────────────────────────────────
 # Full container-level isolation via Linux namespaces + cgroup v2.
@@ -4865,6 +5160,7 @@ sandbox_cmd_off() {
   rm -f "$_marker" 2>/dev/null || true
   echo -e "  \033[0;90m○\033[0m Sandbox disabled and unpinned from this workspace."
 }
+
 # ─── REPL Commands ──────────────────────────────────────────────────────────
 handle_cmd() {
   # Extensions get first crack at commands
@@ -4937,6 +5233,11 @@ handle_cmd() {
       echo "  Tools used:     $_TOOLS_USED"
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
       echo "  History msgs:   $_hist_n"
+      ;;
+    /repomap)
+      echo -e "  \033[1;37mRepo Map:\033[0m"
+      build_repo_map
+      echo ""
       ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
@@ -5754,6 +6055,7 @@ for u in reversed(data.get("result",[])):
   printf '\n'
   printf '  \033[38;5;82m✓ Setup complete! Run /afk anytime.\033[0m\n'
 }
+
 # ─── Test Generation Commands (/test) ──────────────────────────────────────
 
 # Detect test framework for the project. Returns: framework|runner_cmd|config_file|test_dir_pattern|file_ext
@@ -6322,6 +6624,7 @@ _test_coverage() {
     echo "    No source files found."
   fi
 }
+
 # ─── Sandbox startup detection (must run before banner so 🔒 shows) ─────────
 # Parse --sandbox flag
 for _arg in "$@"; do
@@ -6421,6 +6724,7 @@ if [ -n "$TMUX" ]; then
   echo -e "    \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd>  │  /workers\033[0m"
   echo ""
 fi
+
 
 if [ -t 0 ]; then
   INTERACTIVE=true
@@ -6887,3 +7191,4 @@ print(re.sub(r"\[paste _([a-zA-Z0-9_]+): [^\]]+\]", repl, out), end="")
   # Piped mode: exit after processing one task
   [ "$INTERACTIVE" = false ] && break
 done
+
