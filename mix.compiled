@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605060012'
+MIX_VERSION='202605060020'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -983,6 +983,18 @@ if _nf_supported; then
   I_COMMIT="󰜘"   # nf-md-source_commit (git commit)
   I_DIFF="╌"      # keep as-is (Unicode box drawing, not emoji)
   I_YOLO="󰀨"     # nf-md-flash (was ⚡ yolo flag)
+  # Battery icons — indexed by 0-10 (pct/10), used by ctx_bar
+  I_BAT_0="󰁺"    # 0%
+  I_BAT_1="󰁻"    # 10%
+  I_BAT_2="󰁼"    # 20%
+  I_BAT_3="󰁽"    # 30%
+  I_BAT_4="󰁽"    # 40%
+  I_BAT_5="󰁾"    # 50%
+  I_BAT_6="󰁿"    # 60%
+  I_BAT_7="󰂀"    # 70%
+  I_BAT_8="󰂁"    # 80%
+  I_BAT_9="󰂂"    # 90%
+  I_BAT_10="󰁹"   # 100%
 else
   # Emoji fallback — works everywhere
   I_TOOL="⚡"
@@ -1011,6 +1023,18 @@ else
   I_COMMIT="↳"
   I_DIFF="╌"
   I_YOLO="⚡"
+  # Battery icons — fallback: use text bar characters
+  I_BAT_0="  ──────────────────"
+  I_BAT_1="━ ─────────────────"
+  I_BAT_2="━━ ────────────────"
+  I_BAT_3="━━━ ───────────────"
+  I_BAT_4="━━━━ ──────────────"
+  I_BAT_5="━━━━━ ─────────────"
+  I_BAT_6="━━━━━━ ────────────"
+  I_BAT_7="━━━━━━━ ───────────"
+  I_BAT_8="━━━━━━━━ ──────────"
+  I_BAT_9="━━━━━━━━━ ─────────"
+  I_BAT_10="━━━━━━━━━━ ────────"
 fi
 
 # ─── Config ──────────────────────────────────────────────────────────────────
@@ -4091,22 +4115,24 @@ ctx_bar() {
   local est_tokens=$(( total_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
-  local filled=$(( pct * 20 / 100 )) i bar=""
-  for ((i=0; i<filled; i++)); do bar+="━"; done
-  for ((i=filled; i<20; i++)); do bar+="─"; done
   local color="\033[0;32m"
   [ "$pct" -gt 70 ] && color="\033[0;33m"
   [ "$pct" -gt 90 ] && color="\033[0;31m"
   local ktok=$(( est_tokens / 1000 ))
+  # Battery icon: index 0-10
+  local bat_idx=$(( pct / 10 ))
+  [ "$bat_idx" -gt 10 ] && bat_idx=10
+  local bat_icon
+  eval "bat_icon=\${I_BAT_${bat_idx}:-}"
   printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
-    "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
+    "$color" "$bat_icon" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
   if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
     local _total_tok=$(( _SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS ))
     local _total_str; _total_str=$(_fmt_tok $_total_tok)
     local _cache_str=""
     if [ "${_SESSION_CACHE_TOKENS:-0}" -gt 0 ] && [ "${_SESSION_PROMPT_TOKENS:-0}" -gt 0 ]; then
       local _cache_pct=$(( _SESSION_CACHE_TOKENS * 100 / _SESSION_PROMPT_TOKENS ))
-      _cache_str=" · \033[38;5;183m${_cache_pct}%% cached\033[0m"
+      _cache_str=" · \033[38;5;183m${_cache_pct}% cached\033[0m"
     fi
     printf '  \033[38;5;183m│ session: %s calls, ~%s tokens used%b\033[0m\n' \
       "${_SESSION_API_CALLS}" "$_total_str" "$_cache_str"
