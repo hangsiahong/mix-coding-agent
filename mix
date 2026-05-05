@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052329'
+MIX_VERSION='202605052331'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1782,7 +1782,7 @@ print(json.dumps(filtered))
   local _branch=""
   [ "$GIT_ENABLED" = true ] && _branch=$(git -C "$WORKDIR" branch --show-current 2>/dev/null || echo "?")
 
-  local _sess_tmp; _sess_tmp=$(mktemp -t mix-session-XXXXXX)
+  local _sess_tmp; _sess_tmp=$(mktemp -t mix-$$-session-XXXXXX)
   python3 -c '
 import json, sys, os, time
 data = {
@@ -1832,7 +1832,7 @@ session_load() {
   }
 
   # Extract fields via python3 → base64-encoded shell vars in temp file
-  local _sess_tmp; _sess_tmp=$(mktemp -t mix-sess-load-XXXXXX)
+  local _sess_tmp; _sess_tmp=$(mktemp -t mix-$$-sess-load-XXXXXX)
   python3 -c '
 import json, sys, time, base64
 
@@ -2391,7 +2391,7 @@ file_cache_put() {
   _flines=$(printf '%s' "$_fc" | wc -l)
 
   # Write content to temp file, pass cache + path + temp via argv
-  local _ctmp; _ctmp=$(mktemp -t mix-fc-XXXXXX)
+  local _ctmp; _ctmp=$(mktemp -t mix-$$-fc-XXXXXX)
   printf '%s' "$_fc" > "$_ctmp"
 
   _FILE_CACHE=$(python3 -c '
@@ -2792,8 +2792,8 @@ compact_history() {
   local _compact_model="$MODEL"
   [ -n "${_GOOGLE_VERTEX_MODEL_PREFIX:-}" ] && _compact_model="${_GOOGLE_VERTEX_MODEL_PREFIX}${MODEL}"
 
-  local _payload_tmp; _payload_tmp=$(mktemp -t mix-compact-XXXXXX)
-  local _hist_tmp; _hist_tmp=$(mktemp -t mix-hist-XXXXXX)
+  local _payload_tmp; _payload_tmp=$(mktemp -t mix-$$-compact-XXXXXX)
+  local _hist_tmp; _hist_tmp=$(mktemp -t mix-$$-hist-XXXXXX)
   # Sanitize history for current provider (strips thought_sig cross-provider)
   local _hist_for_compact
   _hist_for_compact=$(_apply_provider_history_filter "$HISTORY") || _hist_for_compact="$HISTORY"
@@ -2859,7 +2859,7 @@ for k,v in json.load(sys.stdin).items():
   _spinner_anim "$count" &
   _spinner_pid=$!
 
-  local _resp_tmp; _resp_tmp=$(mktemp -t mix-compact-resp-XXXXXX)
+  local _resp_tmp; _resp_tmp=$(mktemp -t mix-$$-compact-resp-XXXXXX)
   local code
   code=$(curl "${_curl_args[@]}" -o "$_resp_tmp" -d "@$_payload_tmp" 2>/dev/null) || true
   rm -f "$_payload_tmp"
@@ -2877,7 +2877,7 @@ for k,v in json.load(sys.stdin).items():
 
   local summary
   local _py_err
-  _py_err=$(mktemp -t mix-compact-err-XXXXXX)
+  _py_err=$(mktemp -t mix-$$-compact-err-XXXXXX)
   summary=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1],"rb")); print(d["choices"][0]["message"]["content"])' "$_resp_tmp" 2>"$_py_err")
   local _py_rc=$?
   if [ -z "$summary" ] || [ $_py_rc -ne 0 ]; then
@@ -3062,7 +3062,7 @@ $result"
       file_cache_put "$path" "$result" 2>/dev/null || true
       ;;
     edit_file)
-      local _ea_dir; _ea_dir=$(mktemp -d -t mix-XXXXXX)
+      local _ea_dir; _ea_dir=$(mktemp -d -t mix-$$-XXXXXX)
       printf '%s' "$args" | python3 -c '
 import json,sys,os
 d=json.load(sys.stdin);b=sys.argv[1]
@@ -3311,7 +3311,7 @@ else:
       elif [ -z "$_sa_name" ] || [ -z "$_sa_task" ]; then
         result="Error: name and task are required"
       else
-        _sa_tmp=$(mktemp -t mix-XXXXXX)
+        _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
         tmux new-window -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m✓ Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
@@ -3658,7 +3658,7 @@ for k,v in json.load(sys.stdin).items():
     done <<< "$_extra_pairs"
   fi
 
-  local tmp; tmp=$(mktemp -t mix-XXXXXX)
+  local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
   code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
@@ -3738,7 +3738,7 @@ print(json.dumps(body))
     [ -n "$_ph" ] && _extra_headers="$_ph"
   fi
 
-  local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
+  local tmp_out; tmp_out=$(mktemp -t mix-$$-XXXXXX)
   
   BASE_URL="$BASE_URL" API_KEY="$_api_key" EXTRA_HEADERS="$_extra_headers" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
 import json,sys,base64,os,re,urllib.request,urllib.error
@@ -4331,7 +4331,7 @@ msg=[{"role":"system","content":s}]+h
 msg.append({"role":"user","content":"List your plan as a numbered list (3-7 steps) before acting. Be concise."})
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || return 1
-  local tmp; tmp=$(mktemp -t mix-XXXXXX)
+  local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 30 \
     "${BASE_URL}/chat/completions" \
@@ -4395,10 +4395,10 @@ run_agent() {
           _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
           _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         fi
-        if [[ "$parsed" == FAIL:network_drop* ]]; then
+        if [[ "$parsed" == FAIL:* ]]; then
           [ "$INTERACTIVE" = false ] \
-            && echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
-            || echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
+            && echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
+            || echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
           start_spinner "turn $turn (retry $_api_attempt)"
           local resp; resp=$(call_api)
           if [[ "$resp" == FAIL:* ]]; then
@@ -4462,7 +4462,7 @@ run_agent() {
       # 2. Parallel tools run in subshells, results captured in temp files.
       # 3. Write tools run sequentially.
 
-      local _batch_dir; _batch_dir=$(mktemp -d -t mix-batch-XXXXXX)
+      local _batch_dir; _batch_dir=$(mktemp -d -t mix-$$-batch-XXXXXX)
       local _tc_idx=0
       local _parallel_refs=() # format "idx|tid|tname"
       local _sequential_tcs=()
@@ -5536,7 +5536,7 @@ handle_cmd() {
       else
         # Write task to a temp file to avoid quote escaping issues when passing to tmux
         local _stmp _mytty
-        _stmp=$(mktemp -t mix-XXXXXX)
+        _stmp=$(mktemp -t mix-$$-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
         tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
@@ -5603,9 +5603,9 @@ $(cat "$_plan_save")"
       fi
 
       local _plan_save="${HOME}/.mix/afk-plan.md"
-      local _apply_tmp; _apply_tmp=$(mktemp -t mix-afk-apply-XXXXXX)
-      local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-afk-prompt-XXXXXX)
-      local _worker_tmp; _worker_tmp=$(mktemp -t mix-afk-worker-XXXXXX)
+      local _apply_tmp; _apply_tmp=$(mktemp -t mix-$$-afk-apply-XXXXXX)
+      local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-$$-afk-prompt-XXXXXX)
+      local _worker_tmp; _worker_tmp=$(mktemp -t mix-$$-afk-worker-XXXXXX)
 
       if [ -n "$_afk_hint" ]; then
         # Custom prompt mode: user provided a task/direction
@@ -6364,8 +6364,8 @@ _test_generate_bg() {
 Rules: descriptive test names, independent tests, 3-5 per file minimum."
 
   # Use the same subagent pattern as /afk
-  local _worker_tmp; _worker_tmp=$(mktemp -t mix-testgen-XXXXXX.sh)
-  local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-testgen-XXXXXX.txt)
+  local _worker_tmp; _worker_tmp=$(mktemp -t mix-$$-testgen-XXXXXX.sh)
+  local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-$$-testgen-XXXXXX.txt)
   printf '%s' "$_bg_prompt" > "$_prompt_tmp"
 
   local MIX_BIN; MIX_BIN=$(command -v mix 2>/dev/null || echo "./mix")
@@ -6622,7 +6622,7 @@ esac
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
-trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-* 2>/dev/null; exit' EXIT TERM HUP
+trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-$$-* 2>/dev/null; exit' EXIT TERM HUP
 
 # ─── Autocomplete ─────────────────────────────────────────────
 
@@ -6630,7 +6630,7 @@ if [ "$INTERACTIVE" = true ]; then
   _TAB_IDX=0
   _TAB_LAST_WORD=""
   _TAB_LAST_PRE=""
-  _TAB_STATE_FILE=$(mktemp -t mix-tab-XXXXXX 2>/dev/null) || _TAB_STATE_FILE="/tmp/mix-tab-$$"
+  _TAB_STATE_FILE=$(mktemp -t mix-$$-tab-XXXXXX 2>/dev/null) || _TAB_STATE_FILE="/tmp/mix-tab-$$"
   printf '%s\n' "0" "" "" "" > "$_TAB_STATE_FILE"
 
   _mix_bind_tab() {
