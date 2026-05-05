@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052331'
+MIX_VERSION='202605052349'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1223,41 +1223,11 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 Suggest loading a skill if it matches the current task difficulty.
 
 ## WIKI PATTERN
-Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
-
-LAYERS:
-  raw/          immutable sources. Read only, never modify.
-  memorybank/   you own. LLM-maintained markdown. Compounding artifact — richer every session.
-  AGENTS.md     schema: memorybank structure, conventions, domain rules. Co-evolve with user.
-
-KEY FILES (create if missing):
-  memorybank/index.md  content catalog. Every page + one-line summary + link, grouped by category.
-                       Update on every ingest. CRITICAL: Read this file FIRST on any fresh start or flush before acting.
-  memorybank/log.md    append-only timeline. Format: ## [YYYY-MM-DD] ingest|query|lint | Title
-                       Parseable: grep '^## \[' memorybank/log.md | tail -5
-
-OPS:
-  INGEST  new source arrives →
-            1. read source
-            2. extract key info, discuss takeaways
-            3. write memorybank/sources/<slug>.md summary page
-            4. update/create entity + concept pages (1 source touches 10-15 pages)
-            5. update memorybank/index.md
-            6. append entry to memorybank/log.md
-
-  QUERY   user asks question →
-            1. read memorybank/index.md → find relevant pages
-            2. read those pages → synthesize answer with citations
-            3. good answers = new memorybank pages. File them. Exploration compounds.
-
-  LINT    (when asked) health-check wiki →
-            find: contradictions, stale claims newer sources supersede,
-            orphan pages (no inbound links), concepts mentioned but lacking own page,
-            missing cross-refs, data gaps worth a web search.
-
-HUMAN/AGENT SPLIT:
-  Human: curate sources, ask questions, think about meaning.
-  Agent: summarizing, cross-referencing, filing, bookkeeping, maintenance — everything else."
+wiki/maintainer mode — use when memorybank/ exists or user asks to build knowledge base.
+memorybank/index.md = catalog (read FIRST on fresh start). memorybank/log.md = timeline.
+INGEST: read→extract→write sources/<slug>.md→update entity pages→update index→append log.
+QUERY: index→find pages→synthesize→good answers become new pages.
+CAVEKIT: /spec creates SPEC.md, /build executes tasks, /check reads drift."
 
   # Inject discovered environment
   [ -n "$ENV_INFO" ]         && base+="
@@ -1357,6 +1327,17 @@ CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. 
   fi
   if [ -f "$_gmem_file" ]; then
     local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
+    # Cap injection at 2000 chars — keeps system prompt lean.
+    # Self-cleanup in update_global_memory tool consolidates when file exceeds 4000 chars.
+    local _GMEM_INJECT_BUDGET=2000
+    if [ ${#_gmem_content} -gt "$_GMEM_INJECT_BUDGET" ]; then
+      _gmem_content="${_gmem_content: -$(( _GMEM_INJECT_BUDGET ))}"
+      # Strip partial first line
+      case "$_gmem_content" in
+        $'\n'*) ;;
+        *) _gmem_content=$'\n'"${_gmem_content#*$'\n'}" ;;
+      esac
+    fi
     [ -n "$_gmem_content" ] && base+="
 --- global memory ---
 $_gmem_content
@@ -1370,13 +1351,19 @@ MODE:deep — explain root cause before acting. justify why edit fixes the probl
 MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
   esac
 
-  # Inject SPEC.md context if present — gives agent full project spec every call
+  # Inject SPEC.md context if present — gives agent project spec every call
+  # Cap at 1500 chars to keep system prompt lean. Full spec available via read_file.
   if [ -f "$WORKDIR/SPEC.md" ]; then
-    local _spec_content; _spec_content=$(head -200 "$WORKDIR/SPEC.md" 2>/dev/null)
+    local _spec_raw; _spec_raw=$(head -200 "$WORKDIR/SPEC.md" 2>/dev/null)
+    local _SPEC_BUDGET=1500
+    if [ ${#_spec_raw} -gt "$_SPEC_BUDGET" ]; then
+      _spec_raw="${_spec_raw:0:$(( _SPEC_BUDGET - 20 ))}
+... (truncated — read SPEC.md for full spec)"
+    fi
     base+="
 
 ## PROJECT SPEC (SPEC.md)
-$_spec_content
+$_spec_raw
 
 CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutates spec. /check reads drift (zero writes). Bug found → suggest: /spec bug: <cause>"
   else
@@ -3280,7 +3267,35 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       if [ "$_gm_action" = "append" ]; then
         [ ! -f "$_gmem" ] && printf '# Global Memory\n\n' > "$_gmem"
         printf '%s\n' "- $_gm_content" >> "$_gmem"
-        result="Global memory updated: + $(printf '%s' "$_gm_content" | head -c 80)"
+        # Auto-consolidate when file exceeds budget (4000 chars).
+        # Keeps the most recent entries + merges related older ones into summary bullets.
+        # This prevents unbounded growth — the injection cap (2000 chars) only truncates
+        # at read time; this actually reduces the file size.
+        local _GMEM_FILE_BUDGET=4000
+        local _gm_size; _gm_size=$(wc -c < "$_gmem" 2>/dev/null) || _gm_size=0
+        if [ "$_gm_size" -gt "$_GMEM_FILE_BUDGET" ]; then
+          # Keep last 10 bullets verbatim, drop older ones
+          local _gm_new
+          _gm_new=$(python3 -c '
+import sys
+lines = open(sys.argv[1]).read().rstrip().split("\n")
+header = []
+bullets = []
+for l in lines:
+    if l.startswith("#") or l.strip() == "":
+        if not bullets: header.append(l)
+    elif l.startswith("- "):
+        bullets.append(l)
+# Keep last 15 bullets — gives some room before next consolidation
+keep = bullets[-15:] if len(bullets) > 15 else bullets
+print("\n".join(header + [""] + keep))
+' "$_gmem" 2>/dev/null) || _gm_new=""
+          if [ -n "$_gm_new" ]; then
+            printf '%s\n' "$_gm_new" > "$_gmem"
+            _gm_size=$(wc -c < "$_gmem" 2>/dev/null) || _gm_size=0
+          fi
+        fi
+        result="Global memory updated: + $(printf '%s' "$_gm_content" | head -c 80) (${_gm_size}b)"
       elif [ "$_gm_action" = "replace" ]; then
         _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
         if [ -f "$_gmem" ]; then
@@ -4369,6 +4384,10 @@ run_agent() {
   ctx_bar
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
+    # Compact mid-loop: after tool results appended, before next API call
+    # Skip turn 1 (already compacted above). Check every turn — cheap count
+    # gate inside compact_history means real compact only fires at MAX_HIST_MSGS.
+    [ "$turn" -gt 1 ] && compact_history
     # Always start animated spinner (Python will kill it before streaming first token)
     start_spinner "mix (turn $turn)"
     export SPIN_PID="$_SPIN_PID"
