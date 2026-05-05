@@ -24,7 +24,8 @@ run_agent() {
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
     # Compact mid-loop: after tool results appended, before next API call
-    # Skip on turn 1 (already compacted above) and when history is small
+    # Skip turn 1 (already compacted above). Check every turn — cheap count
+    # gate inside compact_history means real compact only fires at MAX_HIST_MSGS.
     [ "$turn" -gt 1 ] && compact_history
     # Always start animated spinner (Python will kill it before streaming first token)
     start_spinner "mix (turn $turn)"
