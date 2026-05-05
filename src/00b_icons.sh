@@ -47,18 +47,19 @@ if _nf_supported; then
   I_COMMIT="󰜘"   # nf-md-source_commit (git commit)
   I_DIFF="╌"      # keep as-is (Unicode box drawing, not emoji)
   I_YOLO="󰀨"     # nf-md-flash (was ⚡ yolo flag)
-  # Battery icons — indexed by 0-10 (pct/10), used by ctx_bar
-  I_BAT_0="󰁺"    # 0%
-  I_BAT_1="󰁻"    # 10%
-  I_BAT_2="󰁼"    # 20%
-  I_BAT_3="󰁽"    # 30%
-  I_BAT_4="󰁽"    # 40%
+  # Battery icons — indexed by context usage 0-10 (pct/10)
+  # Inverted: 0% context = full battery, 100% context = empty
+  I_BAT_0="󰁹"    # 0% context used → full battery
+  I_BAT_1="󰂂"    # 10%
+  I_BAT_2="󰂁"    # 20%
+  I_BAT_3="󰂀"    # 30%
+  I_BAT_4="󰁿"    # 40%
   I_BAT_5="󰁾"    # 50%
-  I_BAT_6="󰁿"    # 60%
-  I_BAT_7="󰂀"    # 70%
-  I_BAT_8="󰂁"    # 80%
-  I_BAT_9="󰂂"    # 90%
-  I_BAT_10="󰁹"   # 100%
+  I_BAT_6="󰁽"    # 60%
+  I_BAT_7="󰁽"    # 70%
+  I_BAT_8="󰁼"    # 80%
+  I_BAT_9="󰁻"    # 90%
+  I_BAT_10="󰁺"   # 100% context used → empty battery
 else
   # Emoji fallback — works everywhere
   I_TOOL="⚡"
