@@ -9,7 +9,7 @@ process_tc() {
   local tname="${rest%%|||*}"
   local targs="${rest#*|||}"
 
-  [ "$silent" != "true" ] && echo -e "    \033[38;5;99m⚡\033[0m \033[1;36m$tname\033[0m"
+  [ "$silent" != "true" ] && echo -e "    \033[38;5;99m$I_TOOL\033[0m \033[1;36m$tname\033[0m"
 
   local result=""
   case "$tname" in
