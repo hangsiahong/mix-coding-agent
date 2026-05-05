@@ -168,7 +168,7 @@ auto_verify() {
       if [ -n "$_trimmed" ] && [ "$_label" != "syntax" ]; then
         # Check if output contains warnings
         if printf '%s' "$_trimmed" | grep -qiE 'warning|warn'; then
-          results+="${NL}  ⚠ $_label: warnings"
+          results+="${NL}  $I_WARN $_label: warnings"
           local _wline=0
           while IFS= read -r wl; do
             _wline=$((_wline + 1))
