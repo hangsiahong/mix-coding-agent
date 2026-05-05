@@ -37,4 +37,7 @@ case "${1:-}" in
     echo "mix ${MIX_VERSION:-dev}"
     exit 0
     ;;
+  --repomap)
+    _CLI_ARG="--repomap"  # deferred to after functions load
+    ;;
 esac
