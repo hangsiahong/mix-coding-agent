@@ -20,15 +20,17 @@ ctx_bar() {
   local est_tokens=$(( total_chars / 3 ))
   local pct=$(( est_tokens * 100 / CTX_TOKENS ))
   [ "$pct" -gt 100 ] && pct=100
-  local filled=$(( pct * 20 / 100 )) i bar=""
-  for ((i=0; i<filled; i++)); do bar+="━"; done
-  for ((i=filled; i<20; i++)); do bar+="─"; done
   local color="\033[0;32m"
   [ "$pct" -gt 70 ] && color="\033[0;33m"
   [ "$pct" -gt 90 ] && color="\033[0;31m"
   local ktok=$(( est_tokens / 1000 ))
+  # Battery icon: index 0-10
+  local bat_idx=$(( pct / 10 ))
+  [ "$bat_idx" -gt 10 ] && bat_idx=10
+  local bat_icon
+  eval "bat_icon=\${I_BAT_${bat_idx}:-}"
   printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
-    "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
+    "$color" "$bat_icon" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
   if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
     local _total_tok=$(( _SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS ))
     local _total_str; _total_str=$(_fmt_tok $_total_tok)
