@@ -205,7 +205,7 @@ print("edit "+p+" — "+summary)
     search_files)
       local spat; spat=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || spat="?"
       local sdir; sdir=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || sdir="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m🔍 /$spat/ in $sdir\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_FIND /$spat/ in $sdir\033[0m"
       result=$(run_tool search_files "$targs")
       FAIL_STREAK=0
       ;;
