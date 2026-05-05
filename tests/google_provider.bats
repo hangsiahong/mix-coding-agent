@@ -9,6 +9,8 @@ _GOOGLE_TOKEN_CACHE="$BATS_TEST_DIR/tmp_google_token"
 setup() {
   rm -f "$_GOOGLE_CONFIG_FILE" "$_GOOGLE_KEY_FILE" "$_GOOGLE_TOKEN_CACHE"
   unset GOOGLE_API_KEY GOOGLE_MODE GOOGLE_PROJECT GOOGLE_REGION
+  # Mock _mix_save_defaults (defined in 01_config.sh, not loaded in tests)
+  _mix_save_defaults() { :; }
 }
 
 teardown() {
