@@ -34,7 +34,7 @@ for line in sys.stdin:
     try:
         d = json.loads(line)
         kind = d.get("kind", "")
-        name = d.get("name", "")
+        name = d.get("name", d.get("tag", ""))
         sig = d.get("signature", "")
         line_num = d.get("line", 0)
         # Skip internal/noisy kinds
