@@ -402,3 +402,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | summary after compacted, what u still remember?
 
 ## [2026-05-05] task | hi
+
+## [2026-05-05] task | by the way update our memorybank and README to show about google provider we hav
