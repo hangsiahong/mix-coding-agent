@@ -36,41 +36,11 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 Suggest loading a skill if it matches the current task difficulty.
 
 ## WIKI PATTERN
-Three-layer architecture. Use when memorybank/ exists or user asks to build/maintain knowledge base.
-
-LAYERS:
-  raw/          immutable sources. Read only, never modify.
-  memorybank/   you own. LLM-maintained markdown. Compounding artifact — richer every session.
-  AGENTS.md     schema: memorybank structure, conventions, domain rules. Co-evolve with user.
-
-KEY FILES (create if missing):
-  memorybank/index.md  content catalog. Every page + one-line summary + link, grouped by category.
-                       Update on every ingest. CRITICAL: Read this file FIRST on any fresh start or flush before acting.
-  memorybank/log.md    append-only timeline. Format: ## [YYYY-MM-DD] ingest|query|lint | Title
-                       Parseable: grep '^## \[' memorybank/log.md | tail -5
-
-OPS:
-  INGEST  new source arrives →
-            1. read source
-            2. extract key info, discuss takeaways
-            3. write memorybank/sources/<slug>.md summary page
-            4. update/create entity + concept pages (1 source touches 10-15 pages)
-            5. update memorybank/index.md
-            6. append entry to memorybank/log.md
-
-  QUERY   user asks question →
-            1. read memorybank/index.md → find relevant pages
-            2. read those pages → synthesize answer with citations
-            3. good answers = new memorybank pages. File them. Exploration compounds.
-
-  LINT    (when asked) health-check wiki →
-            find: contradictions, stale claims newer sources supersede,
-            orphan pages (no inbound links), concepts mentioned but lacking own page,
-            missing cross-refs, data gaps worth a web search.
-
-HUMAN/AGENT SPLIT:
-  Human: curate sources, ask questions, think about meaning.
-  Agent: summarizing, cross-referencing, filing, bookkeeping, maintenance — everything else."
+wiki/maintainer mode — use when memorybank/ exists or user asks to build knowledge base.
+memorybank/index.md = catalog (read FIRST on fresh start). memorybank/log.md = timeline.
+INGEST: read→extract→write sources/<slug>.md→update entity pages→update index→append log.
+QUERY: index→find pages→synthesize→good answers become new pages.
+CAVEKIT: /spec creates SPEC.md, /build executes tasks, /check reads drift.""
 
   # Inject discovered environment
   [ -n "$ENV_INFO" ]         && base+="
