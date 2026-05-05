@@ -20,7 +20,7 @@ handle_cmd() {
         printf '%s' "$txt" > "$dir/txt_$pid.txt"
         local lines=$(printf '%s\n' "$txt" | wc -l)
         INPUT="[paste _$pid: $lines lines]"
-        echo -e "  \033[38;5;99m✓\033[0m Paste appended context (${lines} lines)"
+        echo -e "  \033[38;5;99m$I_OK\033[0m Paste appended context (${lines} lines)"
         return 1 # Return 1 to tell loop to fall through and process INPUT
       else
         echo "  Clipboard is empty or missing xclip/wl-paste/pbpaste"
@@ -46,8 +46,8 @@ handle_cmd() {
           git -C "$WORKDIR" --no-pager diff HEAD~1 --stat 2>/dev/null | head -10
           if confirm "  Revert this commit? [y/N] "; then
             git -C "$WORKDIR" revert --no-edit HEAD 2>/dev/null \
-              && echo -e "  \033[38;5;82m✓ Reverted\033[0m" \
-              || echo -e "  \033[1;31m✗ Revert failed (merge conflict?)\033[0m"
+              && echo -e "  \033[38;5;82m$I_OK Reverted\033[0m" \
+              || echo -e "  \033[1;31m$I_FAIL Revert failed (merge conflict?)\033[0m"
           fi
         fi
       fi
@@ -80,7 +80,7 @@ handle_cmd() {
       echo "$_map_out"
       echo ""
       ;;
-    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
+    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m$I_OK\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
       _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
@@ -98,7 +98,7 @@ handle_cmd() {
       ;;
     /cache\ clear)
       _FILE_CACHE='{}'; _FILE_CACHE_ORDER=""
-      echo -e "  \033[38;5;82m✓\033[0m File cache cleared."
+      echo -e "  \033[38;5;82m$I_OK\033[0m File cache cleared."
       ;;
     /verify)
       echo "  Auto-verify: $AUTO_VERIFY"
@@ -106,7 +106,7 @@ handle_cmd() {
       ;;
     /verify\ on)
       AUTO_VERIFY="on"
-      echo -e "  \033[38;5;82m✓\033[0m Auto-verify ON — will run checks after edit_file/create_file"
+      echo -e "  \033[38;5;82m$I_OK\033[0m Auto-verify ON — will run checks after edit_file/create_file"
       ;;
     /verify\ off)
       AUTO_VERIFY="off"
@@ -135,7 +135,7 @@ handle_cmd() {
         local _vout; _vout=$(${PROVIDER}_validate_model "$_new_model" 2>/dev/null)
         local _vcode=$?
         if [ $_vcode -ne 0 ]; then
-          echo "  ✗ Model '$_new_model' not available on provider '$PROVIDER'"
+          echo "  $I_FAIL Model '$_new_model' not available on provider '$PROVIDER'"
           [ -n "$_vout" ] && echo "  $_vout"
           echo "  Use /models to list available models."
           return 0
@@ -445,7 +445,7 @@ handle_cmd() {
         fi
       done
       if [ -z "$_reload_root" ]; then
-        echo -e "  \033[1;31m✗ Cannot find project root (build.sh + src/)\033[0m"
+        echo -e "  \033[1;31m$I_FAIL Cannot find project root (build.sh + src/)\033[0m"
         echo "  cd to the project directory first."
         return 0
       fi
@@ -454,7 +454,7 @@ handle_cmd() {
       _reload_rc=$?
       echo "$_reload_out"
       if echo "$_reload_out" | grep -q "Self-test FAILED"; then
-        echo -e "  \033[1;31m✗ Build produced broken binary — not installed.\033[0m"
+        echo -e "  \033[1;31m$I_FAIL Build produced broken binary — not installed.\033[0m"
         echo -e "  \033[0;90mPrevious version still active. Fix the issue and /reload again.\033[0m"
         return 0
       fi
@@ -471,7 +471,7 @@ handle_cmd() {
              exit 0 ;;
     /*)
       # Unknown slash command — don't send to LLM
-      echo -e "  \033[1;31m✗ Unknown command:\033[0m $1"
+      echo -e "  \033[1;31m$I_FAIL Unknown command:\033[0m $1"
       echo "  Use /help to see available commands."
       ;;
     /worker\ *)
@@ -502,7 +502,7 @@ handle_cmd() {
         _stmp=$(mktemp -t mix-$$-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
-        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
+        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
           && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
           || echo "  Failed to spawn subagent."
       fi
@@ -708,7 +708,7 @@ except: pass
 
 PROJECT="$(basename "$WORKDIR")"
 tg_send "🤖 *mix AFK started*
-📁 \`${PROJECT}\`  🕐 $(date '+%H:%M %Z')
+$I_DIR \`${PROJECT}\`  🕐 $(date '+%H:%M %Z')
 _Analysing codebase..._"
 
 # Run mix — it will write the plan to $PLAN_SAVE via bash tool
@@ -758,7 +758,7 @@ else
     echo "  (No Telegram — run /afk apply to execute the plan)"
 fi
 
-[ -n "$MY_TTY" ] && printf '\n  \033[38;5;82m✓ AFK done!\033[0m\n' > "$MY_TTY" 2>/dev/null || true
+[ -n "$MY_TTY" ] && printf '\n  \033[38;5;82m$I_OK AFK done!\033[0m\n' > "$MY_TTY" 2>/dev/null || true
 echo ""; echo "[AFK finished. Press Enter]"; read -r _
 AFK_WORKER_END
       chmod +x "$_worker_tmp"
