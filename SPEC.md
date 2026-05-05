@@ -67,3 +67,45 @@ Save session state on exit and restore it on next startup via `/resume`, elimina
 
 ## §B Bugs (found during implementation)
 - None yet
+
+# SPEC: Interactive Hunk Review
+
+## §G Goal
+Allow users to review, accept, or reject specific changes (hunks) during `edit_file` before they are applied to disk. This prevents "over-fixing" where the agent accidentally deletes code or changes formatting outside the target area.
+
+## §C Constraints
+- Must fallback to full apply if not in interactive terminal.
+- Must not require external tools beyond `python3` (already a dep).
+- Must handle both `edit_file` and `create_file` (though create is usually one big hunk).
+- UI must be fast: `y` (yes), `n` (no), `a` (all), `q` (quit).
+
+## §I Interfaces
+- `src/05_pre_edit_diff_preview.sh`: New function `review_hunks()`.
+- `src/13_tool_execution.sh`: Call `review_hunks` before writing to disk.
+- Env Var: `AGENT_INTERACTIVE_DIFF` (default: true).
+
+## §T Tasks
+1. [ ] Implement `review_hunks` logic in Python (inside bash wrapper).
+2. [ ] Integrate into `edit_file` tool execution.
+3. [ ] Add `y/n/a/q` interactive loop.
+4. [ ] Verify with bats tests.
+
+# SPEC: Ctags-Enhanced Repo Map
+
+## §G Goal
+Use `universal-ctags` to generate more accurate repo maps, providing the agent with precise "Definitions vs References" data.
+
+## §T Tasks
+1. [ ] Detect `ctags` binary and version.
+2. [ ] Implement `_ctags_get_symbols()` in `src/11b_repo_map.sh`.
+3. [ ] Update repo map format to include signatures.
+
+# SPEC: Proactive Memory
+
+## §G Goal
+Automatically extract "lessons learned" after successful tasks and update `memorybank/`.
+
+## §T Tasks
+1. [ ] Hook into agent completion.
+2. [ ] LLM "reflection" turn to summarize the fix/lesson.
+3. [ ] Auto-write to `memorybank/solutions/`.
