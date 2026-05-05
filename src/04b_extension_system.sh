@@ -168,7 +168,10 @@ _ext_unload() {
   done
   _MIX_EXTENSIONS_LOADED="${_new% }"
   if [ "$_found" = true ]; then
-    echo -e "  \033[0;90mExtension $_name unloaded\033[0m"
+    if type "_ext_rebuild_tools" >/dev/null 2>&1; then
+      _ext_rebuild_tools
+    fi
+    echo -e "  \033[38;5;82m$I_OK\033[0m Extension $_name unloaded"
   else
     echo "  Extension $_name not loaded"
   fi
