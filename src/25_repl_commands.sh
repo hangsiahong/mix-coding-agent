@@ -72,8 +72,9 @@ handle_cmd() {
       echo "  History msgs:   $_hist_n"
       ;;
     /repomap)
-      echo -e "  \033[1;37mRepo Map:\033[0m"
-      build_repo_map
+      echo -e "  \033[1;37mRepo Map:\033[0m (building...)"
+      local _map_out; _map_out=$(build_repo_map)
+      echo "$_map_out"
       echo ""
       ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
@@ -165,7 +166,8 @@ handle_cmd() {
     /provider\ default)
       PROVIDER="default"
       BASE_URL="https://ai.koompi.cloud/v1"
-      if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+      API_KEY="${KCONSOLE_API_KEY:-}"
+      if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
       MODEL="${AGENT_MODEL:-glm-5}"
       echo "  Provider → default (koompi proxy)"
       _mix_save_defaults
@@ -179,7 +181,8 @@ handle_cmd() {
       if [ "$_pname" = "default" ]; then
         PROVIDER="default"
         BASE_URL="https://ai.koompi.cloud/v1"
-        if [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
+        API_KEY="${KCONSOLE_API_KEY:-}"
+        if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
         MODEL="${AGENT_MODEL:-glm-5}"
         echo "  Provider → default (koompi proxy)"
       elif _load_provider "$_pname"; then
