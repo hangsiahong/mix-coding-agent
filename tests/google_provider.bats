@@ -149,8 +149,7 @@ teardown() {
   source "$PROJECT_ROOT/src/providers/google.sh"
   GOOGLE_API_KEY="test-key"
   GOOGLE_MODE="studio"
-  run google_activate
-  [ "$status" -eq 0 ]
+  google_activate
   [ "$BASE_URL" = "https://generativelanguage.googleapis.com/v1beta/openai" ]
   rm -f "$HOME/.mix/google_provider"
 }
@@ -160,8 +159,7 @@ teardown() {
   GOOGLE_MODE="vertex"
   GOOGLE_PROJECT="test-project"
   GOOGLE_REGION="europe-west4"
-  run google_activate
-  [ "$status" -eq 0 ]
+  google_activate
   [ "$BASE_URL" = "https://europe-west4-aiplatform.googleapis.com/v1/projects/test-project/locations/europe-west4/endpoints/openapi" ]
   rm -f "$HOME/.mix/google_provider"
 }
@@ -169,7 +167,7 @@ teardown() {
 @test "google_activate: sets PROVIDER=google" {
   source "$PROJECT_ROOT/src/providers/google.sh"
   GOOGLE_API_KEY="test-key"
-  run google_activate
+  google_activate
   [ "$PROVIDER" = "google" ]
   rm -f "$HOME/.mix/google_provider"
 }
