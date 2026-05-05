@@ -40,7 +40,7 @@ wiki/maintainer mode — use when memorybank/ exists or user asks to build knowl
 memorybank/index.md = catalog (read FIRST on fresh start). memorybank/log.md = timeline.
 INGEST: read→extract→write sources/<slug>.md→update entity pages→update index→append log.
 QUERY: index→find pages→synthesize→good answers become new pages.
-CAVEKIT: /spec creates SPEC.md, /build executes tasks, /check reads drift.""
+CAVEKIT: /spec creates SPEC.md, /build executes tasks, /check reads drift."
 
   # Inject discovered environment
   [ -n "$ENV_INFO" ]         && base+="
