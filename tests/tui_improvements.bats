@@ -5,6 +5,10 @@ setup() {
   load test_helper
   INTERACTIVE=false
   export INTERACTIVE
+  export WORKDIR="."
+  export TOOLS_JSON="{}"
+  export ENV_INFO="test"
+  source "$PROJECT_ROOT/src/03_system_prompt_rebuilt_on_each_call_to_pick_up_caveman_mode_changes.sh"
   source "$PROJECT_ROOT/src/19_spinner_background_process.sh"
   source "$PROJECT_ROOT/src/20_context_window_bar.sh"
   source "$PROJECT_ROOT/src/21_tmux_status_updater.sh"
