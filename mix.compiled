@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052149'
+MIX_VERSION='202605052156'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -862,10 +862,16 @@ google_filter_history() {
   python3 -c '
 import json, sys
 history = json.load(sys.stdin)
-# On Vertex/Gemini, if we mess with tool calls and turn them into text strings 
-# like "[Used tools: ...]", the model will see this in the history and start 
-# hallucinating text-based tool calls instead of using the JSON API!
-# We just pass the history as-is.
+# Google Vertex AI strictly requires every tool_call in the history to have a 
+# "thought_signature" field (even an empty one) if using thinking models, 
+# otherwise it throws a 400 Bad Request. 
+# We simply inject an empty string for any tool call missing it, preserving the 
+# JSON structure so the model doesn"t learn to hallucinate text tools!
+for msg in history:
+    if msg.get("role") == "assistant" and msg.get("tool_calls"):
+        for tc in msg["tool_calls"]:
+            if "thought_signature" not in tc:
+                tc["thought_signature"] = ""
 print(json.dumps(history))
 '
 }

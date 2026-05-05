@@ -430,3 +430,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | okay push code
 
 ## [2026-05-05] task | are we running the latest binary?
+
+## [2026-05-05] task | yes read it and tell me the reason why we build it this way, how useful is that,
