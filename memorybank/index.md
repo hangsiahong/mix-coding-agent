@@ -39,6 +39,7 @@ Update this file after every ingest or new page created.
 | versioning-self-heal.md | Versioned binary storage (~/.mix/versions/), health-gated builds, thin wrapper fallback, --self-test/--doctor/--version flags, auto-prune (keep 5) |
 | prompt-optimization.md | System prompt audit: 43% reduction via global memory cap + self-cleanup + wiki/SPEC compression |
 | elite_agent_upgrades.md | Ctags Repo Map, Proactive Memory, descriptive auto-commit messages. Hunk review stripped — yolo+/undo philosophy |
+| mid-loop-compact.md | Fix: compact_history now checks every tool-use turn, not just at run_agent() entry. Prevents unbounded growth mid-loop |
 
 ## sources
 
