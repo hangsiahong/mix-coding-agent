@@ -47,10 +47,10 @@ echo -e "    \033[0;90m${_short_wd}\033[0m"
 
 # Row 3: active mode flags — only printed when any are set
 _mix_flags=()
-[ "$AUTO_YES" = "true" ]                 && _mix_flags+=("\033[1;33m⚡ yolo\033[0m")
-[ "$CAVEMAN_MODE" != "off" ]             && _mix_flags+=("\033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m")
-[ "$AGENT_MODE"   != "fast" ]            && _mix_flags+=("\033[0;36m◎ ${AGENT_MODE}\033[0m")
-[ "${SANDBOX_ENABLED:-false}" = "true" ] && _mix_flags+=("\033[0;32m🔒 sandbox\033[0m")
+[ "$AUTO_YES" = "true" ]                 && _mix_flags+=("\033[1;33m$I_YOLO yolo\033[0m")
+[ "$CAVEMAN_MODE" != "off" ]             && _mix_flags+=("\033[0;35m$I_ROCK caveman:${CAVEMAN_MODE}\033[0m")
+[ "$AGENT_MODE"   != "fast" ]            && _mix_flags+=("\033[0;36m$I_MODE ${AGENT_MODE}\033[0m")
+[ "${SANDBOX_ENABLED:-false}" = "true" ] && _mix_flags+=("\033[0;32m$I_LOCK sandbox\033[0m")
 if [ ${#_mix_flags[@]} -gt 0 ]; then
   _mix_flagline=""
   for _mf in "${_mix_flags[@]}"; do
