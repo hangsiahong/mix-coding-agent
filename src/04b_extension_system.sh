@@ -51,6 +51,10 @@ _ext_load_all() {
 
   # Trim trailing space
   _MIX_EXTENSIONS_LOADED="${_MIX_EXTENSIONS_LOADED% }"
+  
+  if type "_ext_rebuild_tools" >/dev/null 2>&1; then
+    _ext_rebuild_tools
+  fi
   return 0
 }
 
