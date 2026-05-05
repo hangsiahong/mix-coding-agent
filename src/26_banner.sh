@@ -92,7 +92,7 @@ fi
 } # end banner block
 
 # tmux: rename window + status bar + session line
-if [ -n "$TMUX" ]; then
+if [ "${_SKIP_BANNER:-}" != true ] && [ -n "$TMUX" ]; then
   _MIX_SESSION_NAME=$(tmux display-message -p '#S' 2>/dev/null || echo "")
   tmux rename-window "mix" 2>/dev/null || true
   tmux_update
