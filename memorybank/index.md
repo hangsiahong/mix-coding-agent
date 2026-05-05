@@ -31,7 +31,7 @@ Update this file after every ingest or new page created.
 | parallel-tool-batching.md | Parallel read-only tools via batch dir, append_raw_nosave, single disk flush, TUI de-duplication |
 | edit-suggestions.md | [SUGGESTION] context on edit_file failure. Shows surrounding lines. Model self-corrects in 1 turn without re-read |
 | smart-bash-truncation.md | 50/50 head+tail + error extraction from truncated middle. [KEY ERRORS] section preserves diagnostics |
-| token-tracking.md | Session token counters (prompt/completion/calls). ctx_bar stats line. /stats REPL command |
+| token-tracking.md | Session token counters (prompt/completion/calls/cache). ctx_bar stats line with smart M/k format + cache % in purple. /stats shows cache tokens |
 | test-generation.md | /test system: init (detect+install+scaffold), generate (targeted or recent), run, coverage. Background via --bg. 6 frameworks. |
 | session-persistence.md | /resume session recovery. .agent/session.json saved on exit, restores file cache + repo map + env + config. Base64 encoding. 27 tests |
 | tui-polish.md | 12 TUI improvements: flicker fix, turn progress, truncation marker, grouped /help, spinner colors, smart tab-complete, diff context, tmux ⟳ status. 15 tests |
