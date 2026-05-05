@@ -11,6 +11,9 @@ mix is an autonomous terminal coding agent designed for speed and precision. It 
 - **Zero Bloat**: No 500MB `node_modules`. No broken `pip` environments. One 200KB script.
 - **Terminal Native**: Designed for tmux, vim, and heavy CLI users.
 - **Context Focused**: Aider-style repo maps and file caching built-in.
+- **Precision**: Universal Ctags support for accurate codebase structural awareness.
+- **Safety**: Git-integrated hunk-level diff review before applying changes.
+- **Intelligence**: Proactive memory auto-extracts lessons learned to your wiki.
 - **Privacy First**: Optional sandboxed execution via Linux namespaces.
 
 ## Comparison
