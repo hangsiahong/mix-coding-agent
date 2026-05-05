@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605060048'
+MIX_VERSION='202605060317'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1573,11 +1573,17 @@ _ext_load_all() {
       ${_base}_init 2>/dev/null || true
     fi
     _MIX_EXTENSIONS_LOADED+="$_base "
+    # Prevent duplicates in history
+    _MIX_EXTENSIONS_LOADED=$(echo "$_MIX_EXTENSIONS_LOADED" | tr ' ' '\n' | sort -u | tr '\n' ' ')
     _loaded=$((_loaded + 1))
   done
 
   # Trim trailing space
   _MIX_EXTENSIONS_LOADED="${_MIX_EXTENSIONS_LOADED% }"
+
+  if type "_ext_rebuild_tools" >/dev/null 2>&1; then
+    _ext_rebuild_tools
+  fi
   return 0
 }
 
@@ -1662,8 +1668,11 @@ _ext_load_one() {
     ${_name}_init 2>/dev/null || true
   fi
   _MIX_EXTENSIONS_LOADED+="$_name "
+
+  if type "_ext_rebuild_tools" >/dev/null 2>&1; then
+    _ext_rebuild_tools
+  fi
   echo -e "  \033[38;5;82m$I_OK\033[0m Extension $_name loaded"
-  return 0
 }
 
 # ─── Unload extension ──────────────────────────────────────────────────────
@@ -1688,7 +1697,10 @@ _ext_unload() {
   done
   _MIX_EXTENSIONS_LOADED="${_new% }"
   if [ "$_found" = true ]; then
-    echo -e "  \033[0;90mExtension $_name unloaded\033[0m"
+    if type "_ext_rebuild_tools" >/dev/null 2>&1; then
+      _ext_rebuild_tools
+    fi
+    echo -e "  \033[38;5;82m$I_OK\033[0m Extension $_name unloaded"
   else
     echo "  Extension $_name not loaded"
   fi
@@ -1768,9 +1780,42 @@ _ext_reload() {
   echo -e "  \033[38;5;82m$I_OK\033[0m Reloaded $_count extensions"
 }
 
-# Load on source
-_ext_load_all
 
+_ext_rebuild_tools() {
+  # Save base tools on first run
+  if [ -z "${_TOOLS_JSON_BASE:-}" ]; then
+    _TOOLS_JSON_BASE="$TOOLS_JSON"
+  fi
+  
+  local _base_content="${_TOOLS_JSON_BASE#\[}"
+  _base_content="${_base_content%\]}"
+  
+  local _new_json="["
+  [ -n "${_base_content//[[:space:]]/}" ] && _new_json+="$_base_content"
+  
+  local _first=true
+  [ -n "${_base_content//[[:space:]]/}" ] && _first=false
+  
+  local _seen=""
+  for _ext in $_MIX_EXTENSIONS_LOADED; do
+    [[ " $_seen " =~ " $_ext " ]] && continue
+    _seen+="$_ext "
+    
+    if type "${_ext}_tool_schema" >/dev/null 2>&1; then
+      local _schema
+      _schema=$(${_ext}_tool_schema 2>/dev/null | python3 -c 'import json,sys;print(json.dumps(json.load(sys.stdin)))' 2>/dev/null)
+      if [ -n "$_schema" ]; then
+        if [ "$_first" = false ]; then
+          _new_json+=","
+        fi
+        _new_json+="$_schema"
+        _first=false
+      fi
+    fi
+  done
+  _new_json+="]"
+  TOOLS_JSON="$_new_json"
+}
 # ─── Pre-edit diff preview ──────────────────────────────────────────────────
 show_edit_diff() {
   local targs="$1"
@@ -3117,13 +3162,13 @@ run_tool() {
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
         if _sandbox_needs_host_network "$cmd"; then
           # Run on host with network — cd to $WORKDIR so relative paths work
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
           result="[host] $result"
         else
-          result=$(sandbox_run_cmd "$cmd")
+          result=$(sandbox_run_cmd "$cmd" </dev/null)
         fi
       else
-        result=$(bash -c "$cmd" 2>&1)
+        result=$(bash -c "$cmd" </dev/null 2>&1)
       fi
       local _ec=$?
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
@@ -3134,13 +3179,13 @@ $result"
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
         if _sandbox_needs_host_network "$cmd"; then
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
           result="[host] $result"
         else
-          result=$(sandbox_run_cmd "$cmd")
+          result=$(sandbox_run_cmd "$cmd" </dev/null)
         fi
       else
-        result=$(run_with_heal "$cmd")
+        result=$(bash -c "$cmd" </dev/null 2>&1)
       fi
       ;;
     read_file)
@@ -3441,11 +3486,19 @@ else:
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
       ;;
-    *) result="Unknown tool: $name" ;;
+    *)
+      if _ext_dispatch_tool "$name" "$args" > /tmp/ext_result; then
+         result=$(cat /tmp/ext_result)
+         rm /tmp/ext_result
+      else
+         result="Unknown tool: $name"
+      fi
+      ;;
   esac
   [ -z "$result" ] && result="(no output)"
   printf '%s' "$result"
 }
+
 # ─── Auto-Verify (post-edit verification) ────────────────────────────────────
 # After edit_file/create_file succeeds, auto-run verification:
 #   1. Syntax check (file-type specific, fast)
@@ -6733,11 +6786,15 @@ if [ "${_SKIP_BANNER:-}" != true ] && [ -n "$TMUX" ]; then
   echo -e "    \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd>  │  /workers\033[0m"
   echo ""
 fi
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then return 0 2>/dev/null || true; fi
 if [ -t 0 ]; then
   INTERACTIVE=true
 else
   INTERACTIVE=false
 fi
+
+# ─── Initialize Extensions (After all base tools are defined) ────────────────
+_ext_load_all
 
 # ─── CLI shortcuts (after all functions loaded) ────────────────────
 case "${_CLI_ARG:-}" in

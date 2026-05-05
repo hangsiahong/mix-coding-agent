@@ -169,3 +169,9 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - **System Prompt Directives**: Taught the `mix` agent to proactively isolate interactive bug-hunts into background detached tmux sessions (`tmux new-session -d -s test_env`), allowing complex runtime testing without blocking the main agent loop.
 - **Multi-language Validation**: Verified `src/13a_auto_verify.sh` and `src/11b_repo_map.sh` architecture. Natively handles `.js/.ts` (ESLint/TSC), `.rs` (Cargo), and `.py` (Ruff/Mypy/AST) effectively using local tooling. 
 - Created `memorybank/solutions/tmux-detached-workers.md` and `memorybank/solutions/multi-language-adaptation.md`.
+
+## [2026-05-06] bugfix | API Payload Builder / Multiline JSON crash
+- **Root Cause:** Extension tool schemas (like `fetcher`) contained multiline JSON. The pipeline building the API payload (`printf '%s\n' ... | python3`) relied on `sys.stdin.readline().strip()` to parse positional arguments (sys_prompt, tools, history, model, extra). A multiline `TOOLS_JSON` caused `readline()` to desync, crashing the python parser and emitting `FAIL:payload`.
+- **Fix:** In `src/04b_extension_rebuild_tools.sh`, added a `python3` pass to minify and validate each extension's `_tool_schema` output via `json.dumps(json.load(...))` before appending it to `_new_json`.
+- **Result:** `TOOLS_JSON` is guaranteed single-line regardless of extension schema formatting. `test_ext_dispatch.sh` confirms correct minification.
+
