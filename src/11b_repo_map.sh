@@ -90,6 +90,7 @@ _build_skip_find() {
 
 # Build the repo map string
 build_repo_map() {
+  _detect_ctags
   # Check cache validity
   local _now; _now=$(date +%s 2>/dev/null || echo 0)
   local _age=$(( _now - _REPO_MAP_TIME ))
