@@ -170,6 +170,17 @@ CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. 
   fi
   if [ -f "$_gmem_file" ]; then
     local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
+    # Cap injection at 2000 chars — keeps system prompt lean.
+    # Self-cleanup in update_global_memory tool consolidates when file exceeds 4000 chars.
+    local _GMEM_INJECT_BUDGET=2000
+    if [ ${#_gmem_content} -gt "$_GMEM_INJECT_BUDGET" ]; then
+      _gmem_content="${_gmem_content: -$(( _GMEM_INJECT_BUDGET ))}"
+      # Strip partial first line
+      case "$_gmem_content" in
+        $'\n'*) ;;
+        *) _gmem_content=$'\n'"${_gmem_content#*$'\n'}" ;;
+      esac
+    fi
     [ -n "$_gmem_content" ] && base+="
 --- global memory ---
 $_gmem_content
