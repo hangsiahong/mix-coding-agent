@@ -126,23 +126,16 @@ $_rh"
               # Extract meaningful commit message from the edit
               local _cmsg
               _cmsg="agent: $(printf '%s' "$targs" | python3 -c '
-import json,sys
+import json,sys,difflib
 d=json.load(sys.stdin)
 p=d.get("path","").split("/")[-1]
-o=d.get("old_text","").strip()
-n=d.get("new_text","").strip()
-# Extract first meaningful changed line
-o_lines=[l.strip() for l in o.splitlines() if l.strip()]
-n_lines=[l.strip() for l in n.splitlines() if l.strip()]
-if n_lines:
-    summary=n_lines[0][:60]
-    # If its just a brace/bracket, take next line too
-    if summary in("{","}","end","then","do","done","fi","esac"):
-        if len(n_lines)>1: summary=n_lines[1][:60]
-elif o_lines:
-    summary="remove: "+o_lines[0][:50]
-else:
-    summary="edit"
+o,n=d.get("old_text",""),d.get("new_text","")
+diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),n=0))
+added=[l[1:].strip() for l in diff if l.startswith("+") and not l.startswith("+++") and l[1:].strip()]
+removed=[l[1:].strip() for l in diff if l.startswith("-") and not l.startswith("---") and l[1:].strip()]
+if added: summary=added[0][:60]
+elif removed: summary="remove: "+removed[0][:50]
+else: summary="edit"
 print("edit "+p+" — "+summary)
 ' 2>/dev/null || echo "edit $(basename "$p")")"
               if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
