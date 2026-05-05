@@ -37,7 +37,13 @@ process_tc() {
         case "$_risk" in
           BLOCKED) echo -e "    \033[1;31m$I_BLOCKED  BLOCKED: $_reason\033[0m" ;;
           HIGH)    echo -e "    \033[1;31m$I_WARN   Risk: HIGH ($_reason)\033[0m" ;;
-          MED)     echo -e "    \033[1;33m$I_RISK_MED   Risk: MED  ($_reason)\033[0m" ;;
+          MED)
+            if [ "$AUTO_YES" = "true" ]; then
+              echo -e "    \033[1;33m$I_RISK_MED   Risk: MED  ($_reason) \033[0;90m[yolo: auto-confirmed]\033[0m"
+            else
+              echo -e "    \033[1;33m$I_RISK_MED   Risk: MED  ($_reason)\033[0m"
+            fi
+            ;;
         esac
       fi
       local _run=false
