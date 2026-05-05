@@ -89,6 +89,7 @@ if [ "${_DOCTOR_MODE:-false}" = "true" ]; then
   echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
   echo ""
 fi
+} # end banner block
 
 # tmux: rename window + status bar + session line
 if [ -n "$TMUX" ]; then
