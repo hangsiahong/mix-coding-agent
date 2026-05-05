@@ -235,7 +235,7 @@ print("edit "+p+" — "+summary)
       local _verify_part
       _verify_part=$(printf '%s' "$result" | sed -n '/\[VERIFY:/,$ p')
       if printf '%s' "$_verify_part" | grep -q 'FAILED'; then
-        echo -e "    \033[1;31m🔍 verify:\033[0m"
+        echo -e "    \033[1;31m$I_VERIFY verify:\033[0m"
       else
         echo -e "    \033[0;32m🔍 verify:\033[0m"
       fi
