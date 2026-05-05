@@ -76,11 +76,13 @@ run_agent() {
         fi
         # Track token usage from API response
         _SESSION_API_CALLS=$((_SESSION_API_CALLS + 1))
-        local _pt _ct
+        local _pt _ct _cache
         _pt=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("prompt_tokens",0))' 2>/dev/null) || _pt=0
         _ct=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("completion_tokens",0))' 2>/dev/null) || _ct=0
+        _cache=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("prompt_tokens_details",{}).get("cached_tokens",0))' 2>/dev/null) || _cache=0
         _SESSION_PROMPT_TOKENS=$((_SESSION_PROMPT_TOKENS + _pt))
         _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
+        _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         parsed=$(parse_resp "$resp")
       fi
       break  # success — exit retry loop
