@@ -50,6 +50,7 @@ WORKDIR="$(pwd)"
 _SESSION_PROMPT_TOKENS=0
 _SESSION_COMPLETION_TOKENS=0
 _SESSION_API_CALLS=0
+_SESSION_CACHE_TOKENS=0
 
 # ─── Provider system ─────────────────────────────────────────────────────────
 # Provider = pluggable API backend. Default is openai-compatible (koompi proxy).
