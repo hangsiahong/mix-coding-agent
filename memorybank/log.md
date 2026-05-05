@@ -85,6 +85,16 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 - Handled Vertex OpenAI-compat header requirements (suppress Authorization, use x-goog-api-key).
 - Added support for preview models via global location.
 
+## [2026-05-05] feature | Google Provider hardening — thinkingConfig + thought_signature + compact fix
+- `thought_signature` captured in streaming assembler + preserved in history for multi-turn Gemini 3
+- `google_filter_history()` strips unsigned tool_calls to prevent 400 errors on replay
+- `_apply_provider_history_filter()` in `11_history.sh` — universal sanitizer strips Google fields when switching providers
+- `/compact` 401 fix: full rewrite of auth/header logic to use same SUPPRESS_AUTH pattern as call_api
+- `google_extra_payload_json()` + `google_set_thinking()` — thinkingConfig injection for Gemini 3/2.5
+- `/provider google thinking <level>` REPL command (minimal/low/medium/high)
+- System prompt: added "never narrate tool calls" rule to prevent Gemini verbose [Used tools:...] output
+- README updated: better header, all-provider install note, thinking command documented
+
 ## [2026-05-05] feature | Sandbox mode implemented
 - `src/30_sandbox.sh` — full Alpine chroot via `unshare --fork --pid --mount --user --map-root-user`
 - Zero new system dependencies. Pure bash + Linux kernel namespaces.
@@ -404,3 +414,17 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | hi
 
 ## [2026-05-05] task | by the way update our memorybank and README to show about google provider we hav
+
+## [2026-05-05] task | commit and push
+
+## [2026-05-05] task | okay help add google vertex for me to ~/.mix and the region suppose to be global
+
+## [2026-05-05] task | hi
+
+## [2026-05-05] task | audit the codebase and readme or whatever, we need to upgrade ourself, our repo 
+
+## [2026-05-05] task | yes go ahead
+
+## [2026-05-05] task | can you use the tool from mix coding correctly now?
+
+## [2026-05-05] task | okay push code

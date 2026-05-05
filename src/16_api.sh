@@ -6,19 +6,28 @@ call_api() {
   # Sanitize history for current provider (handles provider switching seamlessly)
   local _hist_for_api
   _hist_for_api=$(_apply_provider_history_filter "$HISTORY") || _hist_for_api="$HISTORY"
-  payload=$(printf '%s\n%s\n%s\n%s\n' \
+  # Extra payload params (e.g. Google thinkingConfig)
+  local _extra_payload="{}"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_payload_json" >/dev/null 2>&1; then
+    _extra_payload=$(${PROVIDER}_extra_payload_json 2>/dev/null) || _extra_payload="{}"
+  fi
+  payload=$(printf '%s\n%s\n%s\n%s\n%s\n' \
     "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
     "$TOOLS_JSON" \
     "$_hist_for_api" \
     "$_model" \
+    "$_extra_payload" \
   | python3 -c '
 import json,sys
 s=json.loads(sys.stdin.readline())
 t=json.loads(sys.stdin.readline())
 h=json.loads(sys.stdin.readline())
 m=sys.stdin.readline().strip()
+ex=json.loads(sys.stdin.readline())
 msg=[{"role":"system","content":s}]+h
-print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
+body={"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}
+body.update(ex)
+print(json.dumps(body))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
   # Resolve API key — provider may override

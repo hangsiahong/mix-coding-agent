@@ -23,6 +23,7 @@
 _GOOGLE_CONFIG_FILE="${HOME}/.mix/google_provider"
 _GOOGLE_KEY_FILE="${HOME}/.mix/google_api_key"
 _GOOGLE_TOKEN_CACHE="/tmp/mix-google-access-token"
+_GOOGLE_THINKING_LEVEL=""  # empty = model default (high/dynamic for Gemini 3)
 
 # Known models (hardcoded — stable, small list)
 # Gemini 3.x models only available on Vertex AI via location=global
@@ -57,6 +58,7 @@ google_activate() {
     project_id=$(grep '^project_id=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
     region=$(grep '^region=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
     [ -z "$region" ] && region="us-central1"
+    _GOOGLE_THINKING_LEVEL=$(grep '^thinking_level=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
   fi
 
   # Auto-detect: prefer Studio if key available, else Vertex if gcloud available
@@ -283,7 +285,10 @@ _google_save_config() {
   local project_id="${2:-}"
   local region="${3:-us-central1}"
   mkdir -p "$(dirname "$_GOOGLE_CONFIG_FILE")"
-  printf 'mode=%s\nproject_id=%s\nregion=%s\n' "$mode" "$project_id" "$region" > "$_GOOGLE_CONFIG_FILE"
+  {
+    printf 'mode=%s\nproject_id=%s\nregion=%s\n' "$mode" "$project_id" "$region"
+    [ -n "${_GOOGLE_THINKING_LEVEL:-}" ] && printf 'thinking_level=%s\n' "$_GOOGLE_THINKING_LEVEL"
+  } > "$_GOOGLE_CONFIG_FILE"
   chmod 600 "$_GOOGLE_CONFIG_FILE"
 }
 
@@ -388,6 +393,73 @@ print(json.dumps({'Authorization': 'Bearer $token'}))
   else
     # Studio: standard Bearer auth (default pipeline handles it)
     echo "{}"
+  fi
+}
+
+# ─── Extra payload params (thinkingConfig for Gemini 3/2.5 models) ──────────
+google_extra_payload_json() {
+  local level="${_GOOGLE_THINKING_LEVEL:-}"
+  [ -z "$level" ] && { echo "{}"; return 0; }
+
+  # Gemini 2.5 uses thinkingBudget (0=off); Gemini 3 uses thinkingLevel
+  case "${MODEL:-}" in
+    gemini-2.5-*)
+      case "$level" in
+        off|none|0)   python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":0}}))' ;;
+        low)          python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":512}}))' ;;
+        medium)       python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":4096}}))' ;;
+        high|dynamic) python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":-1}}))' ;;
+        *)            python3 -c "import json;print(json.dumps({'thinkingConfig':{'thinkingBudget':$level}}))" 2>/dev/null || echo "{}" ;;
+      esac
+      ;;
+    gemini-3*|*)
+      case "$level" in
+        off|none|minimal) python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"minimal"}}))' ;;
+        low)              python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"low"}}))' ;;
+        medium)           python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"medium"}}))' ;;
+        high|dynamic)     python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"high"}}))' ;;
+        *)                python3 -c "import json;print(json.dumps({'thinkingConfig':{'thinkingLevel':'$level'}}))" 2>/dev/null || echo "{}" ;;
+      esac
+      ;;
+  esac
+}
+
+# ─── Set thinking level interactively or via command ────────────────────────
+google_set_thinking() {
+  local level="${1:-}"
+  if [ -z "$level" ]; then
+    local current="${_GOOGLE_THINKING_LEVEL:-default (model decides)}"
+    echo -e "  \033[1;37mGoogle Thinking Level\033[0m"
+    echo "  Current: $current"
+    echo ""
+    echo "  Gemini 3 models:  minimal | low | medium | high"
+    echo "  Gemini 2.5 models: off | low | medium | high | <budget number>"
+    echo "  (empty/default = model's dynamic default)"
+    echo ""
+    echo "  Usage: /provider google thinking <level>"
+    return 0
+  fi
+  case "$level" in
+    off|none|minimal|low|medium|high|dynamic|default|"")
+      ;;
+    [0-9]*)
+      ;;
+    *)
+      echo "  Unknown level '$level'. Use: off|minimal|low|medium|high|dynamic|default"
+      return 1
+      ;;
+  esac
+  [ "$level" = "default" ] && level=""
+  _GOOGLE_THINKING_LEVEL="$level"
+  # Persist
+  local _mode; _mode=$(grep '^mode=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  local _pid; _pid=$(grep '^project_id=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  local _reg; _reg=$(grep '^region=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  _google_save_config "${_mode:-studio}" "${_pid:-}" "${_reg:-us-central1}"
+  if [ -z "$level" ]; then
+    echo -e "  \033[38;5;82m✓\033[0m Thinking level → model default"
+  else
+    echo -e "  \033[38;5;82m✓\033[0m Thinking level → $level"
   fi
 }
 

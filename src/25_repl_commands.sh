@@ -202,9 +202,18 @@ handle_cmd() {
               echo "  Provider $_pname has no models command."
             fi
             ;;
+          thinking|thinking\ *)
+            if type "${_pname}_set_thinking" >/dev/null 2>&1; then
+              local _tlevel="${_paction#thinking}"
+              _tlevel="${_tlevel# }"
+              ${_pname}_set_thinking "$_tlevel"
+            else
+              echo "  Provider $_pname does not support thinking control."
+            fi
+            ;;
           *)
             echo "  Unknown action: $_paction"
-            echo "  Available: login, models, (empty=activate)"
+            echo "  Available: login, models, thinking [level], (empty=activate)"
             ;;
         esac
       else

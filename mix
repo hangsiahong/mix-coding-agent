@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605051916'
+MIX_VERSION='202605052007'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -362,6 +362,7 @@ _EMBEDDED_PROVIDER_google=1
 _GOOGLE_CONFIG_FILE="${HOME}/.mix/google_provider"
 _GOOGLE_KEY_FILE="${HOME}/.mix/google_api_key"
 _GOOGLE_TOKEN_CACHE="/tmp/mix-google-access-token"
+_GOOGLE_THINKING_LEVEL=""  # empty = model default (high/dynamic for Gemini 3)
 
 # Known models (hardcoded — stable, small list)
 # Gemini 3.x models only available on Vertex AI via location=global
@@ -396,6 +397,7 @@ google_activate() {
     project_id=$(grep '^project_id=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
     region=$(grep '^region=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
     [ -z "$region" ] && region="us-central1"
+    _GOOGLE_THINKING_LEVEL=$(grep '^thinking_level=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
   fi
 
   # Auto-detect: prefer Studio if key available, else Vertex if gcloud available
@@ -622,7 +624,10 @@ _google_save_config() {
   local project_id="${2:-}"
   local region="${3:-us-central1}"
   mkdir -p "$(dirname "$_GOOGLE_CONFIG_FILE")"
-  printf 'mode=%s\nproject_id=%s\nregion=%s\n' "$mode" "$project_id" "$region" > "$_GOOGLE_CONFIG_FILE"
+  {
+    printf 'mode=%s\nproject_id=%s\nregion=%s\n' "$mode" "$project_id" "$region"
+    [ -n "${_GOOGLE_THINKING_LEVEL:-}" ] && printf 'thinking_level=%s\n' "$_GOOGLE_THINKING_LEVEL"
+  } > "$_GOOGLE_CONFIG_FILE"
   chmod 600 "$_GOOGLE_CONFIG_FILE"
 }
 
@@ -727,6 +732,73 @@ print(json.dumps({'Authorization': 'Bearer $token'}))
   else
     # Studio: standard Bearer auth (default pipeline handles it)
     echo "{}"
+  fi
+}
+
+# ─── Extra payload params (thinkingConfig for Gemini 3/2.5 models) ──────────
+google_extra_payload_json() {
+  local level="${_GOOGLE_THINKING_LEVEL:-}"
+  [ -z "$level" ] && { echo "{}"; return 0; }
+
+  # Gemini 2.5 uses thinkingBudget (0=off); Gemini 3 uses thinkingLevel
+  case "${MODEL:-}" in
+    gemini-2.5-*)
+      case "$level" in
+        off|none|0)   python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":0}}))' ;;
+        low)          python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":512}}))' ;;
+        medium)       python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":4096}}))' ;;
+        high|dynamic) python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingBudget":-1}}))' ;;
+        *)            python3 -c "import json;print(json.dumps({'thinkingConfig':{'thinkingBudget':$level}}))" 2>/dev/null || echo "{}" ;;
+      esac
+      ;;
+    gemini-3*|*)
+      case "$level" in
+        off|none|minimal) python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"minimal"}}))' ;;
+        low)              python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"low"}}))' ;;
+        medium)           python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"medium"}}))' ;;
+        high|dynamic)     python3 -c 'import json;print(json.dumps({"thinkingConfig":{"thinkingLevel":"high"}}))' ;;
+        *)                python3 -c "import json;print(json.dumps({'thinkingConfig':{'thinkingLevel':'$level'}}))" 2>/dev/null || echo "{}" ;;
+      esac
+      ;;
+  esac
+}
+
+# ─── Set thinking level interactively or via command ────────────────────────
+google_set_thinking() {
+  local level="${1:-}"
+  if [ -z "$level" ]; then
+    local current="${_GOOGLE_THINKING_LEVEL:-default (model decides)}"
+    echo -e "  \033[1;37mGoogle Thinking Level\033[0m"
+    echo "  Current: $current"
+    echo ""
+    echo "  Gemini 3 models:  minimal | low | medium | high"
+    echo "  Gemini 2.5 models: off | low | medium | high | <budget number>"
+    echo "  (empty/default = model's dynamic default)"
+    echo ""
+    echo "  Usage: /provider google thinking <level>"
+    return 0
+  fi
+  case "$level" in
+    off|none|minimal|low|medium|high|dynamic|default|"")
+      ;;
+    [0-9]*)
+      ;;
+    *)
+      echo "  Unknown level '$level'. Use: off|minimal|low|medium|high|dynamic|default"
+      return 1
+      ;;
+  esac
+  [ "$level" = "default" ] && level=""
+  _GOOGLE_THINKING_LEVEL="$level"
+  # Persist
+  local _mode; _mode=$(grep '^mode=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  local _pid; _pid=$(grep '^project_id=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  local _reg; _reg=$(grep '^region=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  _google_save_config "${_mode:-studio}" "${_pid:-}" "${_reg:-us-central1}"
+  if [ -z "$level" ]; then
+    echo -e "  \033[38;5;82m✓\033[0m Thinking level → model default"
+  else
+    echo -e "  \033[38;5;82m✓\033[0m Thinking level → $level"
   fi
 }
 
@@ -1113,6 +1185,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 
 ## TASK RULES
 - Brief explanation, then act. No throat-clearing.
+- Use tools directly. Never narrate tool usage in text (no \"\[Used tools:...\]\", \"I will edit...\", or step-by-step descriptions before acting). Act; don't describe.
 - Tool succeeded → move on. No repeats.
 - After edit_file/create_file: auto-verify runs syntax+lint+typecheck. [VERIFY: FAILED] in result = fix before proceeding. Don't ignore verify failures.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.
@@ -3368,19 +3441,28 @@ call_api() {
   # Sanitize history for current provider (handles provider switching seamlessly)
   local _hist_for_api
   _hist_for_api=$(_apply_provider_history_filter "$HISTORY") || _hist_for_api="$HISTORY"
-  payload=$(printf '%s\n%s\n%s\n%s\n' \
+  # Extra payload params (e.g. Google thinkingConfig)
+  local _extra_payload="{}"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_payload_json" >/dev/null 2>&1; then
+    _extra_payload=$(${PROVIDER}_extra_payload_json 2>/dev/null) || _extra_payload="{}"
+  fi
+  payload=$(printf '%s\n%s\n%s\n%s\n%s\n' \
     "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
     "$TOOLS_JSON" \
     "$_hist_for_api" \
     "$_model" \
+    "$_extra_payload" \
   | python3 -c '
 import json,sys
 s=json.loads(sys.stdin.readline())
 t=json.loads(sys.stdin.readline())
 h=json.loads(sys.stdin.readline())
 m=sys.stdin.readline().strip()
+ex=json.loads(sys.stdin.readline())
 msg=[{"role":"system","content":s}]+h
-print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}))
+body={"model":m,"messages":msg,"tools":t,"tool_choice":"auto"}
+body.update(ex)
+print(json.dumps(body))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
   # Resolve API key — provider may override
@@ -3461,19 +3543,28 @@ call_api_stream() {
   # Sanitize history for current provider (handles provider switching seamlessly)
   local _hist_for_api
   _hist_for_api=$(_apply_provider_history_filter "$HISTORY") || _hist_for_api="$HISTORY"
-  payload=$(printf '%s\n%s\n%s\n%s\n' \
+  # Extra payload params (e.g. Google thinkingConfig)
+  local _extra_payload="{}"
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_payload_json" >/dev/null 2>&1; then
+    _extra_payload=$(${PROVIDER}_extra_payload_json 2>/dev/null) || _extra_payload="{}"
+  fi
+  payload=$(printf '%s\n%s\n%s\n%s\n%s\n' \
     "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
     "$TOOLS_JSON" \
     "$_hist_for_api" \
     "$_model" \
+    "$_extra_payload" \
   | python3 -c '
 import json,sys
 s=json.loads(sys.stdin.readline())
 t=json.loads(sys.stdin.readline())
 h=json.loads(sys.stdin.readline())
 m=sys.stdin.readline().strip()
+ex=json.loads(sys.stdin.readline())
 msg=[{"role":"system","content":s}]+h
-print(json.dumps({"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True,"stream_options":{"include_usage":True}}))
+body={"model":m,"messages":msg,"tools":t,"tool_choice":"auto","stream":True,"stream_options":{"include_usage":True}}
+body.update(ex)
+print(json.dumps(body))
 ' 2>/dev/null) || { echo "FAIL:payload"; return 1; }
 
   # Resolve API key — provider may override
@@ -4962,9 +5053,18 @@ handle_cmd() {
               echo "  Provider $_pname has no models command."
             fi
             ;;
+          thinking|thinking\ *)
+            if type "${_pname}_set_thinking" >/dev/null 2>&1; then
+              local _tlevel="${_paction#thinking}"
+              _tlevel="${_tlevel# }"
+              ${_pname}_set_thinking "$_tlevel"
+            else
+              echo "  Provider $_pname does not support thinking control."
+            fi
+            ;;
           *)
             echo "  Unknown action: $_paction"
-            echo "  Available: login, models, (empty=activate)"
+            echo "  Available: login, models, thinking [level], (empty=activate)"
             ;;
         esac
       else
