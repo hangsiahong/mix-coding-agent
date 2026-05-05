@@ -71,6 +71,11 @@ handle_cmd() {
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
       echo "  History msgs:   $_hist_n"
       ;;
+    /repomap)
+      echo -e "  \033[1;37mRepo Map:\033[0m"
+      build_repo_map
+      echo "$REPO_MAP"
+      ;;
     /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
@@ -820,4 +825,3 @@ Report caveman grouped by severity. End with one-line remedy hints per class. Wr
   esac
   return 0
 }
-
