@@ -57,9 +57,16 @@ review_hunks() {
   local new_file="$3"
   
   # If not interactive or disabled, accept all
-  if [[ "${AGENT_INTERACTIVE_DIFF:-true}" != "true" ]] || [[ ! -t 0 ]]; then
+  if [[ "${AGENT_INTERACTIVE_DIFF:-true}" != "true" ]] || [[ ! -t 0 ]] || [[ ! -t 1 ]]; then
     cat "$new_file"
     return 0
+  fi
+
+  # Create an empty file to compare if old_file doesn't exist
+  local _temp_old=""
+  if [ ! -f "$old_file" ]; then
+    _temp_old=$(mktemp)
+    old_file="$_temp_old"
   fi
 
   python3 -c '
