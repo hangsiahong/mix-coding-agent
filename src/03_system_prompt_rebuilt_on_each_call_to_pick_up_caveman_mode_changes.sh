@@ -164,13 +164,19 @@ MODE:deep — explain root cause before acting. justify why edit fixes the probl
 MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
   esac
 
-  # Inject SPEC.md context if present — gives agent full project spec every call
+  # Inject SPEC.md context if present — gives agent project spec every call
+  # Cap at 1500 chars to keep system prompt lean. Full spec available via read_file.
   if [ -f "$WORKDIR/SPEC.md" ]; then
-    local _spec_content; _spec_content=$(head -200 "$WORKDIR/SPEC.md" 2>/dev/null)
+    local _spec_raw; _spec_raw=$(head -200 "$WORKDIR/SPEC.md" 2>/dev/null)
+    local _SPEC_BUDGET=1500
+    if [ ${#_spec_raw} -gt "$_SPEC_BUDGET" ]; then
+      _spec_raw="${_spec_raw:0:$(( _SPEC_BUDGET - 20 ))}
+... (truncated — read SPEC.md for full spec)"
+    fi
     base+="
 
 ## PROJECT SPEC (SPEC.md)
-$_spec_content
+$_spec_raw
 
 CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutates spec. /check reads drift (zero writes). Bug found → suggest: /spec bug: <cause>"
   else
