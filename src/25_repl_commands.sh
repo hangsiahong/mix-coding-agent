@@ -277,7 +277,7 @@ handle_cmd() {
     /sandbox\ off)
       sandbox_cmd_off
       ;;
-    /sandbox\ setup)
+     /compact)  compact_history ;;
       sandbox_cmd_setup
       ;;
     /sandbox\ setup\ --rebuild)
