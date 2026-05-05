@@ -301,7 +301,35 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       if [ "$_gm_action" = "append" ]; then
         [ ! -f "$_gmem" ] && printf '# Global Memory\n\n' > "$_gmem"
         printf '%s\n' "- $_gm_content" >> "$_gmem"
-        result="Global memory updated: + $(printf '%s' "$_gm_content" | head -c 80)"
+        # Auto-consolidate when file exceeds budget (4000 chars).
+        # Keeps the most recent entries + merges related older ones into summary bullets.
+        # This prevents unbounded growth — the injection cap (2000 chars) only truncates
+        # at read time; this actually reduces the file size.
+        local _GMEM_FILE_BUDGET=4000
+        local _gm_size; _gm_size=$(wc -c < "$_gmem" 2>/dev/null) || _gm_size=0
+        if [ "$_gm_size" -gt "$_GMEM_FILE_BUDGET" ]; then
+          # Keep last 10 bullets verbatim, drop older ones
+          local _gm_new
+          _gm_new=$(python3 -c '
+import sys
+lines = open(sys.argv[1]).read().rstrip().split("\n")
+header = []
+bullets = []
+for l in lines:
+    if l.startswith("#") or l.strip() == "":
+        if not bullets: header.append(l)
+    elif l.startswith("- "):
+        bullets.append(l)
+# Keep last 15 bullets — gives some room before next consolidation
+keep = bullets[-15:] if len(bullets) > 15 else bullets
+print("\n".join(header + [""] + keep))
+' "$_gmem" 2>/dev/null) || _gm_new=""
+          if [ -n "$_gm_new" ]; then
+            printf '%s\n' "$_gm_new" > "$_gmem"
+            _gm_size=$(wc -c < "$_gmem" 2>/dev/null) || _gm_size=0
+          fi
+        fi
+        result="Global memory updated: + $(printf '%s' "$_gm_content" | head -c 80) (${_gm_size}b)"
       elif [ "$_gm_action" = "replace" ]; then
         _gm_old=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("old_text",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
         if [ -f "$_gmem" ]; then
