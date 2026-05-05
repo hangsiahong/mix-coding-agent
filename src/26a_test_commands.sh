@@ -448,7 +448,7 @@ printf '[test-gen] Done. %%s\n' "\$(date)" | tee -a "\$LOG_FILE"
 TESTGEN_WORKER_EOF
   chmod +x "$_worker_tmp"
 
-  tmux new-window -n "mix-testgen" \
+  tmux new-window -d -n "mix-testgen" \
     "bash '$_worker_tmp' '$_prompt_tmp' '$_dir' '$_mytty'; rm -f '$_prompt_tmp' '$_worker_tmp'" \
     2>/dev/null
 
