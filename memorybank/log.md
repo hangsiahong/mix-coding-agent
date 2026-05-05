@@ -131,7 +131,15 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 
 ## [2026-05-05] task | so did you update the memorybank?
 
-## [2026-07-15] task | Strip hunk review, improve commit messages
+## [2026-07-15] feature | Prompt Optimization — 43% system prompt reduction
+- **Root cause:** Global memory (`~/.mix/memory.md`) grew to 6,810 chars (2,270 tokens, 32% of system prompt) with no cap. Append-only, never cleaned.
+- **Fix 1 — Injection cap:** `build_system_prompt()` now truncates global memory injection to 2,000 chars (tail, keeps most recent entries).
+- **Fix 2 — Self-cleanup:** `update_global_memory` tool auto-consolidates when file exceeds 4,000 chars — keeps last 15 bullets, drops older ones.
+- **Fix 3 — Wiki pattern compressed:** 1,834 chars → ~300 chars. Kept key operations, dropped verbose layout.
+- **Fix 4 — SPEC.md capped:** `head -200` replaced with 1,500 char budget. Full spec still available via `read_file`.
+- **Result:** System prompt: 7,084 → 4,079 tokens (43% reduction). All 184 tests pass.
+- Manual cleanup of `~/.mix/memory.md`: 30 bullets (6,810 chars) → 21 bullets (2,338 chars). Dropped stale sandbox audit details, duplicate entries, formatting artifacts.
+- memorybank/solutions/prompt-optimization.md created with full audit.
 - Removed `review_hunks()` (132 lines) from `src/05_pre_edit_diff_preview.sh`
 - Removed hunk review calls from `src/13_tool_execution.sh` — direct `mv .next` replacement
 - Deleted `tests/hunk_review.bats` (3 tests). Net -401 lines, -3 tests → 184/184 passing
