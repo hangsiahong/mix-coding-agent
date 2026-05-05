@@ -221,24 +221,7 @@ else:
 " "$path" "$old_text" "$new_text")
 
       if [[ "$result" == Edited* ]] && [ -f "$path.next" ]; then
-        # Hunk review
-        local _reviewed_content
-        _reviewed_content=$(review_hunks "$path" "$path" "$path.next")
-        local _rev_ec=$?
-        
-        if [ $_rev_ec -eq 0 ]; then
-           # If reviewed content is same as original, it means user rejected all or it was same
-           local _orig_md5; _orig_md5=$(md5sum "$path" | cut -d' ' -f1)
-           printf '%s' "$_reviewed_content" > "$path"
-           local _new_md5; _new_md5=$(md5sum "$path" | cut -d' ' -f1)
-           
-           if [ "$_orig_md5" == "$_new_md5" ]; then
-             result="Edit rejected by user (no hunks applied)."
-           fi
-        else
-           result="Edit aborted by user."
-        fi
-        rm -f "$path.next"
+        mv "$path.next" "$path"
       fi
 
       # Update file cache after successful edit
@@ -370,4 +353,3 @@ else:
   [ -z "$result" ] && result="(no output)"
   printf '%s' "$result"
 }
-
