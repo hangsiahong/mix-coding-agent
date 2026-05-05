@@ -174,17 +174,23 @@ ${_collapsed}"
     if [ "$_lines" -gt 500 ]; then
       _struct="  ($_lines lines)"
     else
-      local _pat=""
-      for _pp in "${_REPO_MAP_PATTERNS[@]}"; do
-        local _pext="${_pp%%:*}"; local _rest="${_pp#*:}"
-        if [ "$_ext" = "$_pext" ]; then
-          _pat="${_rest%%:*}"
-          break
-        fi
-      done
+      if [ -n "$_CTAGS_EXE" ]; then
+        _struct=$(_repo_map_ctags "$f")
+      fi
 
-      if [ -n "$_pat" ]; then
-        _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -20 | sed 's/^/  /')
+      if [ -z "$_struct" ]; then
+        local _pat=""
+        for _pp in "${_REPO_MAP_PATTERNS[@]}"; do
+          local _pext="${_pp%%:*}"; local _rest="${_pp#*:}"
+          if [ "$_ext" = "$_pext" ]; then
+            _pat="${_rest%%:*}"
+            break
+          fi
+        done
+
+        if [ -n "$_pat" ]; then
+          _struct=$(grep -E "$_pat" "$f" 2>/dev/null | head -20 | sed 's/^/  /')
+        fi
       fi
     fi
 
