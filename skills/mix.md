@@ -214,7 +214,6 @@ When a user asks to build an extension:
 6. **Limitations** (current):
    - No hot-reload on file change — must `/ext reload` or restart
    - No extension config file — use variables in the script
-   - `_tool` only handles dispatch; adding LLM-visible tools still requires schema edit in core
    - Extensions share the same bash process — no isolation
 
 ### Integration Points (for core contributors)
