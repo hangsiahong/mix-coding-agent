@@ -212,7 +212,7 @@ print("edit "+p+" — "+summary)
     update_global_memory)
       local _gm_act; _gm_act=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("action","append"))' 2>/dev/null) || _gm_act="append"
       local _gm_txt; _gm_txt=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || _gm_txt="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m🧠 global memory ($_gm_act): ${_gm_txt:0:60}\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_MEMORY global memory ($_gm_act): ${_gm_txt:0:60}\033[0m"
       result=$(run_tool update_global_memory "$targs")
       FAIL_STREAK=0
       ;;
