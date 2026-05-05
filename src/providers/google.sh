@@ -25,7 +25,14 @@ _GOOGLE_KEY_FILE="${HOME}/.mix/google_api_key"
 _GOOGLE_TOKEN_CACHE="/tmp/mix-google-access-token"
 
 # Known models (hardcoded — stable, small list)
+# Gemini 3.x models only available on Vertex AI via location=global
 _GOOGLE_MODELS=(
+  "gemini-3.1-pro-preview"
+  "gemini-3.1-flash-lite-preview"
+  "gemini-3.1-flash-image-preview"
+  "gemini-3-flash-preview"
+  "gemini-3-pro-preview"
+  "gemini-3-pro-image-preview"
   "gemini-2.5-pro"
   "gemini-2.5-flash"
   "gemini-2.5-flash-lite"
@@ -34,6 +41,9 @@ _GOOGLE_MODELS=(
   "gemini-1.5-pro"
   "gemini-1.5-flash"
 )
+
+# Models that require location=global on Vertex AI (Preview)
+_GOOGLE_GLOBAL_MODELS_RE='gemini-3'
 
 # ─── Activate: read config, set BASE_URL + auth ────────────────────────────
 google_activate() {
