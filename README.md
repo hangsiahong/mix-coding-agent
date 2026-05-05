@@ -55,7 +55,7 @@ mix
 
 ## Features
 
-- **Tools**: `read_file`, `edit_file`, `create_file`, `list_files`, `search_files`, `bash` — full coding agent toolset.
+- **Autonomous Tools**: `read_file`, `edit_file`, `create_file`, `list_files`, `search_files`, `bash` — a complete LLM coding agent toolset for autonomous developer workflows.
 - **Streaming**: Tokens stream live. Context window bar shows usage in real-time.
 - **Providers**: Swap between KConsole (default), **GitHub Copilot**, and **Google AI/Vertex**.
 - **Caveman Mode**: Strips all AI chat fluff. Four levels: `ultra`, `full`, `lite`, `off`. Just answers and code.
