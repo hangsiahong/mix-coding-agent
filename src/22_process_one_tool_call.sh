@@ -35,9 +35,9 @@ process_tc() {
       # Risk label
       if [ "$silent" != "true" ]; then
         case "$_risk" in
-          BLOCKED) echo -e "    \033[1;31m⛔  BLOCKED: $_reason\033[0m" ;;
-          HIGH)    echo -e "    \033[1;31m⚠   Risk: HIGH ($_reason)\033[0m" ;;
-          MED)     echo -e "    \033[1;33m◈   Risk: MED  ($_reason)\033[0m" ;;
+          BLOCKED) echo -e "    \033[1;31m$I_BLOCKED  BLOCKED: $_reason\033[0m" ;;
+          HIGH)    echo -e "    \033[1;31m$I_WARN   Risk: HIGH ($_reason)\033[0m" ;;
+          MED)     echo -e "    \033[1;33m$I_RISK_MED   Risk: MED  ($_reason)\033[0m" ;;
         esac
       fi
       local _run=false
