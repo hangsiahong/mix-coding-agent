@@ -178,5 +178,8 @@ except:
 finally:
     if os.path.exists("hunk.patch"): os.remove("hunk.patch")
 ' "$path" "$old_file" "$new_file"
+  local _ec=$?
+  [ -n "$_temp_old" ] && rm -f "$_temp_old"
+  return $_ec
 }
 
