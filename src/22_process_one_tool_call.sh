@@ -171,7 +171,7 @@ print("edit "+p+" — "+summary)
       ;;
     create_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m📝 $p (new file)\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_WRITE $p (new file)\033[0m"
       if [ "$silent" = "true" ]; then
         result="Error: create_file cannot be run in parallel/silent mode."
       else
