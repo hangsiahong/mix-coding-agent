@@ -40,7 +40,11 @@ run_agent() {
           _pt=${_usage_line#USAGE:}; _pt=${_pt%%:*}
           local _rest=${_usage_line#USAGE:}; _rest=${_rest#*:}
           _ct=${_rest%%:*}
-          _cache=${_rest#*:}
+          # Third field = cache tokens (only if present)
+          case "$_rest" in
+            *:*) _cache=${_rest#*:} ;;
+            *) _cache=0 ;;
+          esac
           _SESSION_PROMPT_TOKENS=$((_SESSION_PROMPT_TOKENS + _pt))
           _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
           _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
