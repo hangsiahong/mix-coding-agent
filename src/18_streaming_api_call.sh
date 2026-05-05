@@ -49,6 +49,7 @@ hdrs = {
 try:
     extra = json.loads(os.environ.get("EXTRA_HEADERS","{}"))
     hdrs.update(extra)
+    hdrs = {k:v for k,v in hdrs.items() if v is not None}
 except: pass
 
 req = urllib.request.Request(url, data=payload, headers=hdrs)
