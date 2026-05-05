@@ -80,13 +80,13 @@ teardown() {
 
 @test "google_get_api_key: studio mode reads key file" {
   source "$PROJECT_ROOT/src/providers/google.sh"
-  printf 'mode=studio\nproject_id=\nregion=us-central1\n' > "$_GOOGLE_CONFIG_FILE"
-  printf 'test-api-key-123' > "$_GOOGLE_KEY_FILE"
-  # Override file paths
-  _GOOGLE_CONFIG_FILE="$_GOOGLE_CONFIG_FILE" _GOOGLE_KEY_FILE="$_GOOGLE_KEY_FILE" \
-    run bash -c 'source "$PROJECT_ROOT/src/providers/google.sh"; google_get_api_key'
-  # Can't easily override internal paths in sourced functions.
-  # Instead test with env var path.
+  unset GOOGLE_API_KEY
+  mkdir -p "$HOME/.mix"
+  printf 'mode=studio\nproject_id=\nregion=us-central1\n' > "$HOME/.mix/google_provider"
+  printf 'file-key-789' > "$HOME/.mix/google_api_key"
+  result=$(google_get_api_key)
+  [ "$result" = "file-key-789" ]
+  rm -f "$HOME/.mix/google_provider" "$HOME/.mix/google_api_key"
 }
 
 @test "google_get_api_key: studio mode reads GOOGLE_API_KEY env" {
