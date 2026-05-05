@@ -1,10 +1,12 @@
-# mix — Autonomous Terminal Coding Agent (LLM CLI)
+# mix — Autonomous Terminal AI Coding Agent (LLM CLI)
 
-**High-performance, zero-dependency AI coding assistant for the terminal.**
+**A high-performance, zero-dependency AI pair programmer and autonomous coding assistant for the terminal.**
 
 > Single bash binary. No Node, no pip, no venv. Just `bash`, `curl`, and `python3`.
 
-mix is an autonomous terminal coding agent designed for speed and precision. It compiles into a single self-contained file and features a full tool suite (read, edit, create, bash, search) with live streaming. Supports **GitHub Copilot**, **Google Gemini 2.0/3**, and **Claude 3.5 Sonnet** via KConsole. Built-in sandboxing, session recovery, and a self-growing knowledge base (memorybank) make it a powerful alternative to Aider or Cline for terminal power users.
+`mix` is an **autonomous terminal coding agent** designed for CLI power users. It transforms your terminal into an AI-driven development environment, compiling into a single self-contained executable. With a full tool suite (read, edit, create, execute bash commands, grep search) and live streaming output, `mix` operates as a true **AI developer assistant**. 
+
+Built for speed and precision, it natively supports **GitHub Copilot**, **Google Gemini 2.0/3**, and **Claude 3.5 Sonnet** (via KConsole). Featuring built-in sandboxing, automated session recovery, and a self-growing project knowledge base (memorybank), `mix` is the ultimate lightweight alternative to heavy Node or Python-based AI CLI tools like Aider or Cline.
 
 ---
 
