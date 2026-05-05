@@ -175,7 +175,7 @@ run_agent() {
 
       rm -rf "$_batch_dir"
       # Turn progress indicator — shows where we are in the agent loop
-      echo -e "    \033[0;90m⤷ turn $turn · $_TOOLS_USED tools · ~$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) / 1000 ))k tokens\033[0m"
+      echo -e "    \033[0;90m⤷ turn $turn · $_TOOLS_USED tools · ~$(_fmt_tok $((_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS))) tokens\033[0m"
       # Loop continues — model will see tool results and respond
     elif [ -n "$text_line" ]; then
       # streaming already printed content live to /dev/tty; skip reprint
