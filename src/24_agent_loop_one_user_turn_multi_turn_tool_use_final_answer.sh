@@ -7,7 +7,7 @@ run_agent() {
 
   # Plan mode: generate and show numbered plan, ask approval before tools
   if [ "$AGENT_MODE" = "plan" ]; then
-    printf "\r\033[K  \033[1;35m📋 planning...\033[0m"
+    printf "\r\033[K  \033[1;35m$I_PLAN planning...\033[0m"
     local _plan; _plan=$(call_api_plan) || true
     if [ -n "$_plan" ]; then
       echo -e "\r\033[K  \033[0;35m━━━ Plan ━━━\033[0m"
