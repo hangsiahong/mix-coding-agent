@@ -130,3 +130,12 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 
 
 ## [2026-05-05] task | so did you update the memorybank?
+
+## [2026-07-15] task | Strip hunk review, improve commit messages
+- Removed `review_hunks()` (132 lines) from `src/05_pre_edit_diff_preview.sh`
+- Removed hunk review calls from `src/13_tool_execution.sh` — direct `mv .next` replacement
+- Deleted `tests/hunk_review.bats` (3 tests). Net -401 lines, -3 tests → 184/184 passing
+- Smarter edit commit messages via `difflib.unified_diff`: `agent: edit <file> — <first changed line>`
+- Create commit messages include line count: `agent: create <file> (<N> lines)`
+- `AGENT_INTERACTIVE_DIFF` env var now dead (not cleaned up)
+- Commit `c783a5b`, pushed to `origin/feature/3`
