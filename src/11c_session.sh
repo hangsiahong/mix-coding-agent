@@ -192,7 +192,7 @@ session_apply() {
     file_cache_validate  # mtime check — removes stale entries
     local _nc
     _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
-    echo -e "  \033[38;5;82m✓\033[0m File cache restored ($_nc files)"
+    echo -e "  \033[38;5;82m$I_OK\033[0m File cache restored ($_nc files)"
   fi
 
   # Restore repo map (TTL still enforced — stale maps rebuilt)
@@ -203,7 +203,7 @@ session_apply() {
       _REPO_MAP="$_SESSION_RESTORE_REPO_MAP"
       _REPO_MAP_MTIMES="$_SESSION_RESTORE_REPO_MTIMES"
       _REPO_MAP_TIME="$_SESSION_RESTORE_REPO_TIME"
-      echo -e "  \033[38;5;82m✓\033[0m Repo map restored (age: ${_age}s)"
+      echo -e "  \033[38;5;82m$I_OK\033[0m Repo map restored (age: ${_age}s)"
     else
       echo -e "  \033[0;90m  Repo map expired (age: ${_age}s > ${_REPO_MAP_TTL}s), will rebuild\033[0m"
     fi
@@ -214,7 +214,7 @@ session_apply() {
     _load_provider "$PROVIDER" 2>/dev/null || true
   fi
 
-  echo -e "  \033[38;5;82m✓\033[0m Session restored (was ${_SESSION_RESTORE_AGE}h ago)"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Session restored (was ${_SESSION_RESTORE_AGE}h ago)"
   [ -n "$_SESSION_RESTORE_LAST" ] && echo -e "  \033[0;90m  Last task: ${_SESSION_RESTORE_LAST}\033[0m"
 
   _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE

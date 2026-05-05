@@ -25,11 +25,11 @@ telegram_setup() {
   resp=$(curl -s --max-time 10 "https://api.telegram.org/bot${token}/getMe" 2>/dev/null)
   ok=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print("ok" if d.get("ok") else "fail")' 2>/dev/null)
   if [ "$ok" != "ok" ]; then
-    printf '\r  \033[1;31m✗ Invalid token. Check and try again.\033[0m\n'
+    printf '\r  \033[1;31m$I_FAIL Invalid token. Check and try again.\033[0m\n'
     return 1
   fi
   bot_name=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["username"])' 2>/dev/null)
-  printf '\r  \033[38;5;82m✓ Bot verified: @%s\033[0m\n' "$bot_name"
+  printf '\r  \033[38;5;82m$I_OK Bot verified: @%s\033[0m\n' "$bot_name"
   printf '\n'
   printf '  3. Open Telegram → find \033[1m@%s\033[0m → send any message\n' "$bot_name"
   printf '     Press Enter when done: '
@@ -46,14 +46,14 @@ for u in reversed(data.get("result",[])):
 ' 2>/dev/null)
 
   if [ -z "$chat_id" ]; then
-    printf '  \033[1;31m✗ No message found. Send a message to @%s first, then re-run /afk setup.\033[0m\n' "$bot_name"
+    printf '  \033[1;31m$I_FAIL No message found. Send a message to @%s first, then re-run /afk setup.\033[0m\n' "$bot_name"
     return 1
   fi
 
   mkdir -p "${HOME}/.mix"
   printf 'BOT_TOKEN=%s\nCHAT_ID=%s\n' "$token" "$chat_id" > "$_TELEGRAM_CONFIG_FILE"
   chmod 600 "$_TELEGRAM_CONFIG_FILE"
-  printf '  \033[38;5;82m✓ Saved to %s\033[0m (chat_id: %s)\n' "$_TELEGRAM_CONFIG_FILE" "$chat_id"
+  printf '  \033[38;5;82m$I_OK Saved to %s\033[0m (chat_id: %s)\n' "$_TELEGRAM_CONFIG_FILE" "$chat_id"
 
   # Send confirmation message
   local payload
@@ -62,5 +62,5 @@ for u in reversed(data.get("result",[])):
     -H "Content-Type: application/json" -d "$payload" > /dev/null
   printf '  Test message sent to Telegram.\n'
   printf '\n'
-  printf '  \033[38;5;82m✓ Setup complete! Run /afk anytime.\033[0m\n'
+  printf '  \033[38;5;82m$I_OK Setup complete! Run /afk anytime.\033[0m\n'
 }

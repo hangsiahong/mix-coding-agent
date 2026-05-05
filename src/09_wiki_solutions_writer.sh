@@ -14,7 +14,7 @@ Command: `%s`
 Date: %s
 ' \
       "$title" "$problem" "$fix" "$cmd" "$(date '+%Y-%m-%d')" > "$file"
-    echo -e "    \033[0;90m↳ wiki: $file\033[0m"
+    echo -e "    \033[0;90m$I_RETURN wiki: $file\033[0m"
   fi
 }
 

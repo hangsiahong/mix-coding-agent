@@ -87,7 +87,7 @@ google_activate() {
     API_KEY="$api_key"
     PROVIDER="google"
     [ -z "${MODEL:-}" ] && MODEL="gemini-2.5-pro"
-    echo -e "  \033[38;5;82m✓\033[0m Google AI Studio activated"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Google AI Studio activated"
     echo "  Model: $MODEL | Endpoint: generativelanguage.googleapis.com"
     _mix_save_defaults
     return 0
@@ -117,7 +117,7 @@ google_activate() {
       api_key=$(cat "$_GOOGLE_KEY_FILE")
     fi
     API_KEY="$api_key"
-    echo -e "  \033[38;5;82m✓\033[0m Google Vertex AI activated"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Google Vertex AI activated"
     if [ "$effective_region" != "$region" ]; then
       echo "  Model: $MODEL | Project: $project_id | Region: global (preview model)"
     else
@@ -167,7 +167,7 @@ _google_login_studio() {
     read -r use_env < /dev/tty
     if [[ "$use_env" != [nN]* ]]; then
       _google_save_config "studio"
-      echo -e "  \033[38;5;82m✓\033[0m Using GOOGLE_API_KEY env var."
+      echo -e "  \033[38;5;82m$I_OK\033[0m Using GOOGLE_API_KEY env var."
       return 0
     fi
   fi
@@ -193,12 +193,12 @@ _google_login_studio() {
     printf '%s' "$api_key" > "$_GOOGLE_KEY_FILE"
     chmod 600 "$_GOOGLE_KEY_FILE"
     _google_save_config "studio"
-    echo -e "  \033[38;5;82m✓\033[0m API key validated and saved."
+    echo -e "  \033[38;5;82m$I_OK\033[0m API key validated and saved."
   elif [ "$test_resp" = "400" ] || [ "$test_resp" = "403" ]; then
-    echo -e "  \033[1;31m✗ Invalid API key (HTTP $test_resp).\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Invalid API key (HTTP $test_resp).\033[0m"
     return 1
   else
-    echo -e "  \033[1;33m⚠ Could not validate (HTTP $test_resp). Saving anyway.\033[0m"
+    echo -e "  \033[1;33m$I_WARN Could not validate (HTTP $test_resp). Saving anyway.\033[0m"
     mkdir -p "$(dirname "$_GOOGLE_KEY_FILE")"
     chmod 700 "$(dirname "$_GOOGLE_KEY_FILE")"
     printf '%s' "$api_key" > "$_GOOGLE_KEY_FILE"
@@ -213,7 +213,7 @@ _google_login_vertex() {
 
   # Check gcloud
   if ! command -v gcloud >/dev/null 2>&1; then
-    echo -e "  \033[1;31m✗ gcloud CLI not found.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL gcloud CLI not found.\033[0m"
     echo "  Install: https://cloud.google.com/sdk/docs/install"
     return 1
   fi
@@ -226,7 +226,7 @@ _google_login_vertex() {
     gcloud auth login --no-launch-browser
     account=$(gcloud config get-value account 2>/dev/null) || true
     if [ -z "$account" ]; then
-      echo -e "  \033[1;31m✗ Login failed.\033[0m"
+      echo -e "  \033[1;31m$I_FAIL Login failed.\033[0m"
       return 1
     fi
   fi
@@ -246,7 +246,7 @@ _google_login_vertex() {
   [ -n "$project_id_input" ] && project_id="$project_id_input"
 
   if [ -z "$project_id" ]; then
-    echo -e "  \033[1;31m✗ Project ID required.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Project ID required.\033[0m"
     return 1
   fi
 
@@ -264,7 +264,7 @@ _google_login_vertex() {
   if [ -z "$api_enabled" ]; then
     echo "  Enabling Vertex AI API (one-time)..."
     gcloud services enable aiplatform.googleapis.com --project="$project_id" 2>/dev/null || {
-      echo -e "  \033[1;33m⚠ Could not auto-enable API. Enable manually:\033[0m"
+      echo -e "  \033[1;33m$I_WARN Could not auto-enable API. Enable manually:\033[0m"
       echo "  gcloud services enable aiplatform.googleapis.com --project=$project_id"
     }
   fi
@@ -274,13 +274,13 @@ _google_login_vertex() {
   local test_token
   test_token=$(gcloud auth print-access-token 2>/dev/null) || true
   if [ -z "$test_token" ]; then
-    echo -e "  \033[1;31m✗ Could not generate access token.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Could not generate access token.\033[0m"
     echo "  Try: gcloud auth login"
     return 1
   fi
 
   _google_save_config "vertex" "$project_id" "$region"
-  echo -e "  \033[38;5;82m✓\033[0m Vertex AI configured."
+  echo -e "  \033[38;5;82m$I_OK\033[0m Vertex AI configured."
   echo "  Project: $project_id | Region: $region"
 }
 
@@ -461,9 +461,9 @@ google_set_thinking() {
   local _reg; _reg=$(grep '^region=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
   _google_save_config "${_mode:-studio}" "${_pid:-}" "${_reg:-us-central1}"
   if [ -z "$level" ]; then
-    echo -e "  \033[38;5;82m✓\033[0m Thinking level → model default"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Thinking level → model default"
   else
-    echo -e "  \033[38;5;82m✓\033[0m Thinking level → $level"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Thinking level → $level"
   fi
 }
 

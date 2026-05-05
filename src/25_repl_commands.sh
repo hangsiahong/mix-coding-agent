@@ -773,7 +773,7 @@ AFK_WORKER_END
         if [ "$_use_tg" = "true" ]; then
           printf '  Telegram: plan will be sent for approval\n'
         else
-          printf '  \033[38;5;220m⚠ No Telegram configured.\033[0m Run \033[1m/afk setup\033[0m to enable phone approval.\n'
+          printf '  \033[38;5;220m$I_WARN No Telegram configured.\033[0m Run \033[1m/afk setup\033[0m to enable phone approval.\n'
           printf '  Plan will be saved to %s — run /afk apply to execute.\n' "$_plan_save"
         fi
         printf '  Check back: /afk log   Stop: /afk stop\n'

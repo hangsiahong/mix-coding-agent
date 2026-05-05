@@ -7,9 +7,9 @@ for _arg in "$@"; do
     else
       if [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
         _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
-          echo -e "  \033[1;31m✗\033[0m --sandbox: failed to unpack rootfs. Run /sandbox setup."
+          echo -e "  \033[1;31m$I_FAIL\033[0m --sandbox: failed to unpack rootfs. Run /sandbox setup."
       else
-        echo -e "  \033[1;31m✗\033[0m --sandbox: rootfs not found. Run /sandbox setup first."
+        echo -e "  \033[1;31m$I_FAIL\033[0m --sandbox: rootfs not found. Run /sandbox setup first."
       fi
     fi
   fi
@@ -20,9 +20,9 @@ if [ "$SANDBOX_ENABLED" != "true" ] && [ -f "${WORKDIR:-$PWD}/.mix/sandbox" ]; t
     SANDBOX_ENABLED=true
   elif [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
     _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
-      echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but failed to unpack rootfs. Run /sandbox setup."
+      echo -e "  \033[1;33m$I_WARN\033[0m .mix/sandbox marker found but failed to unpack rootfs. Run /sandbox setup."
   else
-    echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but rootfs not installed. Run /sandbox setup."
+    echo -e "  \033[1;33m$I_WARN\033[0m .mix/sandbox marker found but rootfs not installed. Run /sandbox setup."
   fi
 fi
 
@@ -75,7 +75,7 @@ echo ""
 
 # ─── Doctor mode (if booted from wrapper due to broken build) ────────────────
 if [ "${_DOCTOR_MODE:-false}" = "true" ]; then
-  echo -e "  \033[1;33m⚠ Doctor mode — previous build was broken\033[0m"
+  echo -e "  \033[1;33m$I_WARN Doctor mode — previous build was broken\033[0m"
   echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
   _CRASH_LOG="/tmp/mix-crash.log"
   if [ -f "$_CRASH_LOG" ]; then

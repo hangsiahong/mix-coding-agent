@@ -5,7 +5,7 @@ run_with_heal() {
   if [ $rc -ne 0 ]; then
     # Permission denied → retry with sudo
     if printf '%s' "$out" | grep -qiE 'permission denied|EACCES'; then
-      echo -e "    \033[0;90m↻ permission denied\033[0m"
+      echo -e "    \033[0;90m$I_RETRY permission denied\033[0m"
       local _sudo_ans=""
       echo -e "    \033[1;33mCommand:\033[0m \033[0;90msudo bash -c \"$cmd\"\033[0m"
       printf '    \033[1;33mConfirm sudo? [y/N] \033[0m'
@@ -17,13 +17,13 @@ run_with_heal() {
     elif printf '%s' "$out" | grep -qiE 'command not found|: No such file or directory'; then
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
       if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
-        echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
+        echo -e "    \033[0;90m$I_RETRY not found — retrying via node_modules/.bin\033[0m"
         out=$(bash -c "node_modules/.bin/$cmd" 2>&1); rc=$?
       elif command -v npx >/dev/null 2>&1 \
         && printf '%s' "$_bin" | grep -qE '^[@a-z]' \
         && printf '%s' "$_bin" | grep -qE '[-@]' \
         && ! printf '%s' "$_bin" | grep -qE '[/_]'; then
-        echo -e "    \033[0;90m↻ not found — retrying via npx\033[0m"
+        echo -e "    \033[0;90m$I_RETRY not found — retrying via npx\033[0m"
         out=$(bash -c "npx $cmd" 2>&1); rc=$?
       fi
     fi

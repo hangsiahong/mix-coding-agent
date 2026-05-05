@@ -57,7 +57,7 @@ for f in sorted(files): print(f"- {f}")
          printf '- [%s](solutions/%s.md): %s\n' "$input" "$slug" "$input" >> "$WORKDIR/memorybank/index.md"
       fi
       
-      echo -e "  \033[0;90m✓ Proactive memory logged to solutions/${slug}.md\033[0m"
+      echo -e "  \033[0;90m$I_OK Proactive memory logged to solutions/${slug}.md\033[0m"
     fi
   fi
 }

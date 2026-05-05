@@ -105,7 +105,7 @@ copilot_login() {
   printf '%s' "$gh_token" > "$_COPILOT_GH_TOKEN_FILE"
   chmod 600 "$_COPILOT_GH_TOKEN_FILE"
 
-  echo -e "  \033[38;5;82m✓ GitHub token saved.\033[0m"
+  echo -e "  \033[38;5;82m$I_OK GitHub token saved.\033[0m"
   return 0
 }
 
@@ -324,7 +324,7 @@ copilot_activate() {
     MODEL="${AGENT_MODEL:-gpt-4o}"
   fi
 
-  echo -e "  \033[38;5;82m✓ Provider → copilot\033[0m"
+  echo -e "  \033[38;5;82m$I_OK Provider → copilot\033[0m"
   echo "  Base URL: $BASE_URL"
   echo "  Model: $MODEL"
   echo -e "  Run \033[1m/provider copilot models\033[0m to list available models"

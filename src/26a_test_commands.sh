@@ -236,8 +236,8 @@ _test_init() {
   [ -f "$_dir/pyproject.toml" ] || [ -f "$_dir/requirements.txt" ] && _lang="Python"
   [ -f "$_dir/Gemfile" ] && _lang="Ruby"
 
-  echo -e "  \033[38;5;82m✓\033[0m Detected: $_lang"
-  echo -e "  \033[38;5;82m✓\033[0m Framework: $_fw_name"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Detected: $_lang"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Framework: $_fw_name"
 
   # Install if needed
   if [ "$_needs_install" = true ]; then
@@ -317,7 +317,7 @@ _test_run() {
   local _ec=$?
 
   if [ $_ec -eq 0 ]; then
-    echo -e "  \033[38;5;82m✓ Tests passed\033[0m"
+    echo -e "  \033[38;5;82m$I_OK Tests passed\033[0m"
   else
     echo -e "  \033[1;31m$I_FAIL Tests failed (exit $_ec)\033[0m"
   fi
@@ -444,7 +444,7 @@ cd "\$WORK_DIR" || exit 1
 printf '[test-gen] Starting... %%s\n' "\$(date)" | tee "\$LOG_FILE"
 MIX_YOLO=1 "$MIX_BIN" < "\$PROMPT_FILE" 2>&1 | tee -a "\$LOG_FILE"
 printf '[test-gen] Done. %%s\n' "\$(date)" | tee -a "\$LOG_FILE"
-[ -n "\$MY_TTY" ] && printf '\n  \033[38;5;82m✓ Test generation done! Check /test run or /workers\033[0m\n' > "\$MY_TTY" 2>/dev/null || true
+[ -n "\$MY_TTY" ] && printf '\n  \033[38;5;82m$I_OK Test generation done! Check /test run or /workers\033[0m\n' > "\$MY_TTY" 2>/dev/null || true
 TESTGEN_WORKER_EOF
   chmod +x "$_worker_tmp"
 

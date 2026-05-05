@@ -33,7 +33,7 @@ msg=h+[{"role":"user","content":s}]
 json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
 ' "$_hist_tmp" "$_compact_model" "$_payload_tmp" 2>/dev/null || {
     rm -f "$_payload_tmp" "$_hist_tmp"
-    printf "\r\033[K  \033[0;33m↻ compact failed: payload build error\033[0m\n"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: payload build error\033[0m\n"
     return
   }
   rm -f "$_hist_tmp"
@@ -97,7 +97,7 @@ for k,v in json.load(sys.stdin).items():
   if [ "$code" != "200" ]; then
     local _err; _err=$(cat "$_resp_tmp" 2>/dev/null | head -c 200)
     rm -f "$_resp_tmp"
-    printf "\r\033[K  \033[0;33m↻ compact failed: API %s\033[0m\n" "${code:-timeout}"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: API %s\033[0m\n" "${code:-timeout}"
     return
   fi
 
@@ -110,7 +110,7 @@ for k,v in json.load(sys.stdin).items():
     local _raw_preview; _raw_preview=$(head -c 500 "$_resp_tmp" 2>/dev/null)
     local _py_msg; _py_msg=$(cat "$_py_err" 2>/dev/null)
     rm -f "$_resp_tmp" "$_py_err"
-    printf "\r\033[K  \033[0;33m↻ compact failed: empty summary (py rc=%d)\033[0m\n" "$_py_rc"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: empty summary (py rc=%d)\033[0m\n" "$_py_rc"
     [ -n "$_py_msg" ] && printf "  \033[0;90mpython error: %s\033[0m\n" "$(printf '%s' "$_py_msg" | head -c 300)"
     printf "  \033[0;90mAPI response (first 500 chars): %s\033[0m\n" "$_raw_preview"
     return
@@ -126,7 +126,7 @@ for k,v in json.load(sys.stdin).items():
   local sum_esc
   sum_esc=$(printf '[Compacted context]\n%s' "$summary" \
     | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || {
-      printf "\r\033[K  \033[0;33m↻ compact failed: escape error\033[0m\n"
+      printf "\r\033[K  \033[0;33m$I_RETRY compact failed: escape error\033[0m\n"
       return
     }
 
@@ -142,7 +142,7 @@ base=json.loads(lines[0])
 recent=json.loads(lines[1])
 print(json.dumps(base+recent))
 ' 2>/dev/null) || {
-      printf "\r\033[K  \033[0;33m↻ compact failed: merge error\033[0m\n"
+      printf "\r\033[K  \033[0;33m$I_RETRY compact failed: merge error\033[0m\n"
       return
     }
 
@@ -152,9 +152,9 @@ print(json.dumps(base+recent))
     save_history
     local new_count
     new_count=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || new_count="?"
-    printf "\r\033[K  \033[38;5;82m✓ compacted: %d → %s msgs\033[0m\n" "$count" "$new_count"
+    printf "\r\033[K  \033[38;5;82m$I_OK compacted: %d → %s msgs\033[0m\n" "$count" "$new_count"
   else
-    printf "\r\033[K  \033[0;33m↻ compact failed: no result\033[0m\n"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: no result\033[0m\n"
   fi
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052349'
+MIX_VERSION='202605060012'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -109,7 +109,7 @@ copilot_login() {
   printf '%s' "$gh_token" > "$_COPILOT_GH_TOKEN_FILE"
   chmod 600 "$_COPILOT_GH_TOKEN_FILE"
 
-  echo -e "  \033[38;5;82m✓ GitHub token saved.\033[0m"
+  echo -e "  \033[38;5;82m$I_OK GitHub token saved.\033[0m"
   return 0
 }
 
@@ -328,7 +328,7 @@ copilot_activate() {
     MODEL="${AGENT_MODEL:-gpt-4o}"
   fi
 
-  echo -e "  \033[38;5;82m✓ Provider → copilot\033[0m"
+  echo -e "  \033[38;5;82m$I_OK Provider → copilot\033[0m"
   echo "  Base URL: $BASE_URL"
   echo "  Model: $MODEL"
   echo -e "  Run \033[1m/provider copilot models\033[0m to list available models"
@@ -426,7 +426,7 @@ google_activate() {
     API_KEY="$api_key"
     PROVIDER="google"
     [ -z "${MODEL:-}" ] && MODEL="gemini-2.5-pro"
-    echo -e "  \033[38;5;82m✓\033[0m Google AI Studio activated"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Google AI Studio activated"
     echo "  Model: $MODEL | Endpoint: generativelanguage.googleapis.com"
     _mix_save_defaults
     return 0
@@ -456,7 +456,7 @@ google_activate() {
       api_key=$(cat "$_GOOGLE_KEY_FILE")
     fi
     API_KEY="$api_key"
-    echo -e "  \033[38;5;82m✓\033[0m Google Vertex AI activated"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Google Vertex AI activated"
     if [ "$effective_region" != "$region" ]; then
       echo "  Model: $MODEL | Project: $project_id | Region: global (preview model)"
     else
@@ -506,7 +506,7 @@ _google_login_studio() {
     read -r use_env < /dev/tty
     if [[ "$use_env" != [nN]* ]]; then
       _google_save_config "studio"
-      echo -e "  \033[38;5;82m✓\033[0m Using GOOGLE_API_KEY env var."
+      echo -e "  \033[38;5;82m$I_OK\033[0m Using GOOGLE_API_KEY env var."
       return 0
     fi
   fi
@@ -532,12 +532,12 @@ _google_login_studio() {
     printf '%s' "$api_key" > "$_GOOGLE_KEY_FILE"
     chmod 600 "$_GOOGLE_KEY_FILE"
     _google_save_config "studio"
-    echo -e "  \033[38;5;82m✓\033[0m API key validated and saved."
+    echo -e "  \033[38;5;82m$I_OK\033[0m API key validated and saved."
   elif [ "$test_resp" = "400" ] || [ "$test_resp" = "403" ]; then
-    echo -e "  \033[1;31m✗ Invalid API key (HTTP $test_resp).\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Invalid API key (HTTP $test_resp).\033[0m"
     return 1
   else
-    echo -e "  \033[1;33m⚠ Could not validate (HTTP $test_resp). Saving anyway.\033[0m"
+    echo -e "  \033[1;33m$I_WARN Could not validate (HTTP $test_resp). Saving anyway.\033[0m"
     mkdir -p "$(dirname "$_GOOGLE_KEY_FILE")"
     chmod 700 "$(dirname "$_GOOGLE_KEY_FILE")"
     printf '%s' "$api_key" > "$_GOOGLE_KEY_FILE"
@@ -552,7 +552,7 @@ _google_login_vertex() {
 
   # Check gcloud
   if ! command -v gcloud >/dev/null 2>&1; then
-    echo -e "  \033[1;31m✗ gcloud CLI not found.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL gcloud CLI not found.\033[0m"
     echo "  Install: https://cloud.google.com/sdk/docs/install"
     return 1
   fi
@@ -565,7 +565,7 @@ _google_login_vertex() {
     gcloud auth login --no-launch-browser
     account=$(gcloud config get-value account 2>/dev/null) || true
     if [ -z "$account" ]; then
-      echo -e "  \033[1;31m✗ Login failed.\033[0m"
+      echo -e "  \033[1;31m$I_FAIL Login failed.\033[0m"
       return 1
     fi
   fi
@@ -585,7 +585,7 @@ _google_login_vertex() {
   [ -n "$project_id_input" ] && project_id="$project_id_input"
 
   if [ -z "$project_id" ]; then
-    echo -e "  \033[1;31m✗ Project ID required.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Project ID required.\033[0m"
     return 1
   fi
 
@@ -603,7 +603,7 @@ _google_login_vertex() {
   if [ -z "$api_enabled" ]; then
     echo "  Enabling Vertex AI API (one-time)..."
     gcloud services enable aiplatform.googleapis.com --project="$project_id" 2>/dev/null || {
-      echo -e "  \033[1;33m⚠ Could not auto-enable API. Enable manually:\033[0m"
+      echo -e "  \033[1;33m$I_WARN Could not auto-enable API. Enable manually:\033[0m"
       echo "  gcloud services enable aiplatform.googleapis.com --project=$project_id"
     }
   fi
@@ -613,13 +613,13 @@ _google_login_vertex() {
   local test_token
   test_token=$(gcloud auth print-access-token 2>/dev/null) || true
   if [ -z "$test_token" ]; then
-    echo -e "  \033[1;31m✗ Could not generate access token.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Could not generate access token.\033[0m"
     echo "  Try: gcloud auth login"
     return 1
   fi
 
   _google_save_config "vertex" "$project_id" "$region"
-  echo -e "  \033[38;5;82m✓\033[0m Vertex AI configured."
+  echo -e "  \033[38;5;82m$I_OK\033[0m Vertex AI configured."
   echo "  Project: $project_id | Region: $region"
 }
 
@@ -800,9 +800,9 @@ google_set_thinking() {
   local _reg; _reg=$(grep '^region=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
   _google_save_config "${_mode:-studio}" "${_pid:-}" "${_reg:-us-central1}"
   if [ -z "$level" ]; then
-    echo -e "  \033[38;5;82m✓\033[0m Thinking level → model default"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Thinking level → model default"
   else
-    echo -e "  \033[38;5;82m✓\033[0m Thinking level → $level"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Thinking level → $level"
   fi
 }
 
@@ -934,6 +934,85 @@ case "${1:-}" in
     _SKIP_BANNER=true
     ;;
 esac
+# ─── Nerd Font Icons ─────────────────────────────────────────────────────────
+# Centralized icon definitions. Falls back to emoji when Nerd Font not detected.
+# All TUI output should use these variables instead of hardcoded emoji.
+
+# Detect Nerd Font support (check common NF-capable terminals + explicit opt-in)
+_nf_supported() {
+  # User can force via env var
+  [ "${MIX_NERD_FONTS:-}" = "1" ] && return 0
+  [ "${MIX_NERD_FONTS:-}" = "0" ] && return 1
+  # Check known Nerd Font terminals
+  case "${TERM_PROGRAM:-}" in
+    iTerm.app|WezTerm|Alacritty|kitty|ghostty) return 0 ;;
+  esac
+  # Check TERM for tmux/screen (often NF-capable inside)
+  case "${TERM:-}" in
+    xterm-256color|screen-256color|tmux-256color) return 0 ;;
+  esac
+  # Check if common NF glyph renders (heuristic: most terminals won't crash)
+  return 1
+}
+
+if _nf_supported; then
+  # Nerd Font glyphs — crisp, monospace-aligned, no width ambiguity
+  I_TOOL="󰚩"     # nf-md-tools (was ⚡)
+  I_BASH=""      # nf-cod-terminal_bash
+  I_WRITE=""     # nf-oct-diff_added (create_file)
+  I_EDIT=""      # nf-fa-pencil_alt (edit_file)
+  I_FIND="󰈞"     # nf-md-magnify (search_files)
+  I_READ=""      # nf-fa-file_text (read_file)
+  I_DIR=""       # nf-fa-folder (list_files)
+  I_MEMORY="󰍛"   # nf-md-brain (memory)
+  I_PLAN="󰍉"     # nf-md-clipboard_text (planning)
+  I_VERIFY="󰃰"   # nf-md-check_decagram (verify)
+  I_BLOCKED="󰀨"  # nf-md-cancel (was ⛔)
+  I_WARN="󰀪"     # nf-md-alert (was ⚠)
+  I_RISK_MED="󰀦" # nf-md-shield_half_full (was ◈)
+  I_FAIL="󰅙"     # nf-md-close_circle (was ✗)
+  I_OK="󰄬"       # nf-md-check (was ✓)
+  I_RETRY="󰑐"    # nf-md-restart (was ↻)
+  I_ROCK="󰇧"     # nf-md-rock (was 🪨 — caveman)
+  I_LOCK="󰌋"     # nf-md-lock (was 🔒 — sandbox)
+  I_DIAMOND="󰄐"  # nf-md-diamond (was ◆)
+  I_MODE="󰀘"     # nf-md-tune (was ◎)
+  I_ARROW_R="󰁔"  # nf-md-chevron_right (sub-indicator)
+  I_RETURN="󰌶"   # nf-md-keyboard_return (was ↳)
+  I_BRANCH="󰊢"   # nf-md-source_branch (git)
+  I_COMMIT="󰜘"   # nf-md-source_commit (git commit)
+  I_DIFF="╌"      # keep as-is (Unicode box drawing, not emoji)
+  I_YOLO="󰀨"     # nf-md-flash (was ⚡ yolo flag)
+else
+  # Emoji fallback — works everywhere
+  I_TOOL="⚡"
+  I_BASH="⚡"
+  I_WRITE="📝"
+  I_EDIT="✏️"
+  I_FIND="🔍"
+  I_READ="📄"
+  I_DIR="📁"
+  I_MEMORY="🧠"
+  I_PLAN="📋"
+  I_VERIFY="🔍"
+  I_BLOCKED="⛔"
+  I_WARN="⚠"
+  I_RISK_MED="◈"
+  I_FAIL="✗"
+  I_OK="✓"
+  I_RETRY="↻"
+  I_ROCK="🪨"
+  I_LOCK="🔒"
+  I_DIAMOND="◆"
+  I_MODE="◎"
+  I_ARROW_R="⤷"
+  I_RETURN="↳"
+  I_BRANCH="⑂"
+  I_COMMIT="↳"
+  I_DIFF="╌"
+  I_YOLO="⚡"
+fi
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 API_KEY="${KCONSOLE_API_KEY:-}"
 if [ -z "$API_KEY" ]; then
@@ -1177,7 +1256,7 @@ if [ -z "${TMUX:-}" ] && [ -t 0 ] && [ "${MIX_NO_TMUX:-}" != "1" ] \
    && command -v tmux >/dev/null 2>&1; then
   _MIX_SESSION="mix-$(basename "$WORKDIR")"
   if tmux has-session -t "$_MIX_SESSION" 2>/dev/null; then
-    printf "  \033[0;90m↳ attaching tmux: %s\033[0m\n" "$_MIX_SESSION"
+    printf "  \033[0;90m$I_RETURN attaching tmux: %s\033[0m\n" "$_MIX_SESSION"
     exec tmux attach-session -t "$_MIX_SESSION"
   else
     exec tmux new-session -s "$_MIX_SESSION" "$0" "$@"
@@ -1460,7 +1539,7 @@ _ext_load_all() {
   for _name in "${!_ext_files[@]}"; do
     local _base="${_name%.sh}"
     source "${_ext_files[$_name]}" 2>/dev/null || {
-      echo -e "  \033[1;31m✗ Extension $_name failed to load\033[0m" >&2
+      echo -e "  \033[1;31m$I_FAIL Extension $_name failed to load\033[0m" >&2
       continue
     }
     # Call init hook if defined
@@ -1557,7 +1636,7 @@ _ext_load_one() {
     ${_name}_init 2>/dev/null || true
   fi
   _MIX_EXTENSIONS_LOADED+="$_name "
-  echo -e "  \033[38;5;82m✓\033[0m Extension $_name loaded"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Extension $_name loaded"
   return 0
 }
 
@@ -1644,7 +1723,7 @@ example_on_shutdown() {
 EXAMPLE
   # Replace placeholder name with actual
   sed -i "s/example/${_name}/g; s/EXAMPLE_NAME/${_name^^}_NAME/" "$_target"
-  echo -e "  \033[38;5;82m✓\033[0m Created $_target"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Created $_target"
   echo "  Edit it, then /ext load $_name to activate."
 }
 
@@ -1660,7 +1739,7 @@ _ext_reload() {
   _ext_load_all
   local _count=0
   for _ in $_MIX_EXTENSIONS_LOADED; do _count=$((_count+1)); done
-  echo -e "  \033[38;5;82m✓\033[0m Reloaded $_count extensions"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Reloaded $_count extensions"
 }
 
 # Load on source
@@ -1669,21 +1748,23 @@ _ext_load_all
 # ─── Pre-edit diff preview ──────────────────────────────────────────────────
 show_edit_diff() {
   local targs="$1"
-  printf '%s' "$targs" | python3 -c '
+  I_WRITE="${I_WRITE}" I_EDIT="${I_EDIT}" printf '%s' "$targs" | python3 -c '
 import json,sys,os,difflib,re
 d=json.load(sys.stdin)
 p,o,n=d.get("path","?"),d.get("old_text",""),d.get("new_text","")
 GRN,RED,DIM,RST,BOLD="\033[0;32m","\033[0;31m","\033[0;90m","\033[0m","\033[1;37m"
+IW=os.environ.get("I_WRITE","📝")
+IE=os.environ.get("I_EDIT","✏️")
 pdir=os.path.dirname(p); pbase=os.path.basename(p)
 pdir_s=(DIM+pdir+"/"+RST) if pdir and pdir!="." else ""
 if not os.path.exists(p):
-    sys.stdout.write("    📝  "+pdir_s+BOLD+pbase+RST+"  "+DIM+"(new file)"+RST+"\n")
+    sys.stdout.write("    "+IW+"  "+pdir_s+BOLD+pbase+RST+"  "+DIM+"(new file)"+RST+"\n")
     for i,l in enumerate(n.splitlines()[:15],1): sys.stdout.write("    "+GRN+"+ %3d: %s"%(i,l)+RST+"\n")
     if len(n.splitlines())>15: sys.stdout.write("    "+DIM+"... (%d more lines)"+RST+"\n" % (len(n.splitlines())-15))
     sys.exit(0)
 content=open(p).read()
 if o not in content:
-    sys.stdout.write("    ✏️   "+pdir_s+BOLD+pbase+RST+"\n")
+    sys.stdout.write("    "+IE+"  "+pdir_s+BOLD+pbase+RST+"\n")
     sys.stdout.write("    \033[1;31m(old_text not found — edit will fail)\033[0m\n")
     sys.exit(0)
 lines=content.splitlines()
@@ -1696,7 +1777,7 @@ for i in range(len(lines)):
             match_line=i+1
             break
 line_s=("  "+DIM+"·L"+str(match_line)+RST) if match_line else ""
-sys.stdout.write("    ✏️   "+pdir_s+BOLD+pbase+RST+line_s+"\n")
+sys.stdout.write("    "+IE+"  "+pdir_s+BOLD+pbase+RST+line_s+"\n")
 diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),n=3))
 if not diff:
     sys.stdout.write("    "+DIM+"(no change)"+RST+"\n")
@@ -1925,7 +2006,7 @@ session_apply() {
     file_cache_validate  # mtime check — removes stale entries
     local _nc
     _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
-    echo -e "  \033[38;5;82m✓\033[0m File cache restored ($_nc files)"
+    echo -e "  \033[38;5;82m$I_OK\033[0m File cache restored ($_nc files)"
   fi
 
   # Restore repo map (TTL still enforced — stale maps rebuilt)
@@ -1936,7 +2017,7 @@ session_apply() {
       _REPO_MAP="$_SESSION_RESTORE_REPO_MAP"
       _REPO_MAP_MTIMES="$_SESSION_RESTORE_REPO_MTIMES"
       _REPO_MAP_TIME="$_SESSION_RESTORE_REPO_TIME"
-      echo -e "  \033[38;5;82m✓\033[0m Repo map restored (age: ${_age}s)"
+      echo -e "  \033[38;5;82m$I_OK\033[0m Repo map restored (age: ${_age}s)"
     else
       echo -e "  \033[0;90m  Repo map expired (age: ${_age}s > ${_REPO_MAP_TTL}s), will rebuild\033[0m"
     fi
@@ -1947,7 +2028,7 @@ session_apply() {
     _load_provider "$PROVIDER" 2>/dev/null || true
   fi
 
-  echo -e "  \033[38;5;82m✓\033[0m Session restored (was ${_SESSION_RESTORE_AGE}h ago)"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Session restored (was ${_SESSION_RESTORE_AGE}h ago)"
   [ -n "$_SESSION_RESTORE_LAST" ] && echo -e "  \033[0;90m  Last task: ${_SESSION_RESTORE_LAST}\033[0m"
 
   _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE
@@ -2016,7 +2097,7 @@ run_with_heal() {
   if [ $rc -ne 0 ]; then
     # Permission denied → retry with sudo
     if printf '%s' "$out" | grep -qiE 'permission denied|EACCES'; then
-      echo -e "    \033[0;90m↻ permission denied\033[0m"
+      echo -e "    \033[0;90m$I_RETRY permission denied\033[0m"
       local _sudo_ans=""
       echo -e "    \033[1;33mCommand:\033[0m \033[0;90msudo bash -c \"$cmd\"\033[0m"
       printf '    \033[1;33mConfirm sudo? [y/N] \033[0m'
@@ -2028,13 +2109,13 @@ run_with_heal() {
     elif printf '%s' "$out" | grep -qiE 'command not found|: No such file or directory'; then
       local _bin; _bin=$(printf '%s' "$cmd" | awk '{print $1}')
       if command -v "node_modules/.bin/$_bin" >/dev/null 2>&1; then
-        echo -e "    \033[0;90m↻ not found — retrying via node_modules/.bin\033[0m"
+        echo -e "    \033[0;90m$I_RETRY not found — retrying via node_modules/.bin\033[0m"
         out=$(bash -c "node_modules/.bin/$cmd" 2>&1); rc=$?
       elif command -v npx >/dev/null 2>&1 \
         && printf '%s' "$_bin" | grep -qE '^[@a-z]' \
         && printf '%s' "$_bin" | grep -qE '[-@]' \
         && ! printf '%s' "$_bin" | grep -qE '[/_]'; then
-        echo -e "    \033[0;90m↻ not found — retrying via npx\033[0m"
+        echo -e "    \033[0;90m$I_RETRY not found — retrying via npx\033[0m"
         out=$(bash -c "npx $cmd" 2>&1); rc=$?
       fi
     fi
@@ -2222,7 +2303,7 @@ Command: `%s`
 Date: %s
 ' \
       "$title" "$problem" "$fix" "$cmd" "$(date '+%Y-%m-%d')" > "$file"
-    echo -e "    \033[0;90m↳ wiki: $file\033[0m"
+    echo -e "    \033[0;90m$I_RETURN wiki: $file\033[0m"
   fi
 }
 
@@ -2286,7 +2367,7 @@ for f in sorted(files): print(f"- {f}")
          printf '- [%s](solutions/%s.md): %s\n' "$input" "$slug" "$input" >> "$WORKDIR/memorybank/index.md"
       fi
       
-      echo -e "  \033[0;90m✓ Proactive memory logged to solutions/${slug}.md\033[0m"
+      echo -e "  \033[0;90m$I_OK Proactive memory logged to solutions/${slug}.md\033[0m"
     fi
   fi
 }
@@ -2794,7 +2875,7 @@ msg=h+[{"role":"user","content":s}]
 json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
 ' "$_hist_tmp" "$_compact_model" "$_payload_tmp" 2>/dev/null || {
     rm -f "$_payload_tmp" "$_hist_tmp"
-    printf "\r\033[K  \033[0;33m↻ compact failed: payload build error\033[0m\n"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: payload build error\033[0m\n"
     return
   }
   rm -f "$_hist_tmp"
@@ -2858,7 +2939,7 @@ for k,v in json.load(sys.stdin).items():
   if [ "$code" != "200" ]; then
     local _err; _err=$(cat "$_resp_tmp" 2>/dev/null | head -c 200)
     rm -f "$_resp_tmp"
-    printf "\r\033[K  \033[0;33m↻ compact failed: API %s\033[0m\n" "${code:-timeout}"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: API %s\033[0m\n" "${code:-timeout}"
     return
   fi
 
@@ -2871,7 +2952,7 @@ for k,v in json.load(sys.stdin).items():
     local _raw_preview; _raw_preview=$(head -c 500 "$_resp_tmp" 2>/dev/null)
     local _py_msg; _py_msg=$(cat "$_py_err" 2>/dev/null)
     rm -f "$_resp_tmp" "$_py_err"
-    printf "\r\033[K  \033[0;33m↻ compact failed: empty summary (py rc=%d)\033[0m\n" "$_py_rc"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: empty summary (py rc=%d)\033[0m\n" "$_py_rc"
     [ -n "$_py_msg" ] && printf "  \033[0;90mpython error: %s\033[0m\n" "$(printf '%s' "$_py_msg" | head -c 300)"
     printf "  \033[0;90mAPI response (first 500 chars): %s\033[0m\n" "$_raw_preview"
     return
@@ -2887,7 +2968,7 @@ for k,v in json.load(sys.stdin).items():
   local sum_esc
   sum_esc=$(printf '[Compacted context]\n%s' "$summary" \
     | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null) || {
-      printf "\r\033[K  \033[0;33m↻ compact failed: escape error\033[0m\n"
+      printf "\r\033[K  \033[0;33m$I_RETRY compact failed: escape error\033[0m\n"
       return
     }
 
@@ -2903,7 +2984,7 @@ base=json.loads(lines[0])
 recent=json.loads(lines[1])
 print(json.dumps(base+recent))
 ' 2>/dev/null) || {
-      printf "\r\033[K  \033[0;33m↻ compact failed: merge error\033[0m\n"
+      printf "\r\033[K  \033[0;33m$I_RETRY compact failed: merge error\033[0m\n"
       return
     }
 
@@ -2913,9 +2994,9 @@ print(json.dumps(base+recent))
     save_history
     local new_count
     new_count=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || new_count="?"
-    printf "\r\033[K  \033[38;5;82m✓ compacted: %d → %s msgs\033[0m\n" "$count" "$new_count"
+    printf "\r\033[K  \033[38;5;82m$I_OK compacted: %d → %s msgs\033[0m\n" "$count" "$new_count"
   else
-    printf "\r\033[K  \033[0;33m↻ compact failed: no result\033[0m\n"
+    printf "\r\033[K  \033[0;33m$I_RETRY compact failed: no result\033[0m\n"
   fi
 }
 
@@ -3329,7 +3410,7 @@ else:
         _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
-        tmux new-window -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m✓ Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
+        tmux new-window -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
           && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log" \
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
@@ -3509,7 +3590,7 @@ auto_verify() {
       if [ -n "$_trimmed" ] && [ "$_label" != "syntax" ]; then
         # Check if output contains warnings
         if printf '%s' "$_trimmed" | grep -qiE 'warning|warn'; then
-          results+="${NL}  ⚠ $_label: warnings"
+          results+="${NL}  $I_WARN $_label: warnings"
           local _wline=0
           while IFS= read -r wl; do
             _wline=$((_wline + 1))
@@ -3520,7 +3601,7 @@ auto_verify() {
       fi
     else
       _failed=$((_failed + 1))
-      results+="${NL}  ✗ $_label: failed (exit $_rc)"
+      results+="${NL}  $I_FAIL $_label: failed (exit $_rc)"
       # Show first few lines of error output
       local _eline=0
       while IFS= read -r el; do
@@ -4073,7 +4154,7 @@ process_tc() {
   local tname="${rest%%|||*}"
   local targs="${rest#*|||}"
 
-  [ "$silent" != "true" ] && echo -e "    \033[38;5;99m⚡\033[0m \033[1;36m$tname\033[0m"
+  [ "$silent" != "true" ] && echo -e "    \033[38;5;99m$I_TOOL\033[0m \033[1;36m$tname\033[0m"
 
   local result=""
   case "$tname" in
@@ -4099,9 +4180,9 @@ process_tc() {
       # Risk label
       if [ "$silent" != "true" ]; then
         case "$_risk" in
-          BLOCKED) echo -e "    \033[1;31m⛔  BLOCKED: $_reason\033[0m" ;;
-          HIGH)    echo -e "    \033[1;31m⚠   Risk: HIGH ($_reason)\033[0m" ;;
-          MED)     echo -e "    \033[1;33m◈   Risk: MED  ($_reason)\033[0m" ;;
+          BLOCKED) echo -e "    \033[1;31m$I_BLOCKED  BLOCKED: $_reason\033[0m" ;;
+          HIGH)    echo -e "    \033[1;31m$I_WARN   Risk: HIGH ($_reason)\033[0m" ;;
+          MED)     echo -e "    \033[1;33m$I_RISK_MED   Risk: MED  ($_reason)\033[0m" ;;
         esac
       fi
       local _run=false
@@ -4138,12 +4219,12 @@ process_tc() {
         result=$(run_tool bash_with_heal "$targs")
         if [[ "$result" == "[FAILED"* ]]; then
           FAIL_STREAK=$((FAIL_STREAK + 1))
-          [ "$silent" != "true" ] && echo -e "    \033[1;31m✗ failed (streak: $FAIL_STREAK/$MAX_FAIL_STREAK)\033[0m"
+          [ "$silent" != "true" ] && echo -e "    \033[1;31m$I_FAIL failed (streak: $FAIL_STREAK/$MAX_FAIL_STREAK)\033[0m"
           local _logs; _logs=$(auto_read_logs "$result")
           [ -n "$_logs" ] && result="$result
 $_logs"
           if [ "$FAIL_STREAK" -ge "$MAX_FAIL_STREAK" ]; then
-            [ "$silent" != "true" ] && echo -e "    \033[1;33m⚠  $FAIL_STREAK consecutive failures — injecting fallback hint\033[0m"
+            [ "$silent" != "true" ] && echo -e "    \033[1;33m$I_WARN  $FAIL_STREAK consecutive failures — injecting fallback hint\033[0m"
             local _rh="[RECOVERY HINT: $FAIL_STREAK consecutive failures. Try: different approach, check deps/permissions, simpler fallback, or tell user you're stuck."
             [ -f "$WORKDIR/SPEC.md" ] && _rh+=" Root cause known? Suggest: /spec bug: <cause> to log §B entry + §V invariant."
             _rh+="]"
@@ -4158,7 +4239,7 @@ $_rh"
       ;;
     read_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m📄 $p\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_READ $p\033[0m"
       result=$(run_tool read_file "$targs")
       FAIL_STREAK=0
       ;;
@@ -4229,13 +4310,13 @@ print("edit "+p+" — "+summary)
       ;;
     list_files)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m📁 $p\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_DIR $p\033[0m"
       result=$(run_tool list_files "$targs")
       FAIL_STREAK=0
       ;;
     create_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m📝 $p (new file)\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_WRITE $p (new file)\033[0m"
       if [ "$silent" = "true" ]; then
         result="Error: create_file cannot be run in parallel/silent mode."
       else
@@ -4269,14 +4350,14 @@ print("edit "+p+" — "+summary)
     search_files)
       local spat; spat=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["pattern"])' 2>/dev/null) || spat="?"
       local sdir; sdir=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || sdir="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m🔍 /$spat/ in $sdir\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_FIND /$spat/ in $sdir\033[0m"
       result=$(run_tool search_files "$targs")
       FAIL_STREAK=0
       ;;
     update_global_memory)
       local _gm_act; _gm_act=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("action","append"))' 2>/dev/null) || _gm_act="append"
       local _gm_txt; _gm_txt=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("content",""))' 2>/dev/null) || _gm_txt="?"
-      [ "$silent" != "true" ] && echo -e "    \033[0;90m🧠 global memory ($_gm_act): ${_gm_txt:0:60}\033[0m"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_MEMORY global memory ($_gm_act): ${_gm_txt:0:60}\033[0m"
       result=$(run_tool update_global_memory "$targs")
       FAIL_STREAK=0
       ;;
@@ -4299,9 +4380,9 @@ print("edit "+p+" — "+summary)
       local _verify_part
       _verify_part=$(printf '%s' "$result" | sed -n '/\[VERIFY:/,$ p')
       if printf '%s' "$_verify_part" | grep -q 'FAILED'; then
-        echo -e "    \033[1;31m🔍 verify:\033[0m"
+        echo -e "    \033[1;31m$I_VERIFY verify:\033[0m"
       else
-        echo -e "    \033[0;32m🔍 verify:\033[0m"
+        echo -e "    \033[0;32m$I_VERIFY verify:\033[0m"
       fi
       printf '%s' "$_verify_part" | head -10 | while IFS= read -r _vl; do
         echo -e "      \033[0;90m$_vl\033[0m"
@@ -4368,7 +4449,7 @@ run_agent() {
 
   # Plan mode: generate and show numbered plan, ask approval before tools
   if [ "$AGENT_MODE" = "plan" ]; then
-    printf "\r\033[K  \033[1;35m📋 planning...\033[0m"
+    printf "\r\033[K  \033[1;35m$I_PLAN planning...\033[0m"
     local _plan; _plan=$(call_api_plan) || true
     if [ -n "$_plan" ]; then
       echo -e "\r\033[K  \033[0;35m━━━ Plan ━━━\033[0m"
@@ -4504,7 +4585,7 @@ run_agent() {
             local _res; _res=$(process_tc "$tc" "true")
             echo "$_res" > "$_batch_dir/$_tc_idx"
           ) &
-          echo -e "    \033[38;5;99m⚡\033[0m \033[1;36m$_tname\033[0m \033[0;90m(parallel)\033[0m"
+          echo -e "    \033[38;5;99m$I_TOOL\033[0m \033[1;36m$_tname\033[0m \033[0;90m(parallel)\033[0m"
         else
           _sequential_tcs+=("$tc")
         fi
@@ -4603,13 +4684,13 @@ sandbox_check_prereqs() {
   local ok=true
   for cmd in unshare chroot curl tar; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-      echo -e "  \033[1;31m✗\033[0m Missing required command: $cmd"
+      echo -e "  \033[1;31m$I_FAIL\033[0m Missing required command: $cmd"
       ok=false
     fi
   done
   # Check user namespace support
   if ! unshare --user --map-root-user true 2>/dev/null; then
-    echo -e "  \033[1;31m✗\033[0m Unprivileged user namespaces not available."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Unprivileged user namespaces not available."
     echo "    On Debian/Ubuntu: sysctl -w kernel.unprivileged_userns_clone=1"
     ok=false
   fi
@@ -4689,16 +4770,16 @@ _sandbox_unpack_rootfs() {
   fi
 
   if [ ! -f "$_SANDBOX_ROOTFS_TAR" ]; then
-    echo -e "  \033[1;31m✗\033[0m Rootfs not found. Run: /sandbox setup"
+    echo -e "  \033[1;31m$I_FAIL\033[0m Rootfs not found. Run: /sandbox setup"
     return 1
   fi
 
-  echo -e "  \033[0;90m↻ Unpacking rootfs...\033[0m"
+  echo -e "  \033[0;90m$I_RETRY Unpacking rootfs...\033[0m"
   rm -rf "$_SANDBOX_ROOTFS_DIR"
   mkdir -p "$_SANDBOX_ROOTFS_DIR"
   tar -C "$_SANDBOX_ROOTFS_DIR" -xzf "$_SANDBOX_ROOTFS_TAR" 2>/dev/null || {
     rm -rf "$_SANDBOX_ROOTFS_DIR"
-    echo -e "  \033[1;31m✗\033[0m Failed to unpack rootfs tar."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Failed to unpack rootfs tar."
     return 1
   }
   echo "$_SANDBOX_ALPINE_VERSION" > "$_SANDBOX_ROOTFS_VERSION"
@@ -4843,7 +4924,7 @@ sandbox_cmd_setup() {
   echo -e "\n  \033[1;37m── Sandbox Setup ──\033[0m"
 
   if ! sandbox_check_prereqs; then
-    echo -e "  \033[1;31m✗ Prerequisite check failed.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Prerequisite check failed.\033[0m"
     return 1
   fi
 
@@ -4852,7 +4933,7 @@ sandbox_cmd_setup() {
     local _ver=""
     [ -f "$_SANDBOX_ROOTFS_VERSION" ] && _ver=$(cat "$_SANDBOX_ROOTFS_VERSION")
     if [ "$_ver" = "$_SANDBOX_ALPINE_VERSION" ]; then
-      echo -e "  \033[38;5;82m✓\033[0m Rootfs already built (Alpine $_SANDBOX_ALPINE_VERSION, arch: $_SANDBOX_ALPINE_ARCH)"
+      echo -e "  \033[38;5;82m$I_OK\033[0m Rootfs already built (Alpine $_SANDBOX_ALPINE_VERSION, arch: $_SANDBOX_ALPINE_ARCH)"
       echo "  Run /sandbox on to activate, or /sandbox setup --rebuild to rebuild."
       return 0
     fi
@@ -4874,14 +4955,14 @@ sandbox_cmd_setup() {
       --max-time 300 \
       "$_SANDBOX_ALPINE_URL" \
       -o "$_base_tar" 2>&1; then
-    echo -e "  \033[1;31m✗ Download failed.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Download failed.\033[0m"
     rm -f "$_base_tar"
     return 1
   fi
 
   # Verify it's a valid tar
   if ! tar -tzf "$_base_tar" >/dev/null 2>&1; then
-    echo -e "  \033[1;31m✗ Downloaded file is not a valid tar.gz (download may have failed).\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Downloaded file is not a valid tar.gz (download may have failed).\033[0m"
     rm -f "$_base_tar"
     return 1
   fi
@@ -4907,7 +4988,7 @@ sandbox_cmd_setup() {
   local _apk_rc=$?
 
   if [ $_apk_rc -ne 0 ]; then
-    echo -e "  \033[1;31m✗ apk install failed:\033[0m"
+    echo -e "  \033[1;31m$I_FAIL apk install failed:\033[0m"
     echo "$_apk_out" | sed 's/^/    /'
     rm -rf "$_build_dir"
     return 1
@@ -4929,7 +5010,7 @@ sandbox_cmd_setup() {
 
   local _final_sz; _final_sz=$(du -sh "$_SANDBOX_ROOTFS_TAR" 2>/dev/null | cut -f1)
   echo ""
-  echo -e "  \033[38;5;82m✓ Sandbox rootfs ready!\033[0m"
+  echo -e "  \033[38;5;82m$I_OK Sandbox rootfs ready!\033[0m"
   echo "  Location: $_SANDBOX_ROOTFS_TAR ($_final_sz)"
   echo ""
   echo -e "  Run \033[1;37m/sandbox on\033[0m to enable sandbox mode."
@@ -4947,12 +5028,12 @@ sandbox_cmd_install() {
 
   if [ ! -d "$_SANDBOX_ROOTFS_DIR" ]; then
     if ! _sandbox_unpack_rootfs; then
-      echo -e "  \033[1;31m✗\033[0m Rootfs not found. Run /sandbox setup first."
+      echo -e "  \033[1;31m$I_FAIL\033[0m Rootfs not found. Run /sandbox setup first."
       return 1
     fi
   fi
 
-  echo -e "  \033[0;90m↻ Installing $pkg into sandbox rootfs (with network)...\033[0m"
+  echo -e "  \033[0;90m$I_RETRY Installing $pkg into sandbox rootfs (with network)...\033[0m"
   local _rfs="$_SANDBOX_ROOTFS_DIR"
 
   # Run apk add WITHOUT --net so it can reach the Alpine package repos.
@@ -4968,9 +5049,9 @@ sandbox_cmd_install() {
   local _rc=$?
 
   if [ $_rc -eq 0 ]; then
-    echo -e "  \033[38;5;82m✓\033[0m Installed: $pkg"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Installed: $pkg"
   else
-    echo -e "  \033[1;31m✗\033[0m Install failed:"
+    echo -e "  \033[1;31m$I_FAIL\033[0m Install failed:"
     echo "$_out" | sed 's/^/    /'
   fi
 }
@@ -4981,7 +5062,7 @@ sandbox_cmd_status() {
   echo -e "\n  \033[1;37m── Sandbox Status ──\033[0m"
   echo "  State:     $([ "$SANDBOX_ENABLED" = "true" ] && echo -e "\033[38;5;82menabled\033[0m" || echo -e "\033[0;90mdisabled\033[0m")"
   if [ -f "$_marker" ]; then
-    echo -e "  Project:   \033[38;5;82m✓\033[0m auto-enabled for this workspace (.mix/sandbox)"
+    echo -e "  Project:   \033[38;5;82m$I_OK\033[0m auto-enabled for this workspace (.mix/sandbox)"
   else
     echo -e "  Project:   \033[0;90m○\033[0m not pinned (run /sandbox on to persist)"
   fi
@@ -4990,24 +5071,24 @@ sandbox_cmd_status() {
   if [ -f "$_SANDBOX_ROOTFS_TAR" ]; then
     local _ver=""; [ -f "$_SANDBOX_ROOTFS_VERSION" ] && _ver=$(cat "$_SANDBOX_ROOTFS_VERSION")
     local _sz; _sz=$(du -sh "$_SANDBOX_ROOTFS_TAR" 2>/dev/null | cut -f1)
-    echo -e "  Rootfs:    \033[38;5;82m✓\033[0m present (Alpine $_ver, $_sz compressed)"
+    echo -e "  Rootfs:    \033[38;5;82m$I_OK\033[0m present (Alpine $_ver, $_sz compressed)"
   else
-    echo -e "  Rootfs:    \033[1;31m✗\033[0m not found — run /sandbox setup"
+    echo -e "  Rootfs:    \033[1;31m$I_FAIL\033[0m not found — run /sandbox setup"
   fi
 
   # Check cgroup availability
   local _cgbase; _cgbase=$(_sandbox_cgroup_base 2>/dev/null) || _cgbase=""
   if [ -n "$_cgbase" ]; then
-    echo -e "  Cgroups:   \033[38;5;82m✓\033[0m cgroup v2 (resource limits active)"
+    echo -e "  Cgroups:   \033[38;5;82m$I_OK\033[0m cgroup v2 (resource limits active)"
   else
-    echo -e "  Cgroups:   \033[1;33m⚠\033[0m cgroup v2 not delegated (namespace isolation only)"
+    echo -e "  Cgroups:   \033[1;33m$I_WARN\033[0m cgroup v2 not delegated (namespace isolation only)"
   fi
 
   # Check user namespace
   if unshare --user --map-root-user true 2>/dev/null; then
-    echo -e "  Namespaces:\033[38;5;82m ✓\033[0m user namespaces available (rootless)"
+    echo -e "  Namespaces:\033[38;5;82m $I_OK\033[0m user namespaces available (rootless)"
   else
-    echo -e "  Namespaces:\033[1;31m ✗\033[0m user namespaces not available"
+    echo -e "  Namespaces:\033[1;31m $I_FAIL\033[0m user namespaces not available"
   fi
   echo ""
 }
@@ -5016,12 +5097,12 @@ sandbox_cmd_status() {
 sandbox_cmd_on() {
   local _marker="${WORKDIR:-$PWD}/.mix/sandbox"
   if ! sandbox_check_prereqs 2>/dev/null; then
-    echo -e "  \033[1;31m✗\033[0m Sandbox prerequisites not met. See errors above."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Sandbox prerequisites not met. See errors above."
     return 1
   fi
 
   if [ ! -f "$_SANDBOX_ROOTFS_TAR" ]; then
-    echo -e "  \033[1;31m✗\033[0m Rootfs not found."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Rootfs not found."
     echo "  Run \033[1;37m/sandbox setup\033[0m first (~35MB download, one-time)."
     return 1
   fi
@@ -5035,7 +5116,7 @@ sandbox_cmd_on() {
   # Write marker file so sandbox auto-enables next time mix starts in this project
   mkdir -p "$(dirname "$_marker")" 2>/dev/null || true
   echo "$_SANDBOX_ALPINE_VERSION" > "$_marker" 2>/dev/null || true
-  echo -e "  \033[38;5;82m✓\033[0m Sandbox \033[1;32menabled\033[0m — all bash commands run inside chroot + PID + user namespaces"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Sandbox \033[1;32menabled\033[0m — all bash commands run inside chroot + PID + user namespaces"
   local _cgbase; _cgbase=$(_sandbox_cgroup_base 2>/dev/null) || _cgbase=""
   if [ -n "$_cgbase" ]; then
     local _total_kb; _total_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null) || _total_kb=1048576
@@ -5076,7 +5157,7 @@ handle_cmd() {
         printf '%s' "$txt" > "$dir/txt_$pid.txt"
         local lines=$(printf '%s\n' "$txt" | wc -l)
         INPUT="[paste _$pid: $lines lines]"
-        echo -e "  \033[38;5;99m✓\033[0m Paste appended context (${lines} lines)"
+        echo -e "  \033[38;5;99m$I_OK\033[0m Paste appended context (${lines} lines)"
         return 1 # Return 1 to tell loop to fall through and process INPUT
       else
         echo "  Clipboard is empty or missing xclip/wl-paste/pbpaste"
@@ -5102,8 +5183,8 @@ handle_cmd() {
           git -C "$WORKDIR" --no-pager diff HEAD~1 --stat 2>/dev/null | head -10
           if confirm "  Revert this commit? [y/N] "; then
             git -C "$WORKDIR" revert --no-edit HEAD 2>/dev/null \
-              && echo -e "  \033[38;5;82m✓ Reverted\033[0m" \
-              || echo -e "  \033[1;31m✗ Revert failed (merge conflict?)\033[0m"
+              && echo -e "  \033[38;5;82m$I_OK Reverted\033[0m" \
+              || echo -e "  \033[1;31m$I_FAIL Revert failed (merge conflict?)\033[0m"
           fi
         fi
       fi
@@ -5136,7 +5217,7 @@ handle_cmd() {
       echo "$_map_out"
       echo ""
       ;;
-    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m✓\033[0m Repo map invalidated. Will rebuild on next API call." ;;
+    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m$I_OK\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
       _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
@@ -5154,7 +5235,7 @@ handle_cmd() {
       ;;
     /cache\ clear)
       _FILE_CACHE='{}'; _FILE_CACHE_ORDER=""
-      echo -e "  \033[38;5;82m✓\033[0m File cache cleared."
+      echo -e "  \033[38;5;82m$I_OK\033[0m File cache cleared."
       ;;
     /verify)
       echo "  Auto-verify: $AUTO_VERIFY"
@@ -5162,7 +5243,7 @@ handle_cmd() {
       ;;
     /verify\ on)
       AUTO_VERIFY="on"
-      echo -e "  \033[38;5;82m✓\033[0m Auto-verify ON — will run checks after edit_file/create_file"
+      echo -e "  \033[38;5;82m$I_OK\033[0m Auto-verify ON — will run checks after edit_file/create_file"
       ;;
     /verify\ off)
       AUTO_VERIFY="off"
@@ -5191,7 +5272,7 @@ handle_cmd() {
         local _vout; _vout=$(${PROVIDER}_validate_model "$_new_model" 2>/dev/null)
         local _vcode=$?
         if [ $_vcode -ne 0 ]; then
-          echo "  ✗ Model '$_new_model' not available on provider '$PROVIDER'"
+          echo "  $I_FAIL Model '$_new_model' not available on provider '$PROVIDER'"
           [ -n "$_vout" ] && echo "  $_vout"
           echo "  Use /models to list available models."
           return 0
@@ -5501,7 +5582,7 @@ handle_cmd() {
         fi
       done
       if [ -z "$_reload_root" ]; then
-        echo -e "  \033[1;31m✗ Cannot find project root (build.sh + src/)\033[0m"
+        echo -e "  \033[1;31m$I_FAIL Cannot find project root (build.sh + src/)\033[0m"
         echo "  cd to the project directory first."
         return 0
       fi
@@ -5510,7 +5591,7 @@ handle_cmd() {
       _reload_rc=$?
       echo "$_reload_out"
       if echo "$_reload_out" | grep -q "Self-test FAILED"; then
-        echo -e "  \033[1;31m✗ Build produced broken binary — not installed.\033[0m"
+        echo -e "  \033[1;31m$I_FAIL Build produced broken binary — not installed.\033[0m"
         echo -e "  \033[0;90mPrevious version still active. Fix the issue and /reload again.\033[0m"
         return 0
       fi
@@ -5527,7 +5608,7 @@ handle_cmd() {
              exit 0 ;;
     /*)
       # Unknown slash command — don't send to LLM
-      echo -e "  \033[1;31m✗ Unknown command:\033[0m $1"
+      echo -e "  \033[1;31m$I_FAIL Unknown command:\033[0m $1"
       echo "  Use /help to see available commands."
       ;;
     /worker\ *)
@@ -5558,7 +5639,7 @@ handle_cmd() {
         _stmp=$(mktemp -t mix-$$-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
-        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
+        tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
           && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
           || echo "  Failed to spawn subagent."
       fi
@@ -5764,7 +5845,7 @@ except: pass
 
 PROJECT="$(basename "$WORKDIR")"
 tg_send "🤖 *mix AFK started*
-📁 \`${PROJECT}\`  🕐 $(date '+%H:%M %Z')
+$I_DIR \`${PROJECT}\`  🕐 $(date '+%H:%M %Z')
 _Analysing codebase..._"
 
 # Run mix — it will write the plan to $PLAN_SAVE via bash tool
@@ -5814,7 +5895,7 @@ else
     echo "  (No Telegram — run /afk apply to execute the plan)"
 fi
 
-[ -n "$MY_TTY" ] && printf '\n  \033[38;5;82m✓ AFK done!\033[0m\n' > "$MY_TTY" 2>/dev/null || true
+[ -n "$MY_TTY" ] && printf '\n  \033[38;5;82m$I_OK AFK done!\033[0m\n' > "$MY_TTY" 2>/dev/null || true
 echo ""; echo "[AFK finished. Press Enter]"; read -r _
 AFK_WORKER_END
       chmod +x "$_worker_tmp"
@@ -5829,7 +5910,7 @@ AFK_WORKER_END
         if [ "$_use_tg" = "true" ]; then
           printf '  Telegram: plan will be sent for approval\n'
         else
-          printf '  \033[38;5;220m⚠ No Telegram configured.\033[0m Run \033[1m/afk setup\033[0m to enable phone approval.\n'
+          printf '  \033[38;5;220m$I_WARN No Telegram configured.\033[0m Run \033[1m/afk setup\033[0m to enable phone approval.\n'
           printf '  Plan will be saved to %s — run /afk apply to execute.\n' "$_plan_save"
         fi
         printf '  Check back: /afk log   Stop: /afk stop\n'
@@ -5914,11 +5995,11 @@ telegram_setup() {
   resp=$(curl -s --max-time 10 "https://api.telegram.org/bot${token}/getMe" 2>/dev/null)
   ok=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print("ok" if d.get("ok") else "fail")' 2>/dev/null)
   if [ "$ok" != "ok" ]; then
-    printf '\r  \033[1;31m✗ Invalid token. Check and try again.\033[0m\n'
+    printf '\r  \033[1;31m$I_FAIL Invalid token. Check and try again.\033[0m\n'
     return 1
   fi
   bot_name=$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["username"])' 2>/dev/null)
-  printf '\r  \033[38;5;82m✓ Bot verified: @%s\033[0m\n' "$bot_name"
+  printf '\r  \033[38;5;82m$I_OK Bot verified: @%s\033[0m\n' "$bot_name"
   printf '\n'
   printf '  3. Open Telegram → find \033[1m@%s\033[0m → send any message\n' "$bot_name"
   printf '     Press Enter when done: '
@@ -5935,14 +6016,14 @@ for u in reversed(data.get("result",[])):
 ' 2>/dev/null)
 
   if [ -z "$chat_id" ]; then
-    printf '  \033[1;31m✗ No message found. Send a message to @%s first, then re-run /afk setup.\033[0m\n' "$bot_name"
+    printf '  \033[1;31m$I_FAIL No message found. Send a message to @%s first, then re-run /afk setup.\033[0m\n' "$bot_name"
     return 1
   fi
 
   mkdir -p "${HOME}/.mix"
   printf 'BOT_TOKEN=%s\nCHAT_ID=%s\n' "$token" "$chat_id" > "$_TELEGRAM_CONFIG_FILE"
   chmod 600 "$_TELEGRAM_CONFIG_FILE"
-  printf '  \033[38;5;82m✓ Saved to %s\033[0m (chat_id: %s)\n' "$_TELEGRAM_CONFIG_FILE" "$chat_id"
+  printf '  \033[38;5;82m$I_OK Saved to %s\033[0m (chat_id: %s)\n' "$_TELEGRAM_CONFIG_FILE" "$chat_id"
 
   # Send confirmation message
   local payload
@@ -5951,7 +6032,7 @@ for u in reversed(data.get("result",[])):
     -H "Content-Type: application/json" -d "$payload" > /dev/null
   printf '  Test message sent to Telegram.\n'
   printf '\n'
-  printf '  \033[38;5;82m✓ Setup complete! Run /afk anytime.\033[0m\n'
+  printf '  \033[38;5;82m$I_OK Setup complete! Run /afk anytime.\033[0m\n'
 }
 
 # ─── Test Generation Commands (/test) ──────────────────────────────────────
@@ -6192,12 +6273,12 @@ _test_init() {
   [ -f "$_dir/pyproject.toml" ] || [ -f "$_dir/requirements.txt" ] && _lang="Python"
   [ -f "$_dir/Gemfile" ] && _lang="Ruby"
 
-  echo -e "  \033[38;5;82m✓\033[0m Detected: $_lang"
-  echo -e "  \033[38;5;82m✓\033[0m Framework: $_fw_name"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Detected: $_lang"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Framework: $_fw_name"
 
   # Install if needed
   if [ "$_needs_install" = true ]; then
-    echo -e "  \033[0;33m⚠\033[0m No test framework found — installing $_fw_name"
+    echo -e "  \033[0;33m$I_WARN\033[0m No test framework found — installing $_fw_name"
     _test_install_framework "$_dir" "$_fw_name"
   fi
 
@@ -6220,7 +6301,7 @@ _test_init() {
   mkdir -p "$_dir/$_testdir" 2>/dev/null
 
   # Now delegate to LLM to write the actual first tests
-  echo -e "  \033[38;5;99m⚡\033[0m Generating first tests..."
+  echo -e "  \033[38;5;99m$I_TOOL\033[0m Generating first tests..."
   echo ""
 
   local _init_prompt="[TEST INIT] Project: $_dir | Language: $_lang | Framework: $_fw_name | Test dir: $_testdir | File ext: $_ext
@@ -6259,7 +6340,7 @@ _test_run() {
   # Handle recommended-but-not-installed
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed."
       echo "  Run /test init first."
       return
       ;;
@@ -6273,9 +6354,9 @@ _test_run() {
   local _ec=$?
 
   if [ $_ec -eq 0 ]; then
-    echo -e "  \033[38;5;82m✓ Tests passed\033[0m"
+    echo -e "  \033[38;5;82m$I_OK Tests passed\033[0m"
   else
-    echo -e "  \033[1;31m✗ Tests failed (exit $_ec)\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Tests failed (exit $_ec)\033[0m"
   fi
   echo "$_result" | tail -30
 }
@@ -6290,7 +6371,7 @@ _test_generate() {
 
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed."
       echo "  Run /test init first."
       return
       ;;
@@ -6354,7 +6435,7 @@ _test_generate_bg() {
   local _target="$2"
 
   if [ -z "$TMUX" ]; then
-    echo -e "  \033[1;31m✗\033[0m Background mode requires tmux. Run mix inside tmux."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Background mode requires tmux. Run mix inside tmux."
     return
   fi
 
@@ -6364,7 +6445,7 @@ _test_generate_bg() {
 
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed. Run /test init first."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed. Run /test init first."
       return
       ;;
   esac
@@ -6400,7 +6481,7 @@ cd "\$WORK_DIR" || exit 1
 printf '[test-gen] Starting... %%s\n' "\$(date)" | tee "\$LOG_FILE"
 MIX_YOLO=1 "$MIX_BIN" < "\$PROMPT_FILE" 2>&1 | tee -a "\$LOG_FILE"
 printf '[test-gen] Done. %%s\n' "\$(date)" | tee -a "\$LOG_FILE"
-[ -n "\$MY_TTY" ] && printf '\n  \033[38;5;82m✓ Test generation done! Check /test run or /workers\033[0m\n' > "\$MY_TTY" 2>/dev/null || true
+[ -n "\$MY_TTY" ] && printf '\n  \033[38;5;82m$I_OK Test generation done! Check /test run or /workers\033[0m\n' > "\$MY_TTY" 2>/dev/null || true
 TESTGEN_WORKER_EOF
   chmod +x "$_worker_tmp"
 
@@ -6409,7 +6490,7 @@ TESTGEN_WORKER_EOF
     2>/dev/null
 
   if [ $? -eq 0 ]; then
-    echo -e "  \033[38;5;99m⚡\033[0m Test generation running in background"
+    echo -e "  \033[38;5;99m$I_TOOL\033[0m Test generation running in background"
     echo "  Worker: mix-testgen"
     echo "  Log:    /tmp/mix-testgen.log"
     echo "  Check:  /workers or tail -f /tmp/mix-testgen.log"
@@ -6428,7 +6509,7 @@ _test_coverage() {
 
   case "$_fw_name" in
     none_ts|none_js)
-      echo -e "  \033[1;31m✗\033[0m No test framework installed. Run /test init first."
+      echo -e "  \033[1;31m$I_FAIL\033[0m No test framework installed. Run /test init first."
       return
       ;;
   esac
@@ -6473,7 +6554,7 @@ _test_coverage() {
           done
         done
         if [ "$_found_test" = false ]; then
-          echo -e "    \033[0;33m⚠\033[0m $_src"
+          echo -e "    \033[0;33m$I_WARN\033[0m $_src"
         else
           _tested_count=$((_tested_count + 1))
         fi
@@ -6492,7 +6573,7 @@ _test_coverage() {
           fi
         done
         if [ "$_found_test" = false ]; then
-          echo -e "    \033[0;33m⚠\033[0m $_src"
+          echo -e "    \033[0;33m$I_WARN\033[0m $_src"
         else
           _tested_count=$((_tested_count + 1))
         fi
@@ -6503,7 +6584,7 @@ _test_coverage() {
         [ -z "$_src" ] && continue
         _src_count=$((_src_count + 1))
         if [ ! -f "${_src%.go}_test.go" ]; then
-          echo -e "    \033[0;33m⚠\033[0m $_src"
+          echo -e "    \033[0;33m$I_WARN\033[0m $_src"
         else
           _tested_count=$((_tested_count + 1))
         fi
@@ -6532,9 +6613,9 @@ for _arg in "$@"; do
     else
       if [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
         _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
-          echo -e "  \033[1;31m✗\033[0m --sandbox: failed to unpack rootfs. Run /sandbox setup."
+          echo -e "  \033[1;31m$I_FAIL\033[0m --sandbox: failed to unpack rootfs. Run /sandbox setup."
       else
-        echo -e "  \033[1;31m✗\033[0m --sandbox: rootfs not found. Run /sandbox setup first."
+        echo -e "  \033[1;31m$I_FAIL\033[0m --sandbox: rootfs not found. Run /sandbox setup first."
       fi
     fi
   fi
@@ -6545,16 +6626,16 @@ if [ "$SANDBOX_ENABLED" != "true" ] && [ -f "${WORKDIR:-$PWD}/.mix/sandbox" ]; t
     SANDBOX_ENABLED=true
   elif [ -f "${HOME}/.mix/sandbox-rootfs.tar.gz" ]; then
     _sandbox_unpack_rootfs 2>/dev/null && SANDBOX_ENABLED=true || \
-      echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but failed to unpack rootfs. Run /sandbox setup."
+      echo -e "  \033[1;33m$I_WARN\033[0m .mix/sandbox marker found but failed to unpack rootfs. Run /sandbox setup."
   else
-    echo -e "  \033[1;33m⚠\033[0m .mix/sandbox marker found but rootfs not installed. Run /sandbox setup."
+    echo -e "  \033[1;33m$I_WARN\033[0m .mix/sandbox marker found but rootfs not installed. Run /sandbox setup."
   fi
 fi
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 [ "${_SKIP_BANNER:-}" = true ] || {
 echo ""
-echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
+echo -e "  \033[38;5;99m$I_DIAMOND\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
 echo ""
 
 # Row 1: model · provider  [git:branch]
@@ -6572,10 +6653,10 @@ echo -e "    \033[0;90m${_short_wd}\033[0m"
 
 # Row 3: active mode flags — only printed when any are set
 _mix_flags=()
-[ "$AUTO_YES" = "true" ]                 && _mix_flags+=("\033[1;33m⚡ yolo\033[0m")
-[ "$CAVEMAN_MODE" != "off" ]             && _mix_flags+=("\033[0;35m🪨 caveman:${CAVEMAN_MODE}\033[0m")
-[ "$AGENT_MODE"   != "fast" ]            && _mix_flags+=("\033[0;36m◎ ${AGENT_MODE}\033[0m")
-[ "${SANDBOX_ENABLED:-false}" = "true" ] && _mix_flags+=("\033[0;32m🔒 sandbox\033[0m")
+[ "$AUTO_YES" = "true" ]                 && _mix_flags+=("\033[1;33m$I_YOLO yolo\033[0m")
+[ "$CAVEMAN_MODE" != "off" ]             && _mix_flags+=("\033[0;35m$I_ROCK caveman:${CAVEMAN_MODE}\033[0m")
+[ "$AGENT_MODE"   != "fast" ]            && _mix_flags+=("\033[0;36m$I_MODE ${AGENT_MODE}\033[0m")
+[ "${SANDBOX_ENABLED:-false}" = "true" ] && _mix_flags+=("\033[0;32m$I_LOCK sandbox\033[0m")
 if [ ${#_mix_flags[@]} -gt 0 ]; then
   _mix_flagline=""
   for _mf in "${_mix_flags[@]}"; do
@@ -6600,7 +6681,7 @@ echo ""
 
 # ─── Doctor mode (if booted from wrapper due to broken build) ────────────────
 if [ "${_DOCTOR_MODE:-false}" = "true" ]; then
-  echo -e "  \033[1;33m⚠ Doctor mode — previous build was broken\033[0m"
+  echo -e "  \033[1;33m$I_WARN Doctor mode — previous build was broken\033[0m"
   echo -e "  \033[0;90m─────────────────────────────────────────────\033[0m"
   _CRASH_LOG="/tmp/mix-crash.log"
   if [ -f "$_CRASH_LOG" ]; then

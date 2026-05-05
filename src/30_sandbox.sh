@@ -33,13 +33,13 @@ sandbox_check_prereqs() {
   local ok=true
   for cmd in unshare chroot curl tar; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-      echo -e "  \033[1;31m✗\033[0m Missing required command: $cmd"
+      echo -e "  \033[1;31m$I_FAIL\033[0m Missing required command: $cmd"
       ok=false
     fi
   done
   # Check user namespace support
   if ! unshare --user --map-root-user true 2>/dev/null; then
-    echo -e "  \033[1;31m✗\033[0m Unprivileged user namespaces not available."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Unprivileged user namespaces not available."
     echo "    On Debian/Ubuntu: sysctl -w kernel.unprivileged_userns_clone=1"
     ok=false
   fi
@@ -119,16 +119,16 @@ _sandbox_unpack_rootfs() {
   fi
 
   if [ ! -f "$_SANDBOX_ROOTFS_TAR" ]; then
-    echo -e "  \033[1;31m✗\033[0m Rootfs not found. Run: /sandbox setup"
+    echo -e "  \033[1;31m$I_FAIL\033[0m Rootfs not found. Run: /sandbox setup"
     return 1
   fi
 
-  echo -e "  \033[0;90m↻ Unpacking rootfs...\033[0m"
+  echo -e "  \033[0;90m$I_RETRY Unpacking rootfs...\033[0m"
   rm -rf "$_SANDBOX_ROOTFS_DIR"
   mkdir -p "$_SANDBOX_ROOTFS_DIR"
   tar -C "$_SANDBOX_ROOTFS_DIR" -xzf "$_SANDBOX_ROOTFS_TAR" 2>/dev/null || {
     rm -rf "$_SANDBOX_ROOTFS_DIR"
-    echo -e "  \033[1;31m✗\033[0m Failed to unpack rootfs tar."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Failed to unpack rootfs tar."
     return 1
   }
   echo "$_SANDBOX_ALPINE_VERSION" > "$_SANDBOX_ROOTFS_VERSION"
@@ -273,7 +273,7 @@ sandbox_cmd_setup() {
   echo -e "\n  \033[1;37m── Sandbox Setup ──\033[0m"
 
   if ! sandbox_check_prereqs; then
-    echo -e "  \033[1;31m✗ Prerequisite check failed.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Prerequisite check failed.\033[0m"
     return 1
   fi
 
@@ -282,7 +282,7 @@ sandbox_cmd_setup() {
     local _ver=""
     [ -f "$_SANDBOX_ROOTFS_VERSION" ] && _ver=$(cat "$_SANDBOX_ROOTFS_VERSION")
     if [ "$_ver" = "$_SANDBOX_ALPINE_VERSION" ]; then
-      echo -e "  \033[38;5;82m✓\033[0m Rootfs already built (Alpine $_SANDBOX_ALPINE_VERSION, arch: $_SANDBOX_ALPINE_ARCH)"
+      echo -e "  \033[38;5;82m$I_OK\033[0m Rootfs already built (Alpine $_SANDBOX_ALPINE_VERSION, arch: $_SANDBOX_ALPINE_ARCH)"
       echo "  Run /sandbox on to activate, or /sandbox setup --rebuild to rebuild."
       return 0
     fi
@@ -304,14 +304,14 @@ sandbox_cmd_setup() {
       --max-time 300 \
       "$_SANDBOX_ALPINE_URL" \
       -o "$_base_tar" 2>&1; then
-    echo -e "  \033[1;31m✗ Download failed.\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Download failed.\033[0m"
     rm -f "$_base_tar"
     return 1
   fi
 
   # Verify it's a valid tar
   if ! tar -tzf "$_base_tar" >/dev/null 2>&1; then
-    echo -e "  \033[1;31m✗ Downloaded file is not a valid tar.gz (download may have failed).\033[0m"
+    echo -e "  \033[1;31m$I_FAIL Downloaded file is not a valid tar.gz (download may have failed).\033[0m"
     rm -f "$_base_tar"
     return 1
   fi
@@ -337,7 +337,7 @@ sandbox_cmd_setup() {
   local _apk_rc=$?
 
   if [ $_apk_rc -ne 0 ]; then
-    echo -e "  \033[1;31m✗ apk install failed:\033[0m"
+    echo -e "  \033[1;31m$I_FAIL apk install failed:\033[0m"
     echo "$_apk_out" | sed 's/^/    /'
     rm -rf "$_build_dir"
     return 1
@@ -359,7 +359,7 @@ sandbox_cmd_setup() {
 
   local _final_sz; _final_sz=$(du -sh "$_SANDBOX_ROOTFS_TAR" 2>/dev/null | cut -f1)
   echo ""
-  echo -e "  \033[38;5;82m✓ Sandbox rootfs ready!\033[0m"
+  echo -e "  \033[38;5;82m$I_OK Sandbox rootfs ready!\033[0m"
   echo "  Location: $_SANDBOX_ROOTFS_TAR ($_final_sz)"
   echo ""
   echo -e "  Run \033[1;37m/sandbox on\033[0m to enable sandbox mode."
@@ -377,12 +377,12 @@ sandbox_cmd_install() {
 
   if [ ! -d "$_SANDBOX_ROOTFS_DIR" ]; then
     if ! _sandbox_unpack_rootfs; then
-      echo -e "  \033[1;31m✗\033[0m Rootfs not found. Run /sandbox setup first."
+      echo -e "  \033[1;31m$I_FAIL\033[0m Rootfs not found. Run /sandbox setup first."
       return 1
     fi
   fi
 
-  echo -e "  \033[0;90m↻ Installing $pkg into sandbox rootfs (with network)...\033[0m"
+  echo -e "  \033[0;90m$I_RETRY Installing $pkg into sandbox rootfs (with network)...\033[0m"
   local _rfs="$_SANDBOX_ROOTFS_DIR"
 
   # Run apk add WITHOUT --net so it can reach the Alpine package repos.
@@ -398,9 +398,9 @@ sandbox_cmd_install() {
   local _rc=$?
 
   if [ $_rc -eq 0 ]; then
-    echo -e "  \033[38;5;82m✓\033[0m Installed: $pkg"
+    echo -e "  \033[38;5;82m$I_OK\033[0m Installed: $pkg"
   else
-    echo -e "  \033[1;31m✗\033[0m Install failed:"
+    echo -e "  \033[1;31m$I_FAIL\033[0m Install failed:"
     echo "$_out" | sed 's/^/    /'
   fi
 }
@@ -411,7 +411,7 @@ sandbox_cmd_status() {
   echo -e "\n  \033[1;37m── Sandbox Status ──\033[0m"
   echo "  State:     $([ "$SANDBOX_ENABLED" = "true" ] && echo -e "\033[38;5;82menabled\033[0m" || echo -e "\033[0;90mdisabled\033[0m")"
   if [ -f "$_marker" ]; then
-    echo -e "  Project:   \033[38;5;82m✓\033[0m auto-enabled for this workspace (.mix/sandbox)"
+    echo -e "  Project:   \033[38;5;82m$I_OK\033[0m auto-enabled for this workspace (.mix/sandbox)"
   else
     echo -e "  Project:   \033[0;90m○\033[0m not pinned (run /sandbox on to persist)"
   fi
@@ -420,24 +420,24 @@ sandbox_cmd_status() {
   if [ -f "$_SANDBOX_ROOTFS_TAR" ]; then
     local _ver=""; [ -f "$_SANDBOX_ROOTFS_VERSION" ] && _ver=$(cat "$_SANDBOX_ROOTFS_VERSION")
     local _sz; _sz=$(du -sh "$_SANDBOX_ROOTFS_TAR" 2>/dev/null | cut -f1)
-    echo -e "  Rootfs:    \033[38;5;82m✓\033[0m present (Alpine $_ver, $_sz compressed)"
+    echo -e "  Rootfs:    \033[38;5;82m$I_OK\033[0m present (Alpine $_ver, $_sz compressed)"
   else
-    echo -e "  Rootfs:    \033[1;31m✗\033[0m not found — run /sandbox setup"
+    echo -e "  Rootfs:    \033[1;31m$I_FAIL\033[0m not found — run /sandbox setup"
   fi
 
   # Check cgroup availability
   local _cgbase; _cgbase=$(_sandbox_cgroup_base 2>/dev/null) || _cgbase=""
   if [ -n "$_cgbase" ]; then
-    echo -e "  Cgroups:   \033[38;5;82m✓\033[0m cgroup v2 (resource limits active)"
+    echo -e "  Cgroups:   \033[38;5;82m$I_OK\033[0m cgroup v2 (resource limits active)"
   else
-    echo -e "  Cgroups:   \033[1;33m⚠\033[0m cgroup v2 not delegated (namespace isolation only)"
+    echo -e "  Cgroups:   \033[1;33m$I_WARN\033[0m cgroup v2 not delegated (namespace isolation only)"
   fi
 
   # Check user namespace
   if unshare --user --map-root-user true 2>/dev/null; then
-    echo -e "  Namespaces:\033[38;5;82m ✓\033[0m user namespaces available (rootless)"
+    echo -e "  Namespaces:\033[38;5;82m $I_OK\033[0m user namespaces available (rootless)"
   else
-    echo -e "  Namespaces:\033[1;31m ✗\033[0m user namespaces not available"
+    echo -e "  Namespaces:\033[1;31m $I_FAIL\033[0m user namespaces not available"
   fi
   echo ""
 }
@@ -446,12 +446,12 @@ sandbox_cmd_status() {
 sandbox_cmd_on() {
   local _marker="${WORKDIR:-$PWD}/.mix/sandbox"
   if ! sandbox_check_prereqs 2>/dev/null; then
-    echo -e "  \033[1;31m✗\033[0m Sandbox prerequisites not met. See errors above."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Sandbox prerequisites not met. See errors above."
     return 1
   fi
 
   if [ ! -f "$_SANDBOX_ROOTFS_TAR" ]; then
-    echo -e "  \033[1;31m✗\033[0m Rootfs not found."
+    echo -e "  \033[1;31m$I_FAIL\033[0m Rootfs not found."
     echo "  Run \033[1;37m/sandbox setup\033[0m first (~35MB download, one-time)."
     return 1
   fi
@@ -465,7 +465,7 @@ sandbox_cmd_on() {
   # Write marker file so sandbox auto-enables next time mix starts in this project
   mkdir -p "$(dirname "$_marker")" 2>/dev/null || true
   echo "$_SANDBOX_ALPINE_VERSION" > "$_marker" 2>/dev/null || true
-  echo -e "  \033[38;5;82m✓\033[0m Sandbox \033[1;32menabled\033[0m — all bash commands run inside chroot + PID + user namespaces"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Sandbox \033[1;32menabled\033[0m — all bash commands run inside chroot + PID + user namespaces"
   local _cgbase; _cgbase=$(_sandbox_cgroup_base 2>/dev/null) || _cgbase=""
   if [ -n "$_cgbase" ]; then
     local _total_kb; _total_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null) || _total_kb=1048576

@@ -38,7 +38,7 @@ _ext_load_all() {
   for _name in "${!_ext_files[@]}"; do
     local _base="${_name%.sh}"
     source "${_ext_files[$_name]}" 2>/dev/null || {
-      echo -e "  \033[1;31m✗ Extension $_name failed to load\033[0m" >&2
+      echo -e "  \033[1;31m$I_FAIL Extension $_name failed to load\033[0m" >&2
       continue
     }
     # Call init hook if defined
@@ -135,7 +135,7 @@ _ext_load_one() {
     ${_name}_init 2>/dev/null || true
   fi
   _MIX_EXTENSIONS_LOADED+="$_name "
-  echo -e "  \033[38;5;82m✓\033[0m Extension $_name loaded"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Extension $_name loaded"
   return 0
 }
 
@@ -222,7 +222,7 @@ example_on_shutdown() {
 EXAMPLE
   # Replace placeholder name with actual
   sed -i "s/example/${_name}/g; s/EXAMPLE_NAME/${_name^^}_NAME/" "$_target"
-  echo -e "  \033[38;5;82m✓\033[0m Created $_target"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Created $_target"
   echo "  Edit it, then /ext load $_name to activate."
 }
 
@@ -238,7 +238,7 @@ _ext_reload() {
   _ext_load_all
   local _count=0
   for _ in $_MIX_EXTENSIONS_LOADED; do _count=$((_count+1)); done
-  echo -e "  \033[38;5;82m✓\033[0m Reloaded $_count extensions"
+  echo -e "  \033[38;5;82m$I_OK\033[0m Reloaded $_count extensions"
 }
 
 # Load on source

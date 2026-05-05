@@ -74,12 +74,12 @@ process_tc() {
         result=$(run_tool bash_with_heal "$targs")
         if [[ "$result" == "[FAILED"* ]]; then
           FAIL_STREAK=$((FAIL_STREAK + 1))
-          [ "$silent" != "true" ] && echo -e "    \033[1;31m✗ failed (streak: $FAIL_STREAK/$MAX_FAIL_STREAK)\033[0m"
+          [ "$silent" != "true" ] && echo -e "    \033[1;31m$I_FAIL failed (streak: $FAIL_STREAK/$MAX_FAIL_STREAK)\033[0m"
           local _logs; _logs=$(auto_read_logs "$result")
           [ -n "$_logs" ] && result="$result
 $_logs"
           if [ "$FAIL_STREAK" -ge "$MAX_FAIL_STREAK" ]; then
-            [ "$silent" != "true" ] && echo -e "    \033[1;33m⚠  $FAIL_STREAK consecutive failures — injecting fallback hint\033[0m"
+            [ "$silent" != "true" ] && echo -e "    \033[1;33m$I_WARN  $FAIL_STREAK consecutive failures — injecting fallback hint\033[0m"
             local _rh="[RECOVERY HINT: $FAIL_STREAK consecutive failures. Try: different approach, check deps/permissions, simpler fallback, or tell user you're stuck."
             [ -f "$WORKDIR/SPEC.md" ] && _rh+=" Root cause known? Suggest: /spec bug: <cause> to log §B entry + §V invariant."
             _rh+="]"
