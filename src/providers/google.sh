@@ -321,9 +321,27 @@ _google_vertex_token() {
 
 # ─── Extra headers (none needed — OpenAI-compatible uses Bearer auth) ───────
 google_extra_headers_json() {
-  # Google OpenAI-compatible endpoints use standard Bearer auth.
-  # No extra headers needed.
-  echo "{}"
+  local mode
+  mode=$(grep '^mode=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+
+  if [ "$mode" = "vertex" ]; then
+    # Vertex with API key: use x-goog-api-key header, suppress Authorization
+    local key="${GOOGLE_API_KEY:-}"
+    if [ -z "$key" ] && [ -f "$_GOOGLE_KEY_FILE" ]; then
+      key=$(cat "$_GOOGLE_KEY_FILE")
+    fi
+    python3 -c "
+import json
+h = {
+    'x-goog-api-key': '''$key''',
+    'Authorization': None
+}
+print(json.dumps(h))
+"
+  else
+    # Studio: standard Bearer auth (default pipeline handles it)
+    echo "{}"
+  fi
 }
 
 # ─── List models ────────────────────────────────────────────────────────────
