@@ -379,3 +379,12 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Pushed to origin/refactor.
 
 ## [2026-05-05] task | try update something i want to see, maybe check log.md
+
+## [2026-05-05] task | read codebase and memorybank, tell me do you know how to add google provider? li
+
+## [2026-05-05] task | okay do it. but dont push code or anything and create a branch first
+
+## [2026-05-05] task | Jiren@1212
+
+## [2026-05-05] task |   ◆ mix
+    It's running but the non-interactive mode loads session history from

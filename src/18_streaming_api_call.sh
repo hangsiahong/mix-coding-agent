@@ -41,7 +41,12 @@ tty=open("/dev/tty","w") if os.path.exists("/dev/tty") and os.environ.get("IS_IN
 
 url = os.environ.get("BASE_URL") + "/chat/completions"
 api_key = os.environ.get("API_KEY")
+_extra_h = os.environ.get("EXTRA_HEADERS","{}")
+_IS_INT = os.environ.get("IS_INTERACTIVE")
+import time; _dbg = open("/tmp/mix_stream_debug.log","w")
+_dbg.write(f"URL: {url}\nAPI_KEY: {api_key[:15]}...\nEXTRA: {_extra_h}\nINTERACTIVE: {_IS_INT}\n"); _dbg.flush()
 payload = sys.stdin.read().encode("utf-8")
+_dbg.write(f"PAYLOAD_LEN: {len(payload)}\n"); _dbg.flush()
 
 # Build headers: base + provider extras
 hdrs = {
