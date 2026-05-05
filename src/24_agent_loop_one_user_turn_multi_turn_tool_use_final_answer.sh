@@ -23,6 +23,9 @@ run_agent() {
   ctx_bar
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
+    # Compact mid-loop: after tool results appended, before next API call
+    # Skip on turn 1 (already compacted above) and when history is small
+    [ "$turn" -gt 1 ] && compact_history
     # Always start animated spinner (Python will kill it before streaming first token)
     start_spinner "mix (turn $turn)"
     export SPIN_PID="$_SPIN_PID"
