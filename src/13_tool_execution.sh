@@ -44,13 +44,13 @@ run_tool() {
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
         if _sandbox_needs_host_network "$cmd"; then
           # Run on host with network — cd to $WORKDIR so relative paths work
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
           result="[host] $result"
         else
-          result=$(sandbox_run_cmd "$cmd")
+          result=$(sandbox_run_cmd "$cmd" </dev/null)
         fi
       else
-        result=$(bash -c "$cmd" 2>&1)
+        result=$(bash -c "$cmd" </dev/null 2>&1)
       fi
       local _ec=$?
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
@@ -61,13 +61,13 @@ $result"
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
         if _sandbox_needs_host_network "$cmd"; then
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" 2>&1)
+          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
           result="[host] $result"
         else
-          result=$(sandbox_run_cmd "$cmd")
+          result=$(sandbox_run_cmd "$cmd" </dev/null)
         fi
       else
-        result=$(run_with_heal "$cmd")
+        result=$(bash -c "$cmd" </dev/null 2>&1)
       fi
       ;;
     read_file)
@@ -368,8 +368,24 @@ else:
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
       ;;
-    *) result="Unknown tool: $name" ;;
+    *)
+      if _ext_dispatch_tool "$name" "$args" > /tmp/ext_result; then
+         result=$(cat /tmp/ext_result)
+         rm /tmp/ext_result
+      else
+         result="Unknown tool: $name"
+      fi
+      ;;
   esac
   [ -z "$result" ] && result="(no output)"
   printf '%s' "$result"
 }
+    # Extensions integration
+    *)
+      if _ext_dispatch_tool "$name" "$args" > /tmp/ext_result; then
+         result=$(cat /tmp/ext_result)
+         rm /tmp/ext_result
+      else
+         result="Unknown tool: $name"
+      fi
+      ;;
