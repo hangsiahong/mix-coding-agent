@@ -237,7 +237,7 @@ print("edit "+p+" — "+summary)
       if printf '%s' "$_verify_part" | grep -q 'FAILED'; then
         echo -e "    \033[1;31m$I_VERIFY verify:\033[0m"
       else
-        echo -e "    \033[0;32m🔍 verify:\033[0m"
+        echo -e "    \033[0;32m$I_VERIFY verify:\033[0m"
       fi
       printf '%s' "$_verify_part" | head -10 | while IFS= read -r _vl; do
         echo -e "      \033[0;90m$_vl\033[0m"
