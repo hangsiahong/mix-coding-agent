@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052303'
+MIX_VERSION='202605052318'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1727,143 +1727,6 @@ for l in diff:
         sys.stdout.write("    "+DIM+l.rstrip()+RST+"\n")
 ' 2>/dev/null || echo -e "    \033[0;90m(diff unavailable)\033[0m"
 }
-
-# ─── Interactive hunk review ───────────────────────────────────────────────
-# Returns 0 if accepted, 1 if rejected. 
-# If hunks are split, writes partially accepted content to stdout.
-review_hunks() {
-  local path="$1"
-  local old_file="$2"
-  local new_file="$3"
-  
-  # If not interactive or disabled, accept all
-  if [[ "${AGENT_INTERACTIVE_DIFF:-true}" != "true" ]] || [[ ! -t 0 ]] || [[ ! -t 1 ]]; then
-    cat "$new_file"
-    return 0
-  fi
-
-  # Create an empty file to compare if old_file doesn't exist
-  local _temp_old=""
-  if [ ! -f "$old_file" ]; then
-    _temp_old=$(mktemp)
-    old_file="$_temp_old"
-  fi
-
-  python3 -c '
-import sys, os, difflib, re
-
-path = sys.argv[1]
-old_p = sys.argv[2]
-new_p = sys.argv[3]
-
-with open(old_p, "r") as f: old_lines = f.readlines()
-with open(new_p, "r") as f: new_lines = f.readlines()
-
-diff = list(difflib.unified_diff(old_lines, new_lines, fromfile=path, tofile=path, n=3))
-if not diff:
-    with open(new_p, "r") as f: sys.stdout.write(f.read())
-    sys.exit(0)
-
-def get_hunks(diff):
-    hunks = []
-    current_hunk = []
-    for line in diff:
-        if line.startswith("@@"):
-            if current_hunk: hunks.append(current_hunk)
-            current_hunk = [line]
-        elif current_hunk:
-            current_hunk.append(line)
-    if current_hunk: hunks.append(current_hunk)
-    return hunks
-
-hunks = get_hunks(diff)
-if not hunks:
-    with open(new_p, "r") as f: sys.stdout.write(f.read())
-    sys.exit(0)
-
-accepted_hunks = []
-GRN, RED, DIM, RST, BOLD = "\033[0;32m", "\033[0;31m", "\033[0;90m", "\033[0m", "\033[1;37m"
-
-sys.stderr.write(f"\n{BOLD}Reviewing changes for {path}:{RST}\n")
-
-apply_all = False
-for i, hunk in enumerate(hunks):
-    if apply_all:
-        accepted_hunks.append(hunk)
-        continue
-
-    # Show hunk
-    for line in hunk:
-        if line.startswith("@@"):
-            sys.stderr.write(f"{DIM}{line.strip()}{RST}\n")
-        elif line.startswith("+"):
-            sys.stderr.write(f"{GRN}{line.rstrip()}{RST}\n")
-        elif line.startswith("-"):
-            sys.stderr.write(f"{RED}{line.rstrip()}{RST}\n")
-        else:
-            sys.stderr.write(f"{line.rstrip()}\n")
-    
-    while True:
-        sys.stderr.write(f"{BOLD}Accept hunk {i+1}/{len(hunks)}? [y,n,a,q,?] {RST}")
-        sys.stderr.flush()
-        # Read from /dev/tty to avoid consuming stdin
-        with open("/dev/tty", "r") as tty:
-            choice = tty.readline().strip().lower()
-        
-        if choice == "y":
-            accepted_hunks.append(hunk)
-            break
-        elif choice == "n":
-            break
-        elif choice == "a":
-            accepted_hunks.append(hunk)
-            apply_all = True
-            break
-        elif choice == "q":
-            sys.stderr.write("Aborting all changes.\n")
-            sys.exit(1)
-        elif choice == "?":
-            sys.stderr.write("y: accept hunk\nn: reject hunk\na: accept all remaining\nq: quit (reject all)\n")
-        else:
-            sys.stderr.write("Invalid choice.\n")
-
-if not accepted_hunks:
-    with open(old_p, "r") as f: sys.stdout.write(f.read())
-    sys.exit(0)
-
-# Re-construct file from accepted hunks using patch logic (simplified)
-# We use a temporary patch file and the "patch" command if available, 
-# but for zero-deps we can do it in python.
-# Simplified approach: If we rejected some hunks, we need to apply only some.
-# Better approach: Generate a new patch containing only accepted hunks.
-
-patch_lines = diff[:2] # Header
-for hunk in accepted_hunks:
-    patch_lines.extend(hunk)
-
-with open("hunk.patch", "w") as f:
-    f.writelines(patch_lines)
-
-# Apply patch to old_file and stream to stdout
-import subprocess
-try:
-    # Use patch command for robustness
-    subprocess.run(["patch", "-p0", "-o", "-", old_p, "hunk.patch"], stdout=sys.stdout, check=True, stderr=subprocess.DEVNULL)
-except:
-    # Fallback to applying manually if patch fails or not found (complex but needed for zero-deps)
-    # For now, let is assume patch exists or we fail.
-    # Actually, lets use a simpler python-based applier for basic hunks.
-    sys.stderr.write("Error applying patch. Defaulting to original.\n")
-    with open(old_p, "r") as f: sys.stdout.write(f.read())
-finally:
-    if os.path.exists("hunk.patch"): os.remove("hunk.patch")
-' "$path" "$old_file" "$new_file"
-  local _ec=$?
-  [ -n "$_temp_old" ] && rm -f "$_temp_old"
-  return $_ec
-}
-
-
 # ─── Auto-read logs on bash failure ─────────────────────────────────────────
 auto_read_logs() {
   local err="$1" log_ctx=""
@@ -3336,24 +3199,7 @@ else:
 " "$path" "$old_text" "$new_text")
 
       if [[ "$result" == Edited* ]] && [ -f "$path.next" ]; then
-        # Hunk review
-        local _reviewed_content
-        _reviewed_content=$(review_hunks "$path" "$path" "$path.next")
-        local _rev_ec=$?
-        
-        if [ $_rev_ec -eq 0 ]; then
-           # If reviewed content is same as original, it means user rejected all or it was same
-           local _orig_md5; _orig_md5=$(md5sum "$path" | cut -d' ' -f1)
-           printf '%s' "$_reviewed_content" > "$path"
-           local _new_md5; _new_md5=$(md5sum "$path" | cut -d' ' -f1)
-           
-           if [ "$_orig_md5" == "$_new_md5" ]; then
-             result="Edit rejected by user (no hunks applied)."
-           fi
-        else
-           result="Edit aborted by user."
-        fi
-        rm -f "$path.next"
+        mv "$path.next" "$path"
       fi
 
       # Update file cache after successful edit
@@ -3398,15 +3244,7 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
       if [[ "$result" == Created* ]]; then
         local _cfp; _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
         if [ -f "$_cfp.next" ]; then
-           local _reviewed_content
-           _reviewed_content=$(review_hunks "$_cfp" "/dev/null" "$_cfp.next")
-           local _rev_ec=$?
-           if [ $_rev_ec -eq 0 ] && [ -n "$_reviewed_content" ]; then
-              printf '%s' "$_reviewed_content" > "$_cfp"
-           else
-              result="Creation aborted by user."
-           fi
-           rm -f "$_cfp.next"
+           mv "$_cfp.next" "$_cfp"
         fi
       fi
 
@@ -3485,8 +3323,6 @@ else:
   [ -z "$result" ] && result="(no output)"
   printf '%s' "$result"
 }
-
-
 # ─── Auto-Verify (post-edit verification) ────────────────────────────────────
 # After edit_file/create_file succeeds, auto-run verification:
 #   1. Syntax check (file-type specific, fast)
@@ -4319,10 +4155,21 @@ $_rh"
               local _gdiff
               _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
               [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
-              # Extract a one-line summary from the tool args
+              # Extract meaningful commit message from the edit
               local _cmsg
-              _cmsg="agent: $(printf '%s' "$targs" | python3 -c \
-                'import json,sys; d=json.load(sys.stdin); print("edit "+d.get("path","").split("/")[-1])' 2>/dev/null || echo "edit $(basename "$p")")"
+              _cmsg="agent: $(printf '%s' "$targs" | python3 -c '
+import json,sys,difflib
+d=json.load(sys.stdin)
+p=d.get("path","").split("/")[-1]
+o,n=d.get("old_text",""),d.get("new_text","")
+diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),n=0))
+added=[l[1:].strip() for l in diff if l.startswith("+") and not l.startswith("+++") and l[1:].strip()]
+removed=[l[1:].strip() for l in diff if l.startswith("-") and not l.startswith("---") and l[1:].strip()]
+if added: summary=added[0][:60]
+elif removed: summary="remove: "+removed[0][:50]
+else: summary="edit"
+print("edit "+p+" — "+summary)
+' 2>/dev/null || echo "edit $(basename "$p")")"
               if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
                 echo -e "    \033[0;90m↳ committed: $_cmsg\033[0m"
                 result="$result (committed)"
@@ -4376,7 +4223,8 @@ $_rh"
           if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
             _ext_hook on_create "$p"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
-            git -C "$WORKDIR" commit -m "agent: create $(basename "$p")" --quiet 2>/dev/null \
+            local _create_lines; _create_lines=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("content","").splitlines()),"lines")' 2>/dev/null || echo "new")
+            git -C "$WORKDIR" commit -m "agent: create $(basename "$p") ($_create_lines)" --quiet 2>/dev/null \
               && echo -e "    \033[0;90m↳ committed: create $(basename "$p")\033[0m" \
               && result="$result (committed)" || true
           fi
@@ -4450,8 +4298,6 @@ $_rh"
     printf '%s' "$result"
   fi
 }
-
-
 # ─── Lightweight planning call (plan mode) ───────────────────────────────────
 call_api_plan() {
   local payload
