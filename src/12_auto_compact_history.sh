@@ -69,9 +69,14 @@ json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
   # Add Authorization header. Prioritize _effective_auth_header from extra_headers_json.
   # If extra_headers_json suppressed it (by returning null), then _effective_auth_header will be empty.
   # Otherwise, fall back to the default Bearer token if not already handled.
+  local _google_current_mode=""
+  if [ "$PROVIDER" = "google" ] && [ -f "$_GOOGLE_CONFIG_FILE" ]; then
+    _google_current_mode=$(grep '^mode=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
+  fi
+
   if [ -n "$_effective_auth_header" ]; then
     _curl_args+=("$_effective_auth_header")
-  elif [ -n "$_compact_key" ]; then
+  elif [ -n "$_compact_key" ] && [ "$_google_current_mode" != "vertex" ]; then
     _curl_args+=(-H "Authorization: Bearer $_compact_key")
   fi
   
