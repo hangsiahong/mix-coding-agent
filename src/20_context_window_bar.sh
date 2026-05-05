@@ -35,7 +35,7 @@ ctx_bar() {
     local _cache_str=""
     if [ "${_SESSION_CACHE_TOKENS:-0}" -gt 0 ] && [ "${_SESSION_PROMPT_TOKENS:-0}" -gt 0 ]; then
       local _cache_pct=$(( _SESSION_CACHE_TOKENS * 100 / _SESSION_PROMPT_TOKENS ))
-      _cache_str=" · \033[38;5;183m${_cache_pct}%% cached\033[0m"
+      _cache_str=" · \033[38;5;183m${_cache_pct}% cached\033[0m"
     fi
     printf '  \033[38;5;183m│ session: %s calls, ~%s tokens used%b\033[0m\n' \
       "${_SESSION_API_CALLS}" "$_total_str" "$_cache_str"
