@@ -179,7 +179,7 @@ auto_verify() {
       fi
     else
       _failed=$((_failed + 1))
-      results+="${NL}  ✗ $_label: failed (exit $_rc)"
+      results+="${NL}  $I_FAIL $_label: failed (exit $_rc)"
       # Show first few lines of error output
       local _eline=0
       while IFS= read -r el; do
