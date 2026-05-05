@@ -4,6 +4,14 @@ else
   INTERACTIVE=false
 fi
 
+# ─── CLI shortcuts (after all functions loaded) ────────────────────
+case "${_CLI_ARG:-}" in
+  --repomap)
+    build_repo_map
+    exit 0
+    ;;
+esac
+
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
