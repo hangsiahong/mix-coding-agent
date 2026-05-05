@@ -116,6 +116,7 @@ Define functions following `<name>_<hook>`:
 | `<name>_init` | `()` | On load | — |
 | `<name>_cmd` | `(input)` | Before built-in REPL commands | `0` = handled, `1` = pass |
 | `<name>_tool` | `(name, json_args)` | Before "unknown tool" fallback | Print result string, or `return 1` |
+| `<name>_tool_schema` | `()` | During tool schema generation | Print single-line valid JSON schema (or array of schemas) |
 | `<name>_on_edit` | `(path)` | After successful `edit_file` | — |
 | `<name>_on_create` | `(path)` | After successful `create_file` | — |
 | `<name>_on_bash` | `(command)` | After successful `bash` execution | — |
