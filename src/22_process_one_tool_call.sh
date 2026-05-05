@@ -123,10 +123,28 @@ $_rh"
               local _gdiff
               _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
               [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
-              # Extract a one-line summary from the tool args
+              # Extract meaningful commit message from the edit
               local _cmsg
-              _cmsg="agent: $(printf '%s' "$targs" | python3 -c \
-                'import json,sys; d=json.load(sys.stdin); print("edit "+d.get("path","").split("/")[-1])' 2>/dev/null || echo "edit $(basename "$p")")"
+              _cmsg="agent: $(printf '%s' "$targs" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+p=d.get("path","").split("/")[-1]
+o=d.get("old_text","").strip()
+n=d.get("new_text","").strip()
+# Extract first meaningful changed line
+o_lines=[l.strip() for l in o.splitlines() if l.strip()]
+n_lines=[l.strip() for l in n.splitlines() if l.strip()]
+if n_lines:
+    summary=n_lines[0][:60]
+    # If its just a brace/bracket, take next line too
+    if summary in("{","}","end","then","do","done","fi","esac"):
+        if len(n_lines)>1: summary=n_lines[1][:60]
+elif o_lines:
+    summary="remove: "+o_lines[0][:50]
+else:
+    summary="edit"
+print("edit "+p+" — "+summary)
+' 2>/dev/null || echo "edit $(basename "$p")")"
               if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
                 echo -e "    \033[0;90m↳ committed: $_cmsg\033[0m"
                 result="$result (committed)"
@@ -254,4 +272,3 @@ $_rh"
     printf '%s' "$result"
   fi
 }
-
