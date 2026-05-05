@@ -273,10 +273,28 @@ p=d["path"]
 if os.path.exists(p):
     print("Error: file already exists: "+p+" (use edit_file to modify)")
     sys.exit(0)
+# Instead of writing, we write to .next
 os.makedirs(os.path.dirname(p) or ".",exist_ok=True)
-open(p,"w").write(d["content"])
+with open(p + ".next", "w") as f:
+    f.write(d["content"])
 print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
 ' 2>/dev/null) || result="Error: bad args"
+      
+      if [[ "$result" == Created* ]]; then
+        local _cfp; _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
+        if [ -f "$_cfp.next" ]; then
+           local _reviewed_content
+           _reviewed_content=$(review_hunks "$_cfp" "/dev/null" "$_cfp.next")
+           local _rev_ec=$?
+           if [ $_rev_ec -eq 0 ] && [ -n "$_reviewed_content" ]; then
+              printf '%s' "$_reviewed_content" > "$_cfp"
+           else
+              result="Creation aborted by user."
+           fi
+           rm -f "$_cfp.next"
+        fi
+      fi
+
       # Cache newly created file
       if [[ "$result" == Created* ]]; then
         local _cfp _cfc
