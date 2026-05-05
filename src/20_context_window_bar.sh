@@ -1,4 +1,15 @@
 # ─── Context window % bar ─────────────────────────────────────────────────────
+_fmt_tok() {
+  local n=$1
+  if [ "$n" -ge 1000000 ]; then
+    printf '%dM' $(( n / 1000000 ))
+  elif [ "$n" -ge 1000 ]; then
+    printf '%dk' $(( n / 1000 ))
+  else
+    printf '%d' "$n"
+  fi
+}
+
 ctx_bar() {
   local hist_chars=${#HISTORY}
   local sys_chars tools_chars
@@ -16,14 +27,19 @@ ctx_bar() {
   [ "$pct" -gt 70 ] && color="\033[0;33m"
   [ "$pct" -gt 90 ] && color="\033[0;31m"
   local ktok=$(( est_tokens / 1000 ))
-  local _usage_info=""
-  if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
-    local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) / 1000 ))
-    _usage_info="  \033[0;90m│ session: ${_SESSION_API_CALLS} calls, ~${_total_tok}k tokens used\033[0m"
-  fi
   printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
     "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
-  [ -n "$_usage_info" ] && printf '%b\n' "$_usage_info"
+  if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
+    local _total_tok=$(( _SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS ))
+    local _total_str; _total_str=$(_fmt_tok $_total_tok)
+    local _cache_str=""
+    if [ "${_SESSION_CACHE_TOKENS:-0}" -gt 0 ] && [ "${_SESSION_PROMPT_TOKENS:-0}" -gt 0 ]; then
+      local _cache_pct=$(( _SESSION_CACHE_TOKENS * 100 / _SESSION_PROMPT_TOKENS ))
+      _cache_str=" · \033[38;5;183m${_cache_pct}%% cached\033[0m"
+    fi
+    printf '  \033[38;5;183m│ session: %s calls, ~%s tokens used%b\033[0m\n' \
+      "${_SESSION_API_CALLS}" "$_total_str" "$_cache_str"
+  fi
   return 0
 }
 
