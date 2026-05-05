@@ -27,6 +27,11 @@ detect_env() {
   command -v shellcheck >/dev/null 2>&1 && info+=" shellcheck"
   command -v ruff >/dev/null 2>&1 && info+=" ruff"
   command -v mypy >/dev/null 2>&1 && info+=" mypy"
+  command -v ctags >/dev/null 2>&1 && {
+    if ctags --version 2>/dev/null | grep -iq "Universal Ctags"; then
+      info+=" ctags(universal)"
+    fi
+  }
   ENV_INFO="${info# }"  # trim leading space
 }
 
