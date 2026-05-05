@@ -36,6 +36,15 @@ BASE_URL=https://ai.koompi.cloud/v1
 - Hooks: `_activate`, `_login`, `_get_api_key`, `_extra_headers_json`, `_list_models`, `_validate_model`
 - Usage: `/provider copilot login` → `/provider copilot` → `/model claude-sonnet-4-20250514`
 
+### google
+- Google AI Studio and Vertex AI. OpenAI-compatible.
+- Modes: `studio` (API Key) or `vertex` (gcloud CLI).
+- Auth: static key (Studio) or `gcloud auth print-access-token` (Vertex).
+- Special: Suppresses `Authorization` header if `x-goog-api-key` is used to avoid auth collision.
+- Preview: Vertex models with `gemini-3` automatically use `global` location.
+- Files: `~/.mix/google_provider` (mode/project/region), `~/.mix/google_api_key`, `/tmp/mix-google-access-token`.
+- Usage: `/provider google login` → `/provider google` → `/model gemini-1.5-pro`.
+
 ## Adding Providers
 
 Drop `<name>.sh` in `src/providers/` (built-in) or `~/.mix/providers/` (user). Must implement:
