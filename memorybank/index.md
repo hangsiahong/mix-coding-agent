@@ -21,6 +21,8 @@ Update this file after every ingest or new page created.
 
 | file | summary |
 |---|---|
+| multi-language-adaptation.md | How `mix` auto-adapts to JS/TS (Next.js), Rust, Python using `auto_verify` and universal ctags AST parsing. Ready for production across stacks |
+| tmux-detached-workers.md | Use of `tmux new-window -d` to prevent background tasks from stealing UI focus. Agent orchestration instructions in system prompt |
 | extension-system.md | Drop-in plugin system. ~/.mix/extensions/ + .mix/extensions/. Convention hooks (_init/_cmd/_tool/_on_edit/_on_create/_on_bash/_on_session/_on_shutdown). /ext [load\|unload\|create\|reload\|list]. 24 tests |
 | repo-map-structural-awareness.md | Regex-based codebase map (~1200 tokens) injected into system prompt. Eliminates 2-3 orientation tool calls per task. 10-language support, mtime-cached, /refresh to rebuild |
 | file-content-cache.md | Session-scoped file content cache surviving history compaction. Auto-caches on read/edit/create. ~1000 tokens in system prompt. /cache to inspect |
