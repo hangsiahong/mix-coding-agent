@@ -110,7 +110,7 @@ open(os.path.join(b,"n"),"w").write(d["new_text"])
         fi
       fi
       result=$(python3 -c "
-import sys, re
+import sys, re, os
 p,o,n=sys.argv[1],sys.argv[2],sys.argv[3]
 content=open(p).read()
 
@@ -120,7 +120,6 @@ def normalize(s):
 def strip_indent(s):
     return '\n'.join(line.lstrip() for line in s.split('\n'))
 
-# Suggestion context for edit failures — helps model self-correct without re-reading
 def suggest_context(content, old_text, reason):
     lines = content.split(chr(10))
     o_lines = old_text.strip().split(chr(10))
@@ -153,72 +152,95 @@ def suggest_context(content, old_text, reason):
             suggestions.append(f'File starts with:{chr(10)}{ctx}')
     if suggestions:
         combined = chr(10).join(suggestions)[:500]
-        print(chr(10) + '[SUGGESTION] ' + combined)
+        sys.stderr.write(chr(10) + '[SUGGESTION] ' + combined + chr(10))
+
+new_content = None
+msg = ''
 
 # 1. Exact match
 count=content.count(o)
 if count == 1:
-    open(p,'w').write(content.replace(o,n,1))
-    print('Edited '+p)
-    sys.exit(0)
-if count > 1:
+    new_content = content.replace(o,n,1)
+    msg = 'Edited '+p
+elif count > 1:
     print('Error: old_text not unique ('+str(count)+' matches) in '+p)
     suggest_context(content, o, 'not unique')
     sys.exit(0)
+else:
+    # 2. Fuzzy match
+    nc = normalize(content)
+    no = normalize(o)
+    if no in nc:
+        fcount = nc.count(no)
+        if fcount == 1:
+            new_content = nc.replace(no, normalize(n), 1)
+            msg = 'Edited '+p+' (fuzzy whitespace match)'
+        elif fcount > 1:
+            print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
+            suggest_context(content, o, 'not unique')
+            sys.exit(0)
+    else:
+        # 3. Indent-agnostic match
+        sc = strip_indent(nc)
+        so = strip_indent(no)
+        icount = sc.count(so)
+        if icount == 1:
+            idx = sc.index(so)
+            start_line = sc[:idx].count('\n')
+            match_lines = so.count('\n') + 1
+            nc_lines = nc.split('\n')
+            new_nc = nc_lines[:start_line] + [normalize(n)] + nc_lines[start_line + match_lines:]
+            new_content = '\n'.join(new_nc)
+            msg = 'Edited '+p+' (fuzzy indent match)'
+        else:
+            # 4. Fallback: Block Header/Footer Anchor match
+            o_lines = [l.strip() for l in no.split('\n') if l.strip()]
+            if len(o_lines) > 2:
+                first, last = o_lines[0], o_lines[-1]
+                nc_lines = nc.split('\n')
+                matches = []
+                for i, line in enumerate(nc_lines):
+                    if first in line:
+                        for j in range(i + 1, min(i + len(o_lines) + 10, len(nc_lines))):
+                            if last in nc_lines[j]:
+                                matches.append((i, j))
+                if len(matches) == 1:
+                    i, j = matches[0]
+                    new_nc = nc_lines[:i] + [normalize(n)] + nc_lines[j+1:]
+                    new_content = '\n'.join(new_nc)
+                    msg = 'Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')'
 
-# 2. Fuzzy match: normalize trailing whitespace + line endings
-nc = normalize(content)
-no = normalize(o)
-if no in nc:
-    fcount = nc.count(no)
-    if fcount == 1:
-        # We apply the edit to the normalized version. 
-        # This is safe because normalize() only removes \r and trailing spaces.
-        open(p,'w').write(nc.replace(no, normalize(n), 1))
-        print('Edited '+p+' (fuzzy whitespace match)')
-        sys.exit(0)
-    if fcount > 1:
-        print('Error: fuzzy old_text match not unique ('+str(fcount)+' matches) in '+p)
-        suggest_context(content, o, 'not unique')
-        sys.exit(0)
-
-# 3. Indent-agnostic match
-sc = strip_indent(nc)
-so = strip_indent(no)
-icount = sc.count(so)
-if icount == 1:
-    idx = sc.index(so)
-    start_line = sc[:idx].count('\n')
-    match_lines = so.count('\n') + 1
-    nc_lines = nc.split('\n')
-    new_nc = nc_lines[:start_line] + [normalize(n)] + nc_lines[start_line + match_lines:]
-    open(p,'w').write('\n'.join(new_nc))
-    print('Edited '+p+' (fuzzy indent match)')
-    sys.exit(0)
-
-# 4. Fallback: Block Header/Footer Anchor match
-# If old_text has multiple lines, try matching first and last lines uniquely
-o_lines = [l.strip() for l in no.split('\n') if l.strip()]
-if len(o_lines) > 2:
-    first, last = o_lines[0], o_lines[-1]
-    nc_lines = nc.split('\n')
-    matches = []
-    for i, line in enumerate(nc_lines):
-        if first in line:
-            # Look ahead for the last line within a reasonable range (len(o_lines) + 10)
-            for j in range(i + 1, min(i + len(o_lines) + 10, len(nc_lines))):
-                if last in nc_lines[j]:
-                    matches.append((i, j))
-    if len(matches) == 1:
-        i, j = matches[0]
-        new_nc = nc_lines[:i] + [normalize(n)] + nc_lines[j+1:]
-        open(p,'w').write('\n'.join(new_nc))
-        print('Edited '+p+' (anchor match: lines '+str(i+1)+'-'+str(j+1)+')')
-        sys.exit(0)
-
-print('Error: old_text not found in '+p)
-suggest_context(content, o, 'not found')
+if new_content is not None:
+    # Write potential new content to a temp file for bash to handle
+    with open(p + '.next', 'w') as f:
+        f.write(new_content)
+    print(msg)
+else:
+    print('Error: old_text not found in '+p)
+    suggest_context(content, o, 'not found')
 " "$path" "$old_text" "$new_text")
+
+      if [[ "$result" == Edited* ]] && [ -f "$path.next" ]; then
+        # Hunk review
+        local _reviewed_content
+        _reviewed_content=$(review_hunks "$path" "$path" "$path.next")
+        local _rev_ec=$?
+        
+        if [ $_rev_ec -eq 0 ]; then
+           # If reviewed content is same as original, it means user rejected all or it was same
+           local _orig_md5; _orig_md5=$(md5sum "$path" | cut -d' ' -f1)
+           printf '%s' "$_reviewed_content" > "$path"
+           local _new_md5; _new_md5=$(md5sum "$path" | cut -d' ' -f1)
+           
+           if [ "$_orig_md5" == "$_new_md5" ]; then
+             result="Edit rejected by user (no hunks applied)."
+           fi
+        else
+           result="Edit aborted by user."
+        fi
+        rm -f "$path.next"
+      fi
+
       # Update file cache after successful edit
       if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
         local _new_content; _new_content=$(cat "$path" 2>/dev/null) || true
