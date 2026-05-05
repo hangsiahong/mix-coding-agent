@@ -27,6 +27,7 @@ if [ "$SANDBOX_ENABLED" != "true" ] && [ -f "${WORKDIR:-$PWD}/.mix/sandbox" ]; t
 fi
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
+[ "${_SKIP_BANNER:-}" = true ] || {
 echo ""
 echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
 echo ""
@@ -97,4 +98,3 @@ if [ -n "$TMUX" ]; then
   echo -e "    \033[0;90msession: ${_MIX_SESSION_NAME}  │  /worker <name> <cmd>  │  /workers\033[0m"
   echo ""
 fi
-
