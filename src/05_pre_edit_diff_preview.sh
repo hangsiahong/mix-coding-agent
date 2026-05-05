@@ -9,7 +9,7 @@ GRN,RED,DIM,RST,BOLD="\033[0;32m","\033[0;31m","\033[0;90m","\033[0m","\033[1;37
 pdir=os.path.dirname(p); pbase=os.path.basename(p)
 pdir_s=(DIM+pdir+"/"+RST) if pdir and pdir!="." else ""
 if not os.path.exists(p):
-    sys.stdout.write("    📝  "+pdir_s+BOLD+pbase+RST+"  "+DIM+"(new file)"+RST+"\n")
+    sys.stdout.write("    "+I_WRITE+"  "+pdir_s+BOLD+pbase+RST+"  "+DIM+"(new file)"+RST+"\n")
     for i,l in enumerate(n.splitlines()[:15],1): sys.stdout.write("    "+GRN+"+ %3d: %s"%(i,l)+RST+"\n")
     if len(n.splitlines())>15: sys.stdout.write("    "+DIM+"... (%d more lines)"+RST+"\n" % (len(n.splitlines())-15))
     sys.exit(0)
