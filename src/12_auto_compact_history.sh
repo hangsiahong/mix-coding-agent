@@ -33,26 +33,52 @@ json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
     return
   }
 
-  # Build curl args with provider extra headers
+  # Build base curl args
   local _curl_args=(-s -w "%{http_code}" --max-time 90
     "${BASE_URL}/chat/completions"
-    -H "Authorization: Bearer $_compact_key"
     -H "Content-Type: application/json")
 
-  # Use provider-specific headers if available (e.g. for Copilot)
+  local _effective_auth_header="" # Stores the Authorization header, if any
+  local _extra_curl_headers=() # Stores other extra headers
+
+  # Use provider-specific headers if available (e.g. for Google Vertex AI)
   if [ "$PROVIDER" != "default" ]; then
     if type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
       local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
       if [ -n "$_ph" ]; then
-        while IFS= read -r _header; do
-          [ -n "$_header" ] && _curl_args+=(-H "$_header")
-        done < <(printf '%s' "$_ph" | python3 -c '
-import json,sys
-for k,v in json.load(sys.stdin).items(): print(f"{k}: {v}")
-' 2>/dev/null)
+        local _filtered_ph
+        # Filter out null values for headers (e.g., {"Authorization": null} to suppress it)
+        _filtered_ph=$(printf '%s' "$_ph" | python3 -c 'import json,sys; print(json.dumps({k:v for k,v in json.load(sys.stdin).items() if v is not None}))' 2>/dev/null)
+        
+        if [ -n "$_filtered_ph" ]; then
+          while IFS= read -r _header; do
+            local _key=$(printf '%s' "$_header" | cut -d':' -f1)
+            local _val=$(printf '%s' "$_header" | cut -d':' -f2-)
+            
+            if [ "$_key" = "Authorization" ]; then
+              _effective_auth_header="-H "$_header"" # Prioritize Authorization from extra_headers_json
+            else
+              _extra_curl_headers+=(-H "$_header")
+            fi
+          done < <(printf '%s' "$_filtered_ph" | python3 -c 'import json,sys; for k,v in json.load(sys.stdin).items(): print(f"{k}: {v}")' 2>/dev/null)
+        fi
       fi
     fi
   fi
+
+  # Add Authorization header. Prioritize _effective_auth_header from extra_headers_json.
+  # If extra_headers_json suppressed it (by returning null), then _effective_auth_header will be empty.
+  # Otherwise, fall back to the default Bearer token if not already handled.
+  if [ -n "$_effective_auth_header" ]; then
+    _curl_args+=("$_effective_auth_header")
+  elif [ -n "$_compact_key" ]; then
+    _curl_args+=(-H "Authorization: Bearer $_compact_key")
+  fi
+  
+  # Add other extra headers
+  _curl_args+=("${_extra_curl_headers[@]}")
+
+  _curl_args+=(-d "@$_payload_tmp")
 
   # Start spinner animation
   local _spinner_pid
