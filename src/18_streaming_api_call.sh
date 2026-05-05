@@ -4,10 +4,13 @@ call_api_stream() {
   local payload
   local _model="$MODEL"
   [ -n "${_GOOGLE_VERTEX_MODEL_PREFIX:-}" ] && _model="${_GOOGLE_VERTEX_MODEL_PREFIX}${MODEL}"
+  # Sanitize history for current provider (handles provider switching seamlessly)
+  local _hist_for_api
+  _hist_for_api=$(_apply_provider_history_filter "$HISTORY") || _hist_for_api="$HISTORY"
   payload=$(printf '%s\n%s\n%s\n%s\n' \
     "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
     "$TOOLS_JSON" \
-    "$HISTORY" \
+    "$_hist_for_api" \
     "$_model" \
   | python3 -c '
 import json,sys
@@ -107,8 +110,9 @@ try:
                     tty.write("\r\033[K")
                     tty.flush(); first=False
                 i=tc.get("index",0)
-                if i not in tcs: tcs[i]={"id":"","name":"","args":""}
+                if i not in tcs: tcs[i]={"id":"","name":"","args":"","sig":""}
                 if tc.get("id"): tcs[i]["id"]+=tc["id"]
+                if tc.get("thought_signature"): tcs[i]["sig"]+=tc["thought_signature"]
                 f=tc.get("function",{})
                 if f.get("name"): tcs[i]["name"]+=f["name"]
                 if f.get("arguments"): tcs[i]["args"]+=f["arguments"]
@@ -207,9 +211,11 @@ if full:
         tty.flush()
 msg={"role":"assistant","content":full}
 if tcs:
-    msg["tool_calls"]=[{"id":tcs[i]["id"],"type":"function",
-        "function":{"name":tcs[i]["name"],"arguments":tcs[i]["args"]}}
-        for i in sorted(tcs)]
+    def make_tc(t):
+        d={"id":t["id"],"type":"function","function":{"name":t["name"],"arguments":t["args"]}}
+        if t.get("sig"): d["thought_signature"]=t["sig"]
+        return d
+    msg["tool_calls"]=[make_tc(tcs[i]) for i in sorted(tcs)]
 if not full: msg["content"]=""
 sys.stdout.write("RAW:"+base64.b64encode(json.dumps(msg).encode()).decode()+"\n")
 if tcs:

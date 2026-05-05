@@ -384,7 +384,13 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 
 ## [2026-05-05] task | okay do it. but dont push code or anything and create a branch first
 
-## [2026-05-05] task | Jiren@1212
 
 ## [2026-05-05] task |   ◆ mix
     It's running but the non-interactive mode loads session history from
+
+## [2026-05-05] task |   ✓ Google Vertex AI activated
+  Model: gemini-2.5-flash | Project: project-4cdf
+
+## [2026-05-05] task | please fix the error
+
+## [2026-05-05] task | summary after compacted, what u still remember?

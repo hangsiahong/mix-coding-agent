@@ -305,17 +305,18 @@ google_get_api_key() {
     printf '%s' "$key"
     return 0
   elif [ "$mode" = "vertex" ]; then
-    # Vertex: use API key (same key, just different header delivery)
+    # Prefer API key; fall back to gcloud OAuth token
     local key="${GOOGLE_API_KEY:-}"
     if [ -z "$key" ] && [ -f "$_GOOGLE_KEY_FILE" ]; then
       key=$(cat "$_GOOGLE_KEY_FILE")
     fi
-    if [ -z "$key" ]; then
-      echo -e "  \033[1;33mNo Google API key. Run: /provider google login\033[0m" >&2
-      return 1
+    if [ -n "$key" ]; then
+      printf '%s' "$key"
+      return 0
     fi
-    printf '%s' "$key"
-    return 0
+    # gcloud fallback
+    _google_vertex_token
+    return $?
   else
     echo -e "  \033[1;33mGoogle provider not configured. Run: /provider google login\033[0m" >&2
     return 1
@@ -360,12 +361,14 @@ google_extra_headers_json() {
   mode=$(grep '^mode=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
 
   if [ "$mode" = "vertex" ]; then
-    # Vertex with API key: use x-goog-api-key header, suppress Authorization
+    # Try API key first
     local key="${GOOGLE_API_KEY:-}"
     if [ -z "$key" ] && [ -f "$_GOOGLE_KEY_FILE" ]; then
       key=$(cat "$_GOOGLE_KEY_FILE")
     fi
-    python3 -c "
+    if [ -n "$key" ]; then
+      # API key auth: use x-goog-api-key header, suppress Bearer Authorization
+      python3 -c "
 import json
 h = {
     'x-goog-api-key': '''$key''',
@@ -373,6 +376,15 @@ h = {
 }
 print(json.dumps(h))
 "
+    else
+      # gcloud OAuth: use Bearer token, keep Authorization header
+      local token
+      token=$(_google_vertex_token 2>/dev/null) || { echo "{}"; return 1; }
+      python3 -c "
+import json
+print(json.dumps({'Authorization': 'Bearer $token'}))
+"
+    fi
   else
     # Studio: standard Bearer auth (default pipeline handles it)
     echo "{}"
@@ -426,4 +438,40 @@ google_validate_model() {
     echo "Unknown model '$model_id'. Available: ${_GOOGLE_MODELS[*]}"
   fi
   return 1
+}
+
+# ─── Filter history: sanitize tool_calls missing thought_signature ───────────
+# Called before building API payload. Converts broken tool_calls to text so
+# Google doesn't reject the request with "thought_signature missing" errors.
+google_filter_history() {
+  python3 -c '
+import json, sys
+history = json.load(sys.stdin)
+result = []
+skip_tool_ids = set()
+for msg in history:
+    if msg.get("role") == "assistant" and msg.get("tool_calls"):
+        bad = [tc for tc in msg["tool_calls"] if not tc.get("thought_signature")]
+        good = [tc for tc in msg["tool_calls"] if tc.get("thought_signature")]
+        if bad:
+            skip_tool_ids.update(tc.get("id","") for tc in bad)
+            tc_text = " | ".join(
+                tc["function"]["name"] + "(" + (tc["function"].get("arguments","{}") or "{}")[:60] + ")"
+                for tc in bad
+            )
+            new_content = (msg.get("content") or "")
+            new_content = (new_content + "\n[Used tools: " + tc_text + "]").strip()
+            new_msg = {"role": "assistant", "content": new_content}
+            if good:
+                new_msg["tool_calls"] = good
+            result.append(new_msg)
+        else:
+            result.append(msg)
+    elif msg.get("role") == "tool" and msg.get("tool_call_id","") in skip_tool_ids:
+        # Fold orphaned tool result into a user message so history stays valid
+        result.append({"role": "user", "content": "[Tool result]: " + (msg.get("content") or "")})
+    else:
+        result.append(msg)
+print(json.dumps(result))
+'
 }

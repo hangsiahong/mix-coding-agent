@@ -14,76 +14,61 @@ compact_history() {
   fi
 
   # Build payload via temp files
+  # Apply model prefix (e.g. Google Vertex needs "google/" prefix)
+  local _compact_model="$MODEL"
+  [ -n "${_GOOGLE_VERTEX_MODEL_PREFIX:-}" ] && _compact_model="${_GOOGLE_VERTEX_MODEL_PREFIX}${MODEL}"
+
   local _payload_tmp; _payload_tmp=$(mktemp -t mix-compact-XXXXXX)
   local _hist_tmp; _hist_tmp=$(mktemp -t mix-hist-XXXXXX)
-  printf '%s' "$HISTORY" > "$_hist_tmp"
+  # Sanitize history for current provider (strips thought_sig cross-provider)
+  local _hist_for_compact
+  _hist_for_compact=$(_apply_provider_history_filter "$HISTORY") || _hist_for_compact="$HISTORY"
+  printf '%s' "$_hist_for_compact" > "$_hist_tmp"
   python3 -c '
 import json,sys
 s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\n\nRules:\n- Do NOT include full file contents — they are available in the file cache.\n- Do NOT repeat tool outputs verbatim — extract conclusions only.\n- Do NOT include diagnostic/verify output — only the final resolution.\n- Include: file paths edited, key variable names, error patterns resolved.\n- Be complete but concise. Output only the summary, nothing else."
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
-# Some providers refuse to answer if the last message is from the user
-# or if there is no user message to trigger a response.
-# We append the instruction as a final user message.
 msg=h+[{"role":"user","content":s}]
 json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
-' "$_hist_tmp" "$MODEL" "$_payload_tmp" 2>/dev/null || {
+' "$_hist_tmp" "$_compact_model" "$_payload_tmp" 2>/dev/null || {
     rm -f "$_payload_tmp" "$_hist_tmp"
     printf "\r\033[K  \033[0;33m↻ compact failed: payload build error\033[0m\n"
     return
   }
+  rm -f "$_hist_tmp"
 
-  # Build base curl args
+  # Build curl args — same SUPPRESS_AUTH logic as call_api
   local _curl_args=(-s -w "%{http_code}" --max-time 90
     "${BASE_URL}/chat/completions"
     -H "Content-Type: application/json")
 
-  local _effective_auth_header="" # Stores the Authorization header, if any
-  local _extra_curl_headers=() # Stores other extra headers
-
-  # Use provider-specific headers if available (e.g. for Google Vertex AI)
-  if [ "$PROVIDER" != "default" ]; then
-    if type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
-      local _ph; _ph=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
-      if [ -n "$_ph" ]; then
-        local _filtered_ph
-        # Filter out null values for headers (e.g., {"Authorization": null} to suppress it)
-        _filtered_ph=$(printf '%s' "$_ph" | python3 -c 'import json,sys; print(json.dumps({k:v for k,v in json.load(sys.stdin).items() if v is not None}))' 2>/dev/null)
-        
-        if [ -n "$_filtered_ph" ]; then
-          while IFS= read -r _header; do
-            local _key=$(printf '%s' "$_header" | cut -d':' -f1)
-            local _val=$(printf '%s' "$_header" | cut -d':' -f2-)
-            
-            if [ "$_key" = "Authorization" ]; then
-              _effective_auth_header="-H "$_header"" # Prioritize Authorization from extra_headers_json
-            else
-              _extra_curl_headers+=(-H "$_header")
-            fi
-          done < <(printf '%s' "$_filtered_ph" | python3 -c 'import json,sys; for k,v in json.load(sys.stdin).items(): print(f"{k}: {v}")' 2>/dev/null)
-        fi
-      fi
+  local _suppress_auth=false
+  local _extra_pairs=""
+  if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_extra_headers_json" >/dev/null 2>&1; then
+    local _pheaders; _pheaders=$(${PROVIDER}_extra_headers_json 2>/dev/null) || true
+    if [ -n "$_pheaders" ]; then
+      _extra_pairs=$(printf '%s' "$_pheaders" | python3 -c '
+import json,sys
+for k,v in json.load(sys.stdin).items():
+    if v is None:
+        if k.lower()=="authorization": print("SUPPRESS_AUTH")
+    else:
+        print(f"{k}\t{v}")
+' 2>/dev/null) || true
+      echo "$_extra_pairs" | grep -q '^SUPPRESS_AUTH' && _suppress_auth=true
     fi
   fi
 
-  # Add Authorization header. Prioritize _effective_auth_header from extra_headers_json.
-  # If extra_headers_json suppressed it (by returning null), then _effective_auth_header will be empty.
-  # Otherwise, fall back to the default Bearer token if not already handled.
-  local _google_current_mode=""
-  if [ "$PROVIDER" = "google" ] && [ -f "$_GOOGLE_CONFIG_FILE" ]; then
-    _google_current_mode=$(grep '^mode=' "$_GOOGLE_CONFIG_FILE" 2>/dev/null | cut -d= -f2-) || true
-  fi
-
-  if [ -n "$_effective_auth_header" ]; then
-    _curl_args+=("$_effective_auth_header")
-  elif [ -n "$_compact_key" ] && [ "$_google_current_mode" != "vertex" ]; then
+  [ "$_suppress_auth" = "false" ] && [ -n "$_compact_key" ] && \
     _curl_args+=(-H "Authorization: Bearer $_compact_key")
-  fi
-  
-  # Add other extra headers
-  _curl_args+=("${_extra_curl_headers[@]}")
 
-  _curl_args+=(-d "@$_payload_tmp")
+  if [ -n "$_extra_pairs" ]; then
+    while IFS=$'\t' read -r _hk _hv; do
+      [ "$_hk" = "SUPPRESS_AUTH" ] && continue
+      [ -n "$_hk" ] && [ -n "$_hv" ] && _curl_args+=(-H "$_hk: $_hv")
+    done <<< "$_extra_pairs"
+  fi
 
   # Start spinner animation
   local _spinner_pid
@@ -102,8 +87,8 @@ json.dump({"model":m,"messages":msg},open(sys.argv[3],"w"))
 
   local _resp_tmp; _resp_tmp=$(mktemp -t mix-compact-resp-XXXXXX)
   local code
-  code=$(curl "${_curl_args[@]}" -o "$_resp_tmp" -d @"$_payload_tmp" 2>/dev/null) || true
-  rm -f "$_payload_tmp" "$_hist_tmp"
+  code=$(curl "${_curl_args[@]}" -o "$_resp_tmp" -d "@$_payload_tmp" 2>/dev/null) || true
+  rm -f "$_payload_tmp"
 
   # Stop spinner
   kill "$_spinner_pid" 2>/dev/null

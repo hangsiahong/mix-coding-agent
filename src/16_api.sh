@@ -3,10 +3,13 @@ call_api() {
   local payload
   local _model="$MODEL"
   [ -n "${_GOOGLE_VERTEX_MODEL_PREFIX:-}" ] && _model="${_GOOGLE_VERTEX_MODEL_PREFIX}${MODEL}"
+  # Sanitize history for current provider (handles provider switching seamlessly)
+  local _hist_for_api
+  _hist_for_api=$(_apply_provider_history_filter "$HISTORY") || _hist_for_api="$HISTORY"
   payload=$(printf '%s\n%s\n%s\n%s\n' \
     "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
     "$TOOLS_JSON" \
-    "$HISTORY" \
+    "$_hist_for_api" \
     "$_model" \
   | python3 -c '
 import json,sys
