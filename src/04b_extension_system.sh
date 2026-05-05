@@ -46,6 +46,8 @@ _ext_load_all() {
       ${_base}_init 2>/dev/null || true
     fi
     _MIX_EXTENSIONS_LOADED+="$_base "
+    # Prevent duplicates in history
+    _MIX_EXTENSIONS_LOADED=$(echo "$_MIX_EXTENSIONS_LOADED" | tr ' ' '\n' | sort -u | tr '\n' ' ')
     _loaded=$((_loaded + 1))
   done
 
@@ -251,5 +253,3 @@ _ext_reload() {
   echo -e "  \033[38;5;82m$I_OK\033[0m Reloaded $_count extensions"
 }
 
-# Load on source
-_ext_load_all
