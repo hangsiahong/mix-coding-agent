@@ -39,5 +39,6 @@ case "${1:-}" in
     ;;
   --repomap)
     _CLI_ARG="--repomap"  # deferred to after functions load
+    _SKIP_BANNER=true
     ;;
 esac
