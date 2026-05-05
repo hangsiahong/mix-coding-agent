@@ -29,7 +29,7 @@ fi
 # ─── Banner ──────────────────────────────────────────────────────────────────
 [ "${_SKIP_BANNER:-}" = true ] || {
 echo ""
-echo -e "  \033[38;5;99m◆\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
+echo -e "  \033[38;5;99m$I_DIAMOND\033[0m \033[1mmix\033[0m  \033[0;90m·  minimal coding agent\033[0m"
 echo ""
 
 # Row 1: model · provider  [git:branch]
