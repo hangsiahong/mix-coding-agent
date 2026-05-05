@@ -139,3 +139,12 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Create commit messages include line count: `agent: create <file> (<N> lines)`
 - `AGENT_INTERACTIVE_DIFF` env var now dead (not cleaned up)
 - Commit `c783a5b`, pushed to `origin/feature/3`
+
+## [2026-07-15] feature | Token display improvements — M/k format, cache %, purple color
+- `_fmt_tok()` helper: shows 5M / 5k / 500 based on magnitude (no more `109k` when it should be `1M`)
+- `_SESSION_CACHE_TOKENS` counter added to `src/01_config.sh`
+- Streaming USAGE format extended: `USAGE:pt:ct:cache` (backward compat with old 2-field)
+- `prompt_tokens_details.cached_tokens` extracted from both streaming + non-streaming paths
+- Session line color: purple (`38;5;183`) instead of gray — `│ session: 112 calls, ~5M tokens used · 59% cached`
+- `/stats` shows cache tokens + percentage
+- 184/184 tests pass

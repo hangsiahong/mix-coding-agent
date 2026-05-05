@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605052318'
+MIX_VERSION='202605052329'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -986,6 +986,7 @@ WORKDIR="$(pwd)"
 _SESSION_PROMPT_TOKENS=0
 _SESSION_COMPLETION_TOKENS=0
 _SESSION_API_CALLS=0
+_SESSION_CACHE_TOKENS=0
 
 # ─── Provider system ─────────────────────────────────────────────────────────
 # Provider = pluggable API backend. Default is openai-compatible (koompi proxy).
@@ -3932,7 +3933,7 @@ if full:
 elif not tcs:
     sys.stdout.write("TEXT:(empty)\n")
 if usage:
-    sys.stdout.write("USAGE:"+str(usage.get("prompt_tokens",0))+":"+str(usage.get("completion_tokens",0))+"\n")
+    sys.stdout.write("USAGE:"+str(usage.get("prompt_tokens",0))+":"+str(usage.get("completion_tokens",0))+":"+str(usage.get("prompt_tokens_details",{}).get("cached_tokens",0))+"\n")
 sys.stdout.flush()
 ' <<< "$payload" > "$tmp_out"
 
@@ -3973,6 +3974,17 @@ stop_spinner() {
 
 
 # ─── Context window % bar ─────────────────────────────────────────────────────
+_fmt_tok() {
+  local n=$1
+  if [ "$n" -ge 1000000 ]; then
+    printf '%dM' $(( n / 1000000 ))
+  elif [ "$n" -ge 1000 ]; then
+    printf '%dk' $(( n / 1000 ))
+  else
+    printf '%d' "$n"
+  fi
+}
+
 ctx_bar() {
   local hist_chars=${#HISTORY}
   local sys_chars tools_chars
@@ -3990,14 +4002,19 @@ ctx_bar() {
   [ "$pct" -gt 70 ] && color="\033[0;33m"
   [ "$pct" -gt 90 ] && color="\033[0;31m"
   local ktok=$(( est_tokens / 1000 ))
-  local _usage_info=""
-  if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
-    local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) / 1000 ))
-    _usage_info="  \033[0;90m│ session: ${_SESSION_API_CALLS} calls, ~${_total_tok}k tokens used\033[0m"
-  fi
   printf "  %b%s %3d%%%b  %dk / %dk tokens\033[0m\n" \
     "$color" "$bar" "$pct" "\033[0;90m" "$ktok" "$(( CTX_TOKENS / 1000 ))"
-  [ -n "$_usage_info" ] && printf '%b\n' "$_usage_info"
+  if [ "${_SESSION_API_CALLS:-0}" -gt 0 ]; then
+    local _total_tok=$(( _SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS ))
+    local _total_str; _total_str=$(_fmt_tok $_total_tok)
+    local _cache_str=""
+    if [ "${_SESSION_CACHE_TOKENS:-0}" -gt 0 ] && [ "${_SESSION_PROMPT_TOKENS:-0}" -gt 0 ]; then
+      local _cache_pct=$(( _SESSION_CACHE_TOKENS * 100 / _SESSION_PROMPT_TOKENS ))
+      _cache_str=" · \033[38;5;183m${_cache_pct}%% cached\033[0m"
+    fi
+    printf '  \033[38;5;183m│ session: %s calls, ~%s tokens used%b\033[0m\n' \
+      "${_SESSION_API_CALLS}" "$_total_str" "$_cache_str"
+  fi
   return 0
 }
 
@@ -4363,13 +4380,20 @@ run_agent() {
       if [ "$STREAM" = "true" ]; then
         parsed=$(call_api_stream)
         _SESSION_API_CALLS=$((_SESSION_API_CALLS + 1))
-        local _usage_line _pt _ct
+        local _usage_line _pt _ct _cache
         _usage_line=$(printf '%s' "$parsed" | grep '^USAGE:' | head -1 || true)
         if [ -n "$_usage_line" ]; then
           _pt=${_usage_line#USAGE:}; _pt=${_pt%%:*}
-          _ct=${_usage_line##*:}
+          local _rest=${_usage_line#USAGE:}; _rest=${_rest#*:}
+          _ct=${_rest%%:*}
+          # Third field = cache tokens (only if present)
+          case "$_rest" in
+            *:*) _cache=${_rest#*:} ;;
+            *) _cache=0 ;;
+          esac
           _SESSION_PROMPT_TOKENS=$((_SESSION_PROMPT_TOKENS + _pt))
           _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
+          _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         fi
         if [[ "$parsed" == FAIL:network_drop* ]]; then
           [ "$INTERACTIVE" = false ] \
@@ -4402,11 +4426,13 @@ run_agent() {
         fi
         # Track token usage from API response
         _SESSION_API_CALLS=$((_SESSION_API_CALLS + 1))
-        local _pt _ct
+        local _pt _ct _cache
         _pt=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("prompt_tokens",0))' 2>/dev/null) || _pt=0
         _ct=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("completion_tokens",0))' 2>/dev/null) || _ct=0
+        _cache=$(printf '%s' "$resp" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("usage",{}).get("prompt_tokens_details",{}).get("cached_tokens",0))' 2>/dev/null) || _cache=0
         _SESSION_PROMPT_TOKENS=$((_SESSION_PROMPT_TOKENS + _pt))
         _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
+        _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         parsed=$(parse_resp "$resp")
       fi
       break  # success — exit retry loop
@@ -4499,7 +4525,7 @@ run_agent() {
 
       rm -rf "$_batch_dir"
       # Turn progress indicator — shows where we are in the agent loop
-      echo -e "    \033[0;90m⤷ turn $turn · $_TOOLS_USED tools · ~$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) / 1000 ))k tokens\033[0m"
+      echo -e "    \033[0;90m⤷ turn $turn · $_TOOLS_USED tools · ~$(_fmt_tok $((_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS))) tokens\033[0m"
       # Loop continues — model will see tool results and respond
     elif [ -n "$text_line" ]; then
       # streaming already printed content live to /dev/tty; skip reprint
@@ -5073,10 +5099,13 @@ handle_cmd() {
       ;;
     /stats)
       local _total_tok=$(( (_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS) ))
+      local _cache_pct=0
+      [ "${_SESSION_PROMPT_TOKENS:-0}" -gt 0 ] && _cache_pct=$(( _SESSION_CACHE_TOKENS * 100 / _SESSION_PROMPT_TOKENS ))
       echo -e "  \033[1;37mSession Stats\033[0m"
       echo "  API calls:     $_SESSION_API_CALLS"
       echo "  Prompt tokens:  $_SESSION_PROMPT_TOKENS"
       echo "  Output tokens:  $_SESSION_COMPLETION_TOKENS"
+      echo "  Cache tokens:   $_SESSION_CACHE_TOKENS (${_cache_pct}%)"
       echo "  Total tokens:   $_total_tok"
       echo "  Tools used:     $_TOOLS_USED"
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"

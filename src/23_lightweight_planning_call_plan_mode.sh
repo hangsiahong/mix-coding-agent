@@ -14,7 +14,7 @@ msg=[{"role":"system","content":s}]+h
 msg.append({"role":"user","content":"List your plan as a numbered list (3-7 steps) before acting. Be concise."})
 print(json.dumps({"model":m,"messages":msg}))
 ' 2>/dev/null) || return 1
-  local tmp; tmp=$(mktemp -t mix-XXXXXX)
+  local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 30 \
     "${BASE_URL}/chat/completions" \

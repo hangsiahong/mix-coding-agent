@@ -49,10 +49,10 @@ run_agent() {
           _SESSION_COMPLETION_TOKENS=$((_SESSION_COMPLETION_TOKENS + _ct))
           _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         fi
-        if [[ "$parsed" == FAIL:network_drop* ]]; then
+        if [[ "$parsed" == FAIL:* ]]; then
           [ "$INTERACTIVE" = false ] \
-            && echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
-            || echo -e "    \033[0;90m↻ Connection dropped (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
+            && echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
+            || echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
           start_spinner "turn $turn (retry $_api_attempt)"
           local resp; resp=$(call_api)
           if [[ "$resp" == FAIL:* ]]; then
@@ -116,7 +116,7 @@ run_agent() {
       # 2. Parallel tools run in subshells, results captured in temp files.
       # 3. Write tools run sequentially.
 
-      local _batch_dir; _batch_dir=$(mktemp -d -t mix-batch-XXXXXX)
+      local _batch_dir; _batch_dir=$(mktemp -d -t mix-$$-batch-XXXXXX)
       local _tc_idx=0
       local _parallel_refs=() # format "idx|tid|tname"
       local _sequential_tcs=()

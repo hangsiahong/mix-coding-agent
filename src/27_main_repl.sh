@@ -15,7 +15,7 @@ esac
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
 trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
-trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-* 2>/dev/null; exit' EXIT TERM HUP
+trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-$$-* 2>/dev/null; exit' EXIT TERM HUP
 
 # ─── Autocomplete ─────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ if [ "$INTERACTIVE" = true ]; then
   _TAB_IDX=0
   _TAB_LAST_WORD=""
   _TAB_LAST_PRE=""
-  _TAB_STATE_FILE=$(mktemp -t mix-tab-XXXXXX 2>/dev/null) || _TAB_STATE_FILE="/tmp/mix-tab-$$"
+  _TAB_STATE_FILE=$(mktemp -t mix-$$-tab-XXXXXX 2>/dev/null) || _TAB_STATE_FILE="/tmp/mix-tab-$$"
   printf '%s\n' "0" "" "" "" > "$_TAB_STATE_FILE"
 
   _mix_bind_tab() {

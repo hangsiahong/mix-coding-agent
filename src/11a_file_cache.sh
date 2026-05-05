@@ -27,7 +27,7 @@ file_cache_put() {
   _flines=$(printf '%s' "$_fc" | wc -l)
 
   # Write content to temp file, pass cache + path + temp via argv
-  local _ctmp; _ctmp=$(mktemp -t mix-fc-XXXXXX)
+  local _ctmp; _ctmp=$(mktemp -t mix-$$-fc-XXXXXX)
   printf '%s' "$_fc" > "$_ctmp"
 
   _FILE_CACHE=$(python3 -c '

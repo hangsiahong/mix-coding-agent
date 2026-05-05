@@ -427,8 +427,8 @@ _test_generate_bg() {
 Rules: descriptive test names, independent tests, 3-5 per file minimum."
 
   # Use the same subagent pattern as /afk
-  local _worker_tmp; _worker_tmp=$(mktemp -t mix-testgen-XXXXXX.sh)
-  local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-testgen-XXXXXX.txt)
+  local _worker_tmp; _worker_tmp=$(mktemp -t mix-$$-testgen-XXXXXX.sh)
+  local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-$$-testgen-XXXXXX.txt)
   printf '%s' "$_bg_prompt" > "$_prompt_tmp"
 
   local MIX_BIN; MIX_BIN=$(command -v mix 2>/dev/null || echo "./mix")

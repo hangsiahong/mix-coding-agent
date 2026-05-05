@@ -68,7 +68,7 @@ for k,v in json.load(sys.stdin).items():
     done <<< "$_extra_pairs"
   fi
 
-  local tmp; tmp=$(mktemp -t mix-XXXXXX)
+  local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
   code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"

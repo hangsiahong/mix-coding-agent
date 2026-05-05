@@ -45,7 +45,7 @@ print(json.dumps(body))
     [ -n "$_ph" ] && _extra_headers="$_ph"
   fi
 
-  local tmp_out; tmp_out=$(mktemp -t mix-XXXXXX)
+  local tmp_out; tmp_out=$(mktemp -t mix-$$-XXXXXX)
   
   BASE_URL="$BASE_URL" API_KEY="$_api_key" EXTRA_HEADERS="$_extra_headers" IS_INTERACTIVE="$INTERACTIVE" python3 -u -c '
 import json,sys,base64,os,re,urllib.request,urllib.error

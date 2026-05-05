@@ -499,7 +499,7 @@ handle_cmd() {
       else
         # Write task to a temp file to avoid quote escaping issues when passing to tmux
         local _stmp _mytty
-        _stmp=$(mktemp -t mix-XXXXXX)
+        _stmp=$(mktemp -t mix-$$-XXXXXX)
         _mytty=$(tty)
         printf '%s\n' "$_stask" > "$_stmp"
         tmux new-window -n "$_sname" "bash -c 'cat $_stmp | mix 2>&1 | tee /tmp/${_sname}.log; rm -f $_stmp; echo -e \"\n  \033[38;5;82m✓ Subagent [$_sname] finished!\033[0m (Ask mix to read /tmp/${_sname}.log)\" > $_mytty; echo \"\"; echo \"[Subagent finished. Press Enter to close]\"; read -r'" 2>/dev/null \
@@ -566,9 +566,9 @@ $(cat "$_plan_save")"
       fi
 
       local _plan_save="${HOME}/.mix/afk-plan.md"
-      local _apply_tmp; _apply_tmp=$(mktemp -t mix-afk-apply-XXXXXX)
-      local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-afk-prompt-XXXXXX)
-      local _worker_tmp; _worker_tmp=$(mktemp -t mix-afk-worker-XXXXXX)
+      local _apply_tmp; _apply_tmp=$(mktemp -t mix-$$-afk-apply-XXXXXX)
+      local _prompt_tmp; _prompt_tmp=$(mktemp -t mix-$$-afk-prompt-XXXXXX)
+      local _worker_tmp; _worker_tmp=$(mktemp -t mix-$$-afk-worker-XXXXXX)
 
       if [ -n "$_afk_hint" ]; then
         # Custom prompt mode: user provided a task/direction

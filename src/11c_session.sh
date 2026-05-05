@@ -36,7 +36,7 @@ print(json.dumps(filtered))
   local _branch=""
   [ "$GIT_ENABLED" = true ] && _branch=$(git -C "$WORKDIR" branch --show-current 2>/dev/null || echo "?")
 
-  local _sess_tmp; _sess_tmp=$(mktemp -t mix-session-XXXXXX)
+  local _sess_tmp; _sess_tmp=$(mktemp -t mix-$$-session-XXXXXX)
   python3 -c '
 import json, sys, os, time
 data = {
@@ -86,7 +86,7 @@ session_load() {
   }
 
   # Extract fields via python3 → base64-encoded shell vars in temp file
-  local _sess_tmp; _sess_tmp=$(mktemp -t mix-sess-load-XXXXXX)
+  local _sess_tmp; _sess_tmp=$(mktemp -t mix-$$-sess-load-XXXXXX)
   python3 -c '
 import json, sys, time, base64
 

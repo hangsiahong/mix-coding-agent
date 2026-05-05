@@ -18,8 +18,8 @@ compact_history() {
   local _compact_model="$MODEL"
   [ -n "${_GOOGLE_VERTEX_MODEL_PREFIX:-}" ] && _compact_model="${_GOOGLE_VERTEX_MODEL_PREFIX}${MODEL}"
 
-  local _payload_tmp; _payload_tmp=$(mktemp -t mix-compact-XXXXXX)
-  local _hist_tmp; _hist_tmp=$(mktemp -t mix-hist-XXXXXX)
+  local _payload_tmp; _payload_tmp=$(mktemp -t mix-$$-compact-XXXXXX)
+  local _hist_tmp; _hist_tmp=$(mktemp -t mix-$$-hist-XXXXXX)
   # Sanitize history for current provider (strips thought_sig cross-provider)
   local _hist_for_compact
   _hist_for_compact=$(_apply_provider_history_filter "$HISTORY") || _hist_for_compact="$HISTORY"
@@ -85,7 +85,7 @@ for k,v in json.load(sys.stdin).items():
   _spinner_anim "$count" &
   _spinner_pid=$!
 
-  local _resp_tmp; _resp_tmp=$(mktemp -t mix-compact-resp-XXXXXX)
+  local _resp_tmp; _resp_tmp=$(mktemp -t mix-$$-compact-resp-XXXXXX)
   local code
   code=$(curl "${_curl_args[@]}" -o "$_resp_tmp" -d "@$_payload_tmp" 2>/dev/null) || true
   rm -f "$_payload_tmp"
@@ -103,7 +103,7 @@ for k,v in json.load(sys.stdin).items():
 
   local summary
   local _py_err
-  _py_err=$(mktemp -t mix-compact-err-XXXXXX)
+  _py_err=$(mktemp -t mix-$$-compact-err-XXXXXX)
   summary=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1],"rb")); print(d["choices"][0]["message"]["content"])' "$_resp_tmp" 2>"$_py_err")
   local _py_rc=$?
   if [ -z "$summary" ] || [ $_py_rc -ne 0 ]; then

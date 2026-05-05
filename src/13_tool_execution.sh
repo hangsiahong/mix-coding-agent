@@ -83,7 +83,7 @@ $result"
       file_cache_put "$path" "$result" 2>/dev/null || true
       ;;
     edit_file)
-      local _ea_dir; _ea_dir=$(mktemp -d -t mix-XXXXXX)
+      local _ea_dir; _ea_dir=$(mktemp -d -t mix-$$-XXXXXX)
       printf '%s' "$args" | python3 -c '
 import json,sys,os
 d=json.load(sys.stdin);b=sys.argv[1]
@@ -332,7 +332,7 @@ else:
       elif [ -z "$_sa_name" ] || [ -z "$_sa_task" ]; then
         result="Error: name and task are required"
       else
-        _sa_tmp=$(mktemp -t mix-XXXXXX)
+        _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
         tmux new-window -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m✓ Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
