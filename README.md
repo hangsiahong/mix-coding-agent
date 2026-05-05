@@ -50,14 +50,15 @@ mix
 - **Subagents & Workers**: Give mix background tasks. `/subagent <name> <task>` spawns an independent AI worker in tmux, `/worker <name> <cmd>` for long bash jobs.
 - **Session Resume**: Saves file cache, repo map, env info, and config on exit. `/resume` restores it next session — no re-orientation needed.
 - **Memorybank**: Three-layer wiki (`raw/` → `memorybank/` → `AGENTS.md`). Mix reads and updates markdown notes to compound knowledge across sessions.
-- **Safety**: Risk-gated shell execution (BLOCKED/HIGH/MED/LOW). Auto-commits every edit with git. Diff preview before applying changes.
+- **Safety**: Risk-gated shell execution (BLOCKED/HIGH/MED/LOW). Auto-commits every edit with git. Interactive hunk-level diff review (`y/n/a/q`) before applying changes.
 - **Auto-Verify**: After edits, auto-runs syntax check, linter, and typechecker (10 languages). Catches bugs immediately.
 - **Sandbox**: Opt-in container-level isolation via Linux namespaces — no Docker required. `/sandbox setup` downloads Alpine rootfs (~26MB, one-time). `/sandbox on` enables chroot + PID/mount/user/network namespaces + cgroup v2 limits (512MB RAM, 50% CPU). Network is fully isolated inside bash tool calls (loopback only). Use `/sandbox install <pkg>` from the REPL to add packages (runs `apk add` with network, persists to rootfs). Project dir auto-mounted at `/workspace`. `--sandbox` flag enables on startup.
 - **Extensions**: Drop-in plugins. Put `.sh` in `~/.mix/extensions/` or `.mix/extensions/`. Convention hooks customize the harness without forking. See [Extensions](#extensions).
 - **Self-Healing Bash**: Failed commands get automatic diagnostics and recovery hints. Streak detection with fallback suggestions.
 - **Versioned Builds**: Every build is timestamped and stored in `~/.mix/versions/`. Health-gated — broken builds never install. Thin wrapper auto-falls back to the last working binary with `--doctor` mode. Auto-prunes old versions (keeps 5).
-- **Repo Map**: Aider-style code structure map injected into system prompt. Eliminates 2-3 orientation turns per task.
+- **Repo Map**: Aider-style code structure map injected into system prompt. Enhanced with **Universal Ctags** (if available) for precise symbol extraction.
 - **File Cache**: Caches read file contents in-memory, auto-injects into system prompt. Survives history compaction.
+- **Proactive Memory**: Automatically extracts "lessons learned" and updates `memorybank/solutions/` after successful tasks.
 - **Spec-Driven Builds**: `/spec` defines features with §G/§C/§I/§V/§T sections. `/build` executes tasks. `/check` detects drift.
 - **Test Runner**: `/test init` detects framework and scaffolds tests. `/test generate` creates tests from source. `/test run` and `/test coverage` for execution.
 - **Context Engineering**: `/compact` summarizes history. `/flush` clears it. Token tracking with `/stats`. History compaction preserves file cache.
