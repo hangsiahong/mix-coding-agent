@@ -37,6 +37,7 @@ Update this file after every ingest or new page created.
 | tui-polish.md | 12 TUI improvements: flicker fix, turn progress, truncation marker, grouped /help, spinner colors, smart tab-complete, diff context, tmux ⟳ status. 15 tests |
 | sandbox.md | Alpine chroot + Linux namespaces + cgroup v2. /sandbox commands, --sandbox flag, system prompt injection. Zero new deps. |
 | versioning-self-heal.md | Versioned binary storage (~/.mix/versions/), health-gated builds, thin wrapper fallback, --self-test/--doctor/--version flags, auto-prune (keep 5) |
+| prompt-optimization.md | System prompt audit: 43% reduction via global memory cap + self-cleanup + wiki/SPEC compression |
 | elite_agent_upgrades.md | Ctags Repo Map, Proactive Memory, descriptive auto-commit messages. Hunk review stripped — yolo+/undo philosophy |
 
 ## sources
