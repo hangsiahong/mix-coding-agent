@@ -85,10 +85,10 @@ Allow users to review, accept, or reject specific changes (hunks) during `edit_f
 - Env Var: `AGENT_INTERACTIVE_DIFF` (default: true).
 
 ## §T Tasks
-1. [ ] Implement `review_hunks` logic in Python (inside bash wrapper).
-2. [ ] Integrate into `edit_file` tool execution.
-3. [ ] Add `y/n/a/q` interactive loop.
-4. [ ] Verify with bats tests.
+1. [x] Implement `review_hunks` logic in Python (inside bash wrapper).
+2. [x] Integrate into `edit_file` tool execution.
+3. [x] Add `y/n/a/q` interactive loop.
+4. [x] Verify with bats tests.
 
 # SPEC: Ctags-Enhanced Repo Map
 
@@ -96,9 +96,9 @@ Allow users to review, accept, or reject specific changes (hunks) during `edit_f
 Use `universal-ctags` to generate more accurate repo maps, providing the agent with precise "Definitions vs References" data.
 
 ## §T Tasks
-1. [ ] Detect `ctags` binary and version.
-2. [ ] Implement `_ctags_get_symbols()` in `src/11b_repo_map.sh`.
-3. [ ] Update repo map format to include signatures.
+1. [x] Detect `ctags` binary and version.
+2. [x] Implement `_ctags_get_symbols()` in `src/11b_repo_map.sh`.
+3. [x] Update repo map format to include signatures.
 
 # SPEC: Proactive Memory
 
@@ -106,6 +106,6 @@ Use `universal-ctags` to generate more accurate repo maps, providing the agent w
 Automatically extract "lessons learned" after successful tasks and update `memorybank/`.
 
 ## §T Tasks
-1. [ ] Hook into agent completion.
-2. [ ] LLM "reflection" turn to summarize the fix/lesson.
-3. [ ] Auto-write to `memorybank/solutions/`.
+1. [x] Hook into agent completion.
+2. [x] LLM "reflection" turn to summarize the fix/lesson.
+3. [x] Auto-write to `memorybank/solutions/`.
