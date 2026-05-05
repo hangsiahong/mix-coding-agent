@@ -19,7 +19,7 @@ mix
 
 - **Tools**: `read_file`, `edit_file`, `create_file`, `list_files`, `search_files`, `bash` — full coding agent toolset.
 - **Streaming**: Tokens stream live. Context window bar shows usage in real-time.
-- **Providers**: Swap between KConsole (default) and **GitHub Copilot** (gpt-4o, claude-sonnet, gemini, and more — free with a Copilot subscription).
+- **Providers**: Swap between KConsole (default), **GitHub Copilot**, and **Google AI/Vertex**.
 - **Caveman Mode**: Strips all AI chat fluff. Four levels: `ultra`, `full`, `lite`, `off`. Just answers and code.
 - **Skills**: Add markdown files to `~/.mix/skills/` to teach mix custom behaviors. Load them with `/skill <name>`.
 - **Subagents & Workers**: Give mix background tasks. `/subagent <name> <task>` spawns an independent AI worker in tmux, `/worker <name> <cmd>` for long bash jobs.
