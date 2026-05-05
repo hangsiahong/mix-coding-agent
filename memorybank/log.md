@@ -428,3 +428,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | can you use the tool from mix coding correctly now?
 
 ## [2026-05-05] task | okay push code
+
+## [2026-05-05] task | are we running the latest binary?
