@@ -198,7 +198,8 @@ print("edit "+p+" — "+summary)
           if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
             _ext_hook on_create "$p"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
-            git -C "$WORKDIR" commit -m "agent: create $(basename "$p") ($($(printf '%s' "$targs" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(str(len(d.get("content","").splitlines()))+" lines")' 2>/dev/null || echo "new")))" --quiet 2>/dev/null \
+            local _create_lines; _create_lines=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("content","").splitlines()),"lines")' 2>/dev/null || echo "new")
+            git -C "$WORKDIR" commit -m "agent: create $(basename "$p") ($_create_lines)" --quiet 2>/dev/null \
               && echo -e "    \033[0;90m↳ committed: create $(basename "$p")\033[0m" \
               && result="$result (committed)" || true
           fi
