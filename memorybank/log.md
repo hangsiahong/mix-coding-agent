@@ -79,6 +79,12 @@ Full analysis of mix-coding-agent: boot sequence, agent loop, 10 key subsystems,
 
 ## [2026-05-04] task |
 
+## [2026-05-15] ingest | Google Provider Implementation
+- Added Google AI Studio and Vertex AI provider support.
+- Implemented `/provider google login` for interactive setup.
+- Handled Vertex OpenAI-compat header requirements (suppress Authorization, use x-goog-api-key).
+- Added support for preview models via global location.
+
 ## [2026-05-05] feature | Sandbox mode implemented
 - `src/30_sandbox.sh` — full Alpine chroot via `unshare --fork --pid --mount --user --map-root-user`
 - Zero new system dependencies. Pure bash + Linux kernel namespaces.
@@ -394,3 +400,5 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-05] task | please fix the error
 
 ## [2026-05-05] task | summary after compacted, what u still remember?
+
+## [2026-05-05] task | hi
