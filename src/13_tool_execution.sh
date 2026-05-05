@@ -380,12 +380,3 @@ else:
   [ -z "$result" ] && result="(no output)"
   printf '%s' "$result"
 }
-    # Extensions integration
-    *)
-      if _ext_dispatch_tool "$name" "$args" > /tmp/ext_result; then
-         result=$(cat /tmp/ext_result)
-         rm /tmp/ext_result
-      else
-         result="Unknown tool: $name"
-      fi
-      ;;
