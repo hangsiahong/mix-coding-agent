@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605061046'
+MIX_VERSION='202605061120'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1294,18 +1294,22 @@ fi
 # Cache: system prompt is cached and only rebuilt when state actually changes.
 # Invalidated by: /refresh, /reload, edit_file, create_file, compact, provider change.
 
-_SYSPROMPT_CACHE=""
-_SYSPROMPT_DIRTY=true   # set true on first call and after any invalidation
+_SYSPROMPT_CACHE_FILE="/tmp/mix-sysprompt-cache-$$"
+_SYSPROMPT_DIRTY_FILE="/tmp/mix-sysprompt-dirty-$$"
+echo "true" > "$_SYSPROMPT_DIRTY_FILE"  # start dirty
 
 # Mark system prompt as needing rebuild (call from editors, compact, etc.)
 _sysprompt_invalidate() {
   _SYSPROMPT_DIRTY=true
+  echo "true" > "$_SYSPROMPT_DIRTY_FILE"
+  rm -f "$_SYSPROMPT_CACHE_FILE" 2>/dev/null
 }
 
 build_system_prompt() {
-  # Return cached version if still valid
-  if [ "$_SYSPROMPT_DIRTY" != "true" ] && [ -n "$_SYSPROMPT_CACHE" ]; then
-    printf '%s' "$_SYSPROMPT_CACHE"
+  # Return cached version if still valid (file-based to survive subshell pipes)
+  local _is_dirty; _is_dirty=$(cat "$_SYSPROMPT_DIRTY_FILE" 2>/dev/null) || _is_dirty="true"
+  if [ "$_is_dirty" != "true" ] && [ -f "$_SYSPROMPT_CACHE_FILE" ]; then
+    cat "$_SYSPROMPT_CACHE_FILE"
     return
   fi
   # shellcheck disable=SC2016
@@ -1530,11 +1534,10 @@ $(cat "$_skill" 2>/dev/null)
       ;;
   esac
 
-  printf '%s\n\n%s' "$base" "$cave_rules"
-
-  # Save to cache
-  _SYSPROMPT_CACHE="$(printf '%s\n\n%s' "$base" "$cave_rules")"
-  _SYSPROMPT_DIRTY=false
+  local _result="$(printf '%s\n\n%s' "$base" "$cave_rules")"
+  printf '%s' "$_result" > "$_SYSPROMPT_CACHE_FILE"
+  echo "false" > "$_SYSPROMPT_DIRTY_FILE"
+  printf '%s' "$_result"
 }
 
 
@@ -5347,7 +5350,9 @@ handle_cmd() {
       echo "  Tools used:     $_TOOLS_USED"
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
       echo "  History msgs:   $_hist_n"
-      echo "  Sysprompt:      $([ "$_SYSPROMPT_DIRTY" = "true" ] && echo "dirty (will rebuild)" || echo "cached")"
+      local _sp_dirty; _sp_dirty=$(cat /tmp/mix-sysprompt-dirty-$$ 2>/dev/null) || _sp_dirty="true"
+      local _sp_bytes; _sp_bytes=$(wc -c < /tmp/mix-sysprompt-cache-$$ 2>/dev/null) || _sp_bytes=0
+      echo "  Sysprompt:      $([ "$_sp_dirty" = "true" ] && echo "dirty (will rebuild)" || echo "cached (${_sp_bytes} bytes)")"
       echo "  Repo map:       $([ -n "$_REPO_MAP" ] && echo "cached (${#_REPO_MAP} chars)" || echo "empty")"
       ;;
     /repomap)
