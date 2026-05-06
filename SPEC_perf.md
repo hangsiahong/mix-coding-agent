@@ -30,4 +30,4 @@ Modified files only, no new interfaces.
 7. [x] Add timing instrumentation (/stats shows pre-process latency)
 
 ## §B Bugs
-(none found)
+1. **FIXED**: sysprompt cache used bash variables but `build_system_prompt()` runs in subshell via pipe — variable changes lost. Fixed with file-based cache (`/tmp/mix-sysprompt-cache-$$` + dirty flag file).
