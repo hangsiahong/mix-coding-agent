@@ -2,8 +2,9 @@
 # When history exceeds MAX_HIST_MSGS, ask the model to summarize old messages,
 # then replace them with a single context message + keep last 10 turns verbatim.
 compact_history() {
+  # Fast path: use cheap counter instead of spawning python3 to count
   local count
-  count=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || return
+  count=$(printf '%s' "$HISTORY" | grep -o '"role"' | wc -l) || return
   [ "$count" -lt "$MAX_HIST_MSGS" ] && return
 
   # Resolve API key — provider may override
