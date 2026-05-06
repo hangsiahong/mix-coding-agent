@@ -81,6 +81,7 @@ $result"
       [ ${#result} -gt 10000 ] && result="${result:0:10000}\n...[truncated]"
       # Cache file content for session — survives compaction
       file_cache_put "$path" "$result" 2>/dev/null || true
+      _sysprompt_invalidate  # file cache changed → rebuild sysprompt next call
       ;;
     edit_file)
       local _ea_dir; _ea_dir=$(mktemp -d -t mix-$$-XXXXXX)
