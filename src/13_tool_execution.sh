@@ -5,9 +5,9 @@
 _sandbox_path_allowed() {
   local p="$1"
   # Resolve to real path (handle symlinks, .., etc.)
-  local real; real=$(realpath -m "$p" 2>/dev/null) || real="$p"
-  local wd; wd=$(realpath -m "${WORKDIR:-$PWD}" 2>/dev/null) || wd="${WORKDIR:-$PWD}"
-  local md; md=$(realpath -m "${HOME}/.mix" 2>/dev/null) || md="${HOME}/.mix"
+  local real; real=$(_mix_realpath "$p")
+  local wd; wd=$(_mix_realpath "${WORKDIR:-$PWD}")
+  local md; md=$(_mix_realpath "${HOME}/.mix")
   [[ "$real" == "$wd"* ]] || [[ "$real" == "$md"* ]]
 }
 
