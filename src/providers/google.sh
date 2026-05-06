@@ -337,7 +337,7 @@ _google_vertex_token() {
   # Check cache (tokens valid ~1hr, refresh at 50min)
   if [ -f "$_GOOGLE_TOKEN_CACHE" ]; then
     local cached_ts
-    cached_ts=$(stat -c %Y "$_GOOGLE_TOKEN_CACHE" 2>/dev/null || echo 0)
+    cached_ts=$(_mix_stat_mtime "$_GOOGLE_TOKEN_CACHE")
     local now; now=$(date +%s)
     local age=$(( now - cached_ts ))
     if [ "$age" -lt 3000 ]; then  # 50 minutes
