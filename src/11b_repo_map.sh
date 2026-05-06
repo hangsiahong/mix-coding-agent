@@ -157,7 +157,7 @@ ${_collapsed}"
     local _rel="${f#./}"
 
     # Track mtime for cache invalidation
-    local _mt; _mt=$(stat -c '%Y' "$f" 2>/dev/null || echo 0)
+    local _mt; _mt=$(_mix_stat_mtime "$f")
     _new_mtimes="${_new_mtimes}${_rel}:${_mt}:"
 
     # Token budget check — stop if we're over
