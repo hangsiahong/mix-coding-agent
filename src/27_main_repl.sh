@@ -420,7 +420,7 @@ while true; do
   # erase the pasted lines from the terminal and replace with a clean token.
   _paste_lines=$(printf '%s\n' "$INPUT" | wc -l)
   if [ "$_paste_lines" -gt 5 ]; then
-    _paste_pid="bp_$(date +%s%N)"
+    _paste_pid="bp_$(_mix_date_nano)"
     mkdir -p /tmp/mix-clipboard
     printf '%s' "$INPUT" > "/tmp/mix-clipboard/txt_${_paste_pid}.txt"
     # Move cursor up _paste_lines rows, erase to bottom, reprint a clean summary
