@@ -1,7 +1,7 @@
 # ─── Agent Loop (one user turn → multi-turn tool use → final answer) ────────
 run_agent() {
   local input="$1"
-  local _t_start; _t_start=$(date +%s%N 2>/dev/null) || _t_start=0
+  local _t_start; _t_start=$(_mix_date_nano)
   compact_history  # auto-compact before adding new turn
   append_text "user" "$input"
   _TOOLS_USED=0
