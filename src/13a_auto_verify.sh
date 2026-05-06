@@ -148,7 +148,7 @@ auto_verify() {
     [ "$_label" = "cargo-check" ] && _timeout=30
 
     local _out _rc=0
-    _out=$(timeout "$_timeout" bash -c "$_cmd" 2>&1) || _rc=$?
+    _out=$(_mix_timeout "$_timeout" bash -c "$_cmd" 2>&1) || _rc=$?
 
     # timeout returns 124 on timeout
     if [ "$_rc" = "124" ]; then
