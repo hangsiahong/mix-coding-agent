@@ -94,10 +94,10 @@ _build_skip_find() {
 # Build the repo map string
 build_repo_map() {
   _detect_ctags
-  # Check cache validity
+  # Check cache validity — pure time-based TTL (skip expensive stat() checks)
   local _now; _now=$(date +%s 2>/dev/null || echo 0)
   local _age=$(( _now - _REPO_MAP_TIME ))
-  if [ -n "$_REPO_MAP" ] && [ "$_age" -lt "$_REPO_MAP_TTL" ] && _repo_map_files_unchanged; then
+  if [ -n "$_REPO_MAP" ] && [ "$_age" -lt "$_REPO_MAP_TTL" ]; then
     printf '%s' "$_REPO_MAP"
     return
   fi
