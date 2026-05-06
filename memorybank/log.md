@@ -176,3 +176,4 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - **Result:** `TOOLS_JSON` is guaranteed single-line regardless of extension schema formatting. `test_ext_dispatch.sh` confirms correct minification.
 
 ## [2026-05-06] ingest | Fix unescaped backticks in system prompt
+## [2026-05-06] ingest | Fix shadowed compact command in REPL
