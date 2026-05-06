@@ -76,3 +76,9 @@ _mix_timeout() {
     timeout "$_dur" "$@"
   fi
 }
+
+# ─── realpath: resolve path ──────────────────────────────────────────────
+# macOS doesn't have realpath. python3 fallback.
+_mix_realpath() {
+  python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"
+}
