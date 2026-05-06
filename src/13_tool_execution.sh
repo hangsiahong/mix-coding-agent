@@ -228,6 +228,7 @@ else:
       if [[ "$result" == Edited* ]] && [ -f "$path" ]; then
         local _new_content; _new_content=$(cat "$path" 2>/dev/null) || true
         [ -n "$_new_content" ] && file_cache_put "$path" "$_new_content" 2>/dev/null || true
+        _sysprompt_invalidate  # file cache changed → rebuild sysprompt next call
         # Auto-verify: syntax/lint/typecheck
         local _vout; _vout=$(auto_verify "$path" 2>/dev/null) || true
         [ -n "$_vout" ] && result+="$_vout"
