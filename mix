@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605061418'
+MIX_VERSION='202605061423'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -7433,7 +7433,7 @@ while true; do
         _bn=$(basename "$_s" .md)
         _s_names+="${_bn},"
       done
-      _skill_status="\033[0;90m(${_s_names%,})\033[0m "
+      _skill_status=$'\033[0;90m('"${_s_names%,}"$')\033[0m '
     fi
 
     # ── Input context line: cwd + git + model ──
