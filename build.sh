@@ -2,6 +2,9 @@
 # ─── mix build script ────────────────────────────────────────────────────────
 # Concatenates src/*.sh into a single executable binary with versioning.
 
+# Portable readlink -f (macOS has no -f flag)
+_rl_f() { python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+
 # Bump version on each build
 MIX_VERSION="${MIX_VERSION:-$(date +%Y%m%d%H%M)}"
 export MIX_VERSION
