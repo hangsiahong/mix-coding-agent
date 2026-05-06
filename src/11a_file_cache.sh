@@ -24,7 +24,7 @@ _FILE_CACHE_VALID_TTL=30  # re-validate every 30s
 file_cache_put() {
   local _fp="$1" _fc="$2"
   local _fmtime
-  _fmtime=$(stat -c '%Y' "$_fp" 2>/dev/null || echo "0")
+  _fmtime=$(_mix_stat_mtime "$_fp")
   local _flines
   _flines=$(printf '%s' "$_fc" | wc -l)
 
