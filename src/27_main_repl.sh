@@ -6,6 +6,8 @@ fi
 
 # ─── Initialize Extensions (After all base tools are defined) ────────────────
 _ext_load_all
+# Force a rebuild of tools array now that base TOOLS_JSON is populated
+_ext_rebuild_tools 2>/dev/null || true
 
 # ─── CLI shortcuts (after all functions loaded) ────────────────────
 case "${_CLI_ARG:-}" in
