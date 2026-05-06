@@ -63,3 +63,16 @@ _mix_base64_decode() {
     base64 -d 2>/dev/null || python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))'
   fi
 }
+
+# ─── timeout: run command with time limit ──────────────────────────────────
+# GNU coreutils `timeout` not available on macOS by default.
+# Fallback to perl (universally available on macOS) or background+kill.
+_mix_timeout() {
+  local _dur="$1"; shift
+  if [ "$_MIX_OS" = Darwin ]; then
+    # perl is guaranteed on macOS
+    perl -e 'alarm shift @ARGV; exec @ARGV' "$_dur" "$@" 2>/dev/null
+  else
+    timeout "$_dur" "$@"
+  fi
+}
