@@ -1,4 +1,9 @@
 _ext_rebuild_tools() {
+  # Wait until base TOOLS_JSON is defined before caching it
+  if [ -z "${TOOLS_JSON:-}" ]; then
+    return 0
+  fi
+
   # Save base tools on first run
   if [ -z "${_TOOLS_JSON_BASE:-}" ]; then
     _TOOLS_JSON_BASE="$TOOLS_JSON"
