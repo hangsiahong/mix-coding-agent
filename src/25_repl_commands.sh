@@ -174,6 +174,7 @@ handle_cmd() {
       if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
       MODEL="${AGENT_MODEL:-glm-5}"
       unset _GOOGLE_VERTEX_MODEL_PREFIX 2>/dev/null || true
+      _sysprompt_invalidate
       echo "  Provider → default (koompi proxy)"
       _mix_save_defaults
       ;;
