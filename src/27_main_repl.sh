@@ -401,7 +401,7 @@ while true; do
 
     _prompt_git=""
     if [ "$GIT_ENABLED" = true ]; then
-      local _gb; _gb=$(git -C "$WORKDIR" branch --show-current 2>/dev/null)
+      _gb=$(git -C "$WORKDIR" branch --show-current 2>/dev/null)
       [ -n "$_gb" ] && _prompt_git=" \033[0;90m·\033[0m \033[0;36m${_gb}\033[0m"
     fi
 
