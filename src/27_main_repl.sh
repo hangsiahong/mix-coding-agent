@@ -329,7 +329,7 @@ if [ "$INTERACTIVE" = true ]; then
       local total_lines
       total_lines=$(printf '%s\n' "$txt" | wc -l)
       if [ "$total_lines" -gt 5 ] || [ "${#txt}" -gt 250 ]; then
-        local pid=$(date +%s%N)
+        local pid=$(_mix_date_nano)
         printf '%s' "$txt" > "$dir/txt_$pid.txt"
         local insert="[paste _$pid: $total_lines lines] "
         READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}${insert}${READLINE_LINE:$READLINE_POINT}"
