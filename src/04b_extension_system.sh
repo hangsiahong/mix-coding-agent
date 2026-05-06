@@ -233,7 +233,7 @@ example_on_shutdown() {
 }
 EXAMPLE
   # Replace placeholder name with actual
-  sed -i "s/example/${_name}/g; s/EXAMPLE_NAME/${_name^^}_NAME/" "$_target"
+  _mix_sed_i "s/example/${_name}/g; s/EXAMPLE_NAME/${_name^^}_NAME/" "$_target"
   echo -e "  \033[38;5;82m$I_OK\033[0m Created $_target"
   echo "  Edit it, then /ext load $_name to activate."
 }
