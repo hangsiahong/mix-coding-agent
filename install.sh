@@ -109,8 +109,8 @@ version_install() {
   # Auto-prune: keep last 5
   local _pruned=0
   local _cur_target _lg_target
-  _cur_target=$(readlink -f "$_vdir/current" 2>/dev/null)
-  _lg_target=$(readlink -f "$_vdir/last_good" 2>/dev/null)
+  _cur_target=$(_rl_f "$_vdir/current")
+  _lg_target=$(_rl_f "$_vdir/last_good")
   for _old in $(ls -1t "$_vdir/"*.bin 2>/dev/null | tail -n +6); do
     local _old_real
     _old_real=$(readlink -f "$_old" 2>/dev/null)
