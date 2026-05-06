@@ -277,6 +277,7 @@ print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
         _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
         _cfc=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["content"])' 2>/dev/null)
         [ -n "$_cfp" ] && [ -n "$_cfc" ] && file_cache_put "$_cfp" "$_cfc" 2>/dev/null || true
+        _sysprompt_invalidate  # file cache changed → rebuild sysprompt next call
         # Auto-verify: syntax/lint/typecheck
         local _vout; _vout=$(auto_verify "$_cfp" 2>/dev/null) || true
         [ -n "$_vout" ] && result+="$_vout"
