@@ -74,7 +74,7 @@ GIT: repo active. edit_file auto-commits. Use git freely."
 
   # Sandbox context — injected when SANDBOX_ENABLED=true
   if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-    local _sbox_ram_mb; _sbox_ram_mb=$(awk '/MemTotal/{printf "%d", $2/2/1024}' /proc/meminfo 2>/dev/null) || _sbox_ram_mb=512
+    local _sbox_ram_mb; _sbox_ram_mb=$(awk '/MemTotal/{printf "%d", $2/2/1024}' /proc/meminfo 2>/dev/null || python3 -c 'import os; print(int(os.sysconf("SC_PAGE_SIZE")*os.sysconf("SC_PHYS_PAGES")/2/1024/1024))' 2>/dev/null) || _sbox_ram_mb=512
     base+="
 
 ## SANDBOX MODE (active)
