@@ -115,7 +115,7 @@ copilot_get_api_token() {
   local cache_file="/tmp/mix-copilot-api-token"
   if [ -f "$cache_file" ]; then
     local cached_ts cached_token
-    cached_ts=$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+    cached_ts=$(_mix_stat_mtime "$cache_file")
     local now; now=$(date +%s)
     local age=$(( now - cached_ts ))
     # Refresh if older than 25 minutes (token lasts 30min)
