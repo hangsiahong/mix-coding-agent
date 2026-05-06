@@ -23,6 +23,7 @@ done >> mix.compiled
 
 # Concatenate core files with newlines to prevent syntax corruption
 for f in \
+    src/00a_compat.sh \
     src/00_header.sh \
     src/00b_icons.sh \
     src/01_config.sh \
