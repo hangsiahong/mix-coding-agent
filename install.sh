@@ -4,6 +4,9 @@
 
 set -e
 
+# Portable readlink -f (macOS has no -f flag)
+_rl_f() { python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+
 REPO="https://raw.githubusercontent.com/hangsiahong/mix-coding-agent/master"
 SCRIPT_URL="$REPO/mix"
 INSTALL_DIR=""
