@@ -20,10 +20,18 @@ run_agent() {
   fi
 
   local turn=0
+  local _tool_streak=0        # consecutive same-tool calls
+  local _last_tool_name=""    # for streak detection
+  local _warned_streak=false  # only inject hint once
   # Show context bar before first turn so user sees budget early
   ctx_bar
   while [ "$turn" -lt "$MAX_TURNS" ]; do
     turn=$((turn + 1))
+
+    # ── High-turn warning ──
+    if [ "$turn" -eq 20 ]; then
+      echo -e "  \033[1;33m⚠ High turn count (20+). Consider breaking task into smaller steps.\033[0m" >/dev/tty 2>/dev/null || true
+    fi
     # Compact mid-loop: after tool results appended, before next API call
     # Skip turn 1 (already compacted above). Check every turn — cheap count
     # gate inside compact_history means real compact only fires at MAX_HIST_MSGS.
