@@ -23,6 +23,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
+- Shared State (Message Bus): Subagents are isolated. Use the \`.agent/bus/\` directory to share state, hand off context, or coordinate findings (e.g. \`create_file\` to write, \`read_file\` to read).
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM (or use spawn_subagent tool), /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
