@@ -99,7 +99,7 @@ echo "✓ Versioned → ${_TS}.bin"
 
 # Update last_good (keep previous current if it exists)
 if [ -L "$_VERSIONS_DIR/current" ] && [ -f "$_VERSIONS_DIR/current" ]; then
-  _prev_current=$(readlink -f "$_VERSIONS_DIR/current" 2>/dev/null)
+  _prev_current=$(_rl_f "$_VERSIONS_DIR/current")
   if [ -n "$_prev_current" ] && [ "$_prev_current" != "$_VERSIONED_BIN" ]; then
     ln -sfn "$_prev_current" "$_VERSIONS_DIR/last_good"
     echo "✓ last_good → $(basename "$_prev_current")"
