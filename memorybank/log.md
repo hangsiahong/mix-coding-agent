@@ -178,3 +178,4 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-06] ingest | Fix unescaped backticks in system prompt
 ## [2026-05-06] ingest | Fix shadowed compact command in REPL
 ## [2026-05-06] ingest | Add multi-agent message bus convention
+## [2026-05-06] ingest | Fix google model prefix bleeding into default provider

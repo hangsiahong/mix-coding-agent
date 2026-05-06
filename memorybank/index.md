@@ -51,3 +51,4 @@ Update this file after every ingest or new page created.
 | google-provider.md | Implementation of Google AI Studio and Vertex AI providers, OpenAI-compat headers, and region handling |- [Fix unescaped backticks in system prompt](solutions/fix-unescaped-backticks-in-system-prompt.md)
 - [Fix shadowed compact command in REPL](solutions/fix-shadowed-compact-command-in-repl.md)
 - [Add multi-agent message bus convention](solutions/add-multi-agent-message-bus-convention.md)
+- [Fix google model prefix bleeding into default provider](solutions/fix-google-model-prefix-bleeding-into-default-provider.md)
