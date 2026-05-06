@@ -169,7 +169,101 @@ if full:
     rendered_lines = []
     in_code_block = False
     code_lang = ""
-    for raw_line in full.split("\n"):
+    # ── Table renderer helper ──
+    _TABLE_RE = re.compile(r"^\|.*\|$")
+    _SEP_RE = re.compile(r"^\|[\s:\-|]+\|$")
+    def _parse_table_cell(s):
+        """Parse alignment from separator cell: :---: = center, :--- = left, ---: = right"""
+        s = s.strip()
+        left = s.startswith(":")
+        right = s.endswith(":")
+        if left and right: return "center"
+        if right: return "right"
+        return "left"
+    def _pad_cell(text, width, align):
+        text = text.strip()
+        pad = width - len(text)
+        if pad <= 0: return text[:width]
+        if align == "center":
+            l = pad // 2; r = pad - l
+            return " " * l + text + " " * r
+        elif align == "right":
+            return " " * pad + text
+        else:
+            return text + " " * pad
+    def _render_table(rows, rendered_lines):
+        """Render collected table rows as a styled box-drawing table."""
+        if len(rows) < 2:  # need header + at least separator
+            for r in rows:
+                rendered_lines.append(r)
+            return
+        # Parse cells for each row
+        parsed = []
+        for r in rows:
+            cells = [c.strip() for c in r.strip("|").split("|")]
+            parsed.append(cells)
+        # Get alignments from separator row (row index 1)
+        sep_cells = [c.strip() for c in rows[1].strip("|").split("|")]
+        aligns = [_parse_table_cell(c) for c in sep_cells]
+        # Pad aligns to match max columns
+        ncols = max(len(p) for p in parsed)
+        while len(aligns) < ncols: aligns.append("left")
+        # Pad all rows to ncols
+        for p in parsed:
+            while len(p) < ncols: p.append("")
+        # Compute column widths (strip ANSI for width calc)
+        def _strip_ansi(s):
+            return re.sub(r"\033\[[0-9;]*m", "", s)
+        widths = []
+        for ci in range(ncols):
+            w = max(len(_strip_ansi(parsed[ri][ci])) for ri in range(len(parsed)))
+            widths.append(max(w, 3))  # minimum 3 chars
+        DIM = "\033[0;90m"
+        RST = "\033[0m"
+        BOLD = "\033[1m"
+        # Top border
+        top = DIM + "  ┌" + "┬".join("─" * (w + 2) for w in widths) + "┐" + RST
+        rendered_lines.append(top)
+        # Header row (bold)
+        hdr_cells = []
+        for ci in range(ncols):
+            t = _pad_cell(parsed[0][ci], widths[ci], "left")
+            hdr_cells.append(" " + BOLD + t + RST + " ")
+        mid = DIM + "  ├" + "┼".join("─" * (w + 2) for w in widths) + "┤" + RST
+        rendered_lines.append(DIM + "  │" + "│".join(hdr_cells) + "│" + RST)
+        rendered_lines.append(mid)
+        # Data rows (skip header=0 and separator=1)
+        for ri in range(2, len(parsed)):
+            row_cells = []
+            for ci in range(ncols):
+                raw_t = parsed[ri][ci]
+                # Apply inline formatting to cell content
+                t = raw_t
+                t = re.sub(r"\*\*(.+?)\*\*", "\033[1m\\1\033[0m", t)
+                t = re.sub(r"`([^`]+)`", "\033[38;5;222m\\1\033[0m", t)
+                t = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", "\033[3m\\1\033[0m", t)
+                # Pad using stripped length
+                stripped_len = len(_strip_ansi(t))
+                pad = widths[ci] - stripped_len
+                if pad > 0:
+                    al = aligns[ci] if ci < len(aligns) else "left"
+                    if al == "center":
+                        l = pad // 2; r = pad - l
+                        t = " " * l + t + " " * r
+                    elif al == "right":
+                        t = " " * pad + t
+                    else:
+                        t = t + " " * pad
+                row_cells.append(" " + t + " ")
+            rendered_lines.append(DIM + "  │" + "│".join(row_cells) + "│" + RST)
+        # Bottom border
+        bot = DIM + "  └" + "┴".join("─" * (w + 2) for w in widths) + "┘" + RST
+        rendered_lines.append(bot)
+    # ── Line-by-line with table accumulation ──
+    all_lines = full.split("\n")
+    i = 0
+    while i < len(all_lines):
+        raw_line = all_lines[i]
         # Fenced code blocks
         if raw_line.startswith("```"):
             if not in_code_block:
@@ -179,19 +273,40 @@ if full:
             else:
                 in_code_block = False
                 rendered_lines.append("\033[0;90m  └─\033[0m")
+            i += 1
             continue
         if in_code_block:
             rendered_lines.append("\033[0;90m  │\033[0m \033[38;5;222m" + raw_line + "\033[0m")
+            i += 1
+            continue
+        # ── Table detection: collect consecutive |...| lines ──
+        if _TABLE_RE.match(raw_line):
+            table_rows = []
+            while i < len(all_lines) and _TABLE_RE.match(all_lines[i]):
+                table_rows.append(all_lines[i])
+                i += 1
+            # Only render as table if we have header + separator + at least 1 data row
+            if len(table_rows) >= 3 and any(_SEP_RE.match(r) for r in table_rows[1:3]):
+                _render_table(table_rows, rendered_lines)
+            elif len(table_rows) >= 2 and _SEP_RE.match(table_rows[1] if len(table_rows) > 1 else ""):
+                _render_table(table_rows, rendered_lines)
+            else:
+                # Not a proper table, just pass through
+                for r in table_rows:
+                    rendered_lines.append(r)
             continue
         # Headers
         if raw_line.startswith("### "):
             rendered_lines.append("\033[1;36m" + raw_line[4:] + "\033[0m")
+            i += 1
             continue
         if raw_line.startswith("## "):
             rendered_lines.append("\033[1;33m" + raw_line[3:] + "\033[0m")
+            i += 1
             continue
         if raw_line.startswith("# "):
             rendered_lines.append("\033[1;37m" + raw_line[2:] + "\033[0m")
+            i += 1
             continue
         # Bullet points
         line = raw_line
@@ -205,6 +320,7 @@ if full:
         line = re.sub(r"`([^`]+)`", "\033[38;5;222m\\1\033[0m", line)
         line = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", "\033[3m\\1\033[0m", line)
         rendered_lines.append(line)
+        i += 1
     # Count lines streamed so we can erase them
     raw_display = "".join(content)
     # Use a safe over-count: count newlines in streamed content + header + indent lines
