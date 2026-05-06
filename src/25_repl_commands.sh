@@ -418,18 +418,6 @@ handle_cmd() {
       echo ""
       _mixrc_show
       ;;
-    /undo)
-      if [ "$GIT_ENABLED" = true ]; then
-        if git rev-parse HEAD~1 >/dev/null 2>&1; then
-          git reset --soft HEAD~1
-          echo "  Undo successful: git reset --soft HEAD~1"
-        else
-          echo "  Git undo failed: no previous commit found."
-        fi
-      else
-        echo "  Undo failed: git is not enabled or not a repository."
-      fi
-      ;;
     /reload)
       echo -e "  \033[0;36m⟳ Rebuilding...\033[0m"
       _reload_bin="$(command -v mix 2>/dev/null || echo "./mix")"
