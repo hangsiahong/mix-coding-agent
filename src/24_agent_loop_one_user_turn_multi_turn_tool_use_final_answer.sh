@@ -114,7 +114,7 @@ run_agent() {
     local raw_b64
     raw_b64=$(printf '%s' "$parsed" | grep '^RAW:' | head -1 | sed 's/^RAW://')
     local raw_msg
-    raw_msg=$(printf '%s' "$raw_b64" | base64 -d 2>/dev/null) || raw_msg='{"role":"assistant","content":""}'
+    raw_msg=$(printf '%s' "$raw_b64" | _mix_base64_decode) || raw_msg='{"role":"assistant","content":""}'
     append_raw "$raw_msg"
 
     # Process: tool calls or final text
