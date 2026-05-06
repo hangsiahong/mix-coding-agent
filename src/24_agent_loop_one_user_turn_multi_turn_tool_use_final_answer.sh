@@ -35,7 +35,7 @@ run_agent() {
 
     # Show pre-process latency on first turn
     if [ "$turn" -eq 1 ] && [ "$_t_start" -gt 0 ]; then
-      local _t_now; _t_now=$(date +%s%N 2>/dev/null) || _t_now=0
+      local _t_now; _t_now=$(_mix_date_nano)
       if [ "$_t_now" -gt 0 ]; then
         local _pp_ms=$(( (_t_now - _t_start) / 1000000 ))
         [ "$_pp_ms" -gt 50 ] && echo -e "  \033[0;90m  pre-process: ${_pp_ms}ms\033[0m" >/dev/tty 2>/dev/null || true
