@@ -52,3 +52,4 @@ Update this file after every ingest or new page created.
 - [Fix shadowed compact command in REPL](solutions/fix-shadowed-compact-command-in-repl.md)
 - [Add multi-agent message bus convention](solutions/add-multi-agent-message-bus-convention.md)
 - [Fix google model prefix bleeding into default provider](solutions/fix-google-model-prefix-bleeding-into-default-provider.md)
+- [Perf: Optimize Prompt-to-LLM Latency](solutions/perf-optimize-prompt-to-llm-latency.md)

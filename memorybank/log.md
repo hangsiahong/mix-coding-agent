@@ -179,3 +179,4 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-06] ingest | Fix shadowed compact command in REPL
 ## [2026-05-06] ingest | Add multi-agent message bus convention
 ## [2026-05-06] ingest | Fix google model prefix bleeding into default provider
+## [2026-05-06] perf | Optimize prompt-to-LLM latency — system prompt caching, repo map TTL, file cache throttling, compact fast path
