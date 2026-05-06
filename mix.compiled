@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605061423'
+MIX_VERSION='202605061426'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -7439,17 +7439,16 @@ while true; do
     # ── Input context line: cwd + git + model ──
     _prompt_cwd="${WORKDIR:-$PWD}"
     _prompt_cwd="${_prompt_cwd/#$HOME/\~}"
-    # Shorten: keep first letter of each dir except last
-    _prompt_short=""
+    # Shorten: show last 2 components, prefix with … if truncated
     _IFS_save="$IFS"; IFS='/'
     _parts=($_prompt_cwd)
     IFS="$_IFS_save"
     _plen=${#_parts[@]}
-    for (( _pi=0; _pi<_plen-1; _pi++ )); do
-      _d="${_parts[$_pi]}"
-      [ -n "$_d" ] && _prompt_short+="/${_d:0:1}"
-    done
-    [ "$_plen" -gt 0 ] && _prompt_short+="/${_parts[$((_plen-1))]}"
+    if [ "$_plen" -le 2 ]; then
+      _prompt_short="$_prompt_cwd"
+    else
+      _prompt_short="…/${_parts[$((_plen-2))]}/${_parts[$((_plen-1))]}"
+    fi
     _prompt_short="${_prompt_short#/}"
     [ -z "$_prompt_short" ] && _prompt_short="~"
 
