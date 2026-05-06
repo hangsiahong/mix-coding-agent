@@ -16,7 +16,7 @@ handle_cmd() {
         txt=$(pbpaste 2>/dev/null)
       fi
       if [ -n "$txt" ]; then
-        local pid=$(date +%s%N)
+        local pid=$(_mix_date_nano)
         printf '%s' "$txt" > "$dir/txt_$pid.txt"
         local lines=$(printf '%s\n' "$txt" | wc -l)
         INPUT="[paste _$pid: $lines lines]"
