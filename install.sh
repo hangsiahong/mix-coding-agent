@@ -96,7 +96,7 @@ version_install() {
   # Update last_good (preserve previous current)
   if [ -L "$_vdir/current" ] && [ -f "$_vdir/current" ]; then
     local _prev
-    _prev=$(readlink -f "$_vdir/current" 2>/dev/null)
+    _prev=$(_rl_f "$_vdir/current")
     if [ -n "$_prev" ] && [ "$_prev" != "$_vbin" ]; then
       ln -sfn "$_prev" "$_vdir/last_good"
     fi
