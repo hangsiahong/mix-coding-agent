@@ -115,7 +115,7 @@ _prune_count=0
 _cur_target=$(_rl_f "$_VERSIONS_DIR/current")
 _lg_target=$(_rl_f "$_VERSIONS_DIR/last_good")
 for _old in $(ls -1t "$_VERSIONS_DIR/"*.bin 2>/dev/null | tail -n +6); do
-  _old_real=$(readlink -f "$_old" 2>/dev/null)
+  _old_real=$(_rl_f "$_old")
   [ "$_old_real" = "$_cur_target" ] && continue
   [ "$_old_real" = "$_lg_target" ] && continue
   rm -f "$_old"
