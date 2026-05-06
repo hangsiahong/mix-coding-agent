@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605061455'
+MIX_VERSION='202605061513'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1405,6 +1405,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 ## TASK RULES
 - Brief explanation, then act. No throat-clearing.
 - Use tools directly. Never narrate tool usage in text (no \"\[Used tools:...\]\", \"I will edit...\", or step-by-step descriptions before acting). Act; don't describe.
+- IMPORTANT: If you intend to execute a tool, bundle the tool call in the EXACT SAME response as your explanation. Do NOT output a plan and stop. Outputting text without a tool call terminates the multi-turn loop.
 - Tool succeeded → move on. No repeats.
 - After edit_file/create_file: auto-verify runs syntax+lint+typecheck. [VERIFY: FAILED] in result = fix before proceeding. Don't ignore verify failures.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.
@@ -1891,6 +1892,11 @@ _ext_reload() {
 
 
 _ext_rebuild_tools() {
+  # Wait until base TOOLS_JSON is defined before caching it
+  if [ -z "${TOOLS_JSON:-}" ]; then
+    return 0
+  fi
+
   # Save base tools on first run
   if [ -z "${_TOOLS_JSON_BASE:-}" ]; then
     _TOOLS_JSON_BASE="$TOOLS_JSON"
@@ -7133,6 +7139,8 @@ fi
 
 # ─── Initialize Extensions (After all base tools are defined) ────────────────
 _ext_load_all
+# Force a rebuild of tools array now that base TOOLS_JSON is populated
+_ext_rebuild_tools 2>/dev/null || true
 
 # ─── CLI shortcuts (after all functions loaded) ────────────────────
 case "${_CLI_ARG:-}" in
