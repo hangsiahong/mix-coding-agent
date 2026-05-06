@@ -151,6 +151,7 @@ print(json.dumps(base+recent))
   if [ -n "$_compacted" ]; then
     HISTORY="$_compacted"
     save_history
+    _sysprompt_invalidate  # context budget changed
     local new_count
     new_count=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || new_count="?"
     printf "\r\033[K  \033[38;5;82m$I_OK compacted: %d → %s msgs\033[0m\n" "$count" "$new_count"
