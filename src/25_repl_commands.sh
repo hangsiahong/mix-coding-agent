@@ -80,7 +80,7 @@ handle_cmd() {
       echo "$_map_out"
       echo ""
       ;;
-    /refresh) repo_map_invalidate; echo -e "  \033[38;5;82m$I_OK\033[0m Repo map invalidated. Will rebuild on next API call." ;;
+    /refresh) repo_map_invalidate; _sysprompt_invalidate; echo -e "  \033[38;5;82m$I_OK\033[0m Repo map invalidated. Will rebuild on next API call." ;;
     /cache)
       local _nc
       _nc=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nc=0
