@@ -1,6 +1,22 @@
 # ─── System Prompt (rebuilt on each call to pick up caveman mode changes) ────
 # Base prompt encodes Karpathy LLM-wiki pattern in caveman-compressed prose.
+# Cache: system prompt is cached and only rebuilt when state actually changes.
+# Invalidated by: /refresh, /reload, edit_file, create_file, compact, provider change.
+
+_SYSPROMPT_CACHE=""
+_SYSPROMPT_DIRTY=true   # set true on first call and after any invalidation
+
+# Mark system prompt as needing rebuild (call from editors, compact, etc.)
+_sysprompt_invalidate() {
+  _SYSPROMPT_DIRTY=true
+}
+
 build_system_prompt() {
+  # Return cached version if still valid
+  if [ "$_SYSPROMPT_DIRTY" != "true" ] && [ -n "$_SYSPROMPT_CACHE" ]; then
+    printf '%s' "$_SYSPROMPT_CACHE"
+    return
+  fi
   # shellcheck disable=SC2016
   local base
   base="Terminal coding agent + wiki maintainer. Dir: $WORKDIR
