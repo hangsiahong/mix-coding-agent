@@ -112,8 +112,8 @@ echo "✓ current → ${_TS}.bin"
 
 # ─── Auto-prune: keep last 5 versions ───────────────────────────────────────
 _prune_count=0
-_cur_target=$(readlink -f "$_VERSIONS_DIR/current" 2>/dev/null)
-_lg_target=$(readlink -f "$_VERSIONS_DIR/last_good" 2>/dev/null)
+_cur_target=$(_rl_f "$_VERSIONS_DIR/current")
+_lg_target=$(_rl_f "$_VERSIONS_DIR/last_good")
 for _old in $(ls -1t "$_VERSIONS_DIR/"*.bin 2>/dev/null | tail -n +6); do
   _old_real=$(readlink -f "$_old" 2>/dev/null)
   [ "$_old_real" = "$_cur_target" ] && continue
