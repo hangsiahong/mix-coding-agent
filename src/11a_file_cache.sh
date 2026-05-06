@@ -14,6 +14,8 @@
 
 _FILE_CACHE=""        # JSON: {"path": {"content": "...", "mtime": 123, "atime": 456, "lines": 42}}
 _FILE_CACHE_ORDER=""  # "path1 path2 path3" — access order (most recent last)
+_FILE_CACHE_VALID_TIME=0  # epoch of last validation
+_FILE_CACHE_VALID_TTL=30  # re-validate every 30s
 
 # Initialize cache from empty
 [ -z "$_FILE_CACHE" ] && _FILE_CACHE='{}'
