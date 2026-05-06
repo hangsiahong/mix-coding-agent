@@ -62,7 +62,13 @@ print(json.dumps(cache))
 }
 
 # Validate cache entries — remove stale (externally modified) files
+# Throttled: only re-validate every _FILE_CACHE_VALID_TTL seconds
 file_cache_validate() {
+  local _now; _now=$(date +%s 2>/dev/null || echo 0)
+  local _vage=$(( _now - _FILE_CACHE_VALID_TIME ))
+  [ "$_vage" -lt "$_FILE_CACHE_VALID_TTL" ] && return
+
+  _FILE_CACHE_VALID_TIME=$_now
   _FILE_CACHE=$(python3 -c '
 import json,sys,os
 cache = json.loads(sys.argv[1])
