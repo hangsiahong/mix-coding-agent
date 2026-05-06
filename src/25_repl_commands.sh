@@ -261,7 +261,7 @@ handle_cmd() {
     /mode\ *)
       local _m="${1#/mode }"
       case "$_m" in
-        fast|deep|plan) AGENT_MODE="$_m"; echo "  Mode → $AGENT_MODE" ;;
+        fast|deep|plan) AGENT_MODE="$_m"; _sysprompt_invalidate; echo "  Mode → $AGENT_MODE" ;;
         *) echo "  Unknown. Use: fast deep plan" ;;
       esac
       ;;
