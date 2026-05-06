@@ -71,7 +71,7 @@ download() {
 health_check() {
   info "running self-test..."
   local _out
-  _out=$(timeout 5 bash "$_TMP_BIN" --self-test 2>&1)
+  _out=$(perl -e 'alarm shift @ARGV; exec @ARGV' 5 bash "$_TMP_BIN" --self-test 2>&1 || true)
   if [ $? -ne 0 ] || [ "$_out" != "OK" ]; then
     echo -e "${RED}  ⚠  Self-test failed:${RST}"
     echo "$_out" | head -5 | sed 's/^/    /'
