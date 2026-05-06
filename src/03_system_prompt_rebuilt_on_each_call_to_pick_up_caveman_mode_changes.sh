@@ -4,17 +4,20 @@
 # Invalidated by: /refresh, /reload, edit_file, create_file, compact, provider change.
 
 _SYSPROMPT_CACHE_FILE="/tmp/mix-sysprompt-cache-$$"
-_SYSPROMPT_DIRTY=true   # set true on first call and after any invalidation
+_SYSPROMPT_DIRTY_FILE="/tmp/mix-sysprompt-dirty-$$"
+echo "true" > "$_SYSPROMPT_DIRTY_FILE"  # start dirty
 
 # Mark system prompt as needing rebuild (call from editors, compact, etc.)
 _sysprompt_invalidate() {
   _SYSPROMPT_DIRTY=true
+  echo "true" > "$_SYSPROMPT_DIRTY_FILE"
   rm -f "$_SYSPROMPT_CACHE_FILE" 2>/dev/null
 }
 
 build_system_prompt() {
   # Return cached version if still valid (file-based to survive subshell pipes)
-  if [ "$_SYSPROMPT_DIRTY" != "true" ] && [ -f "$_SYSPROMPT_CACHE_FILE" ]; then
+  local _is_dirty; _is_dirty=$(cat "$_SYSPROMPT_DIRTY_FILE" 2>/dev/null) || _is_dirty="true"
+  if [ "$_is_dirty" != "true" ] && [ -f "$_SYSPROMPT_CACHE_FILE" ]; then
     cat "$_SYSPROMPT_CACHE_FILE"
     return
   fi
