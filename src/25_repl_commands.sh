@@ -288,9 +288,6 @@ handle_cmd() {
     /ext\ list)
       _ext_list
       ;;
-    /compact)
-      compact_history
-      ;;
     /sandbox)
       sandbox_cmd_status
       ;;
