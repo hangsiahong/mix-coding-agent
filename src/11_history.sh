@@ -33,9 +33,11 @@ _apply_provider_history_filter() {
   fi
 
   # Step 2: When NOT on Google, strip thought_signature from all tool_calls
-  # (prevents sending Google-specific fields to Copilot/koompi/etc.)
+  # Fast path: skip python3 subprocess if history has no thought_signature
   if [ "$PROVIDER" != "google" ]; then
-    hist=$(printf '%s' "$hist" | python3 -c '
+    case "$hist" in
+      *"thought_signature"*|*"extra_content"*)
+        hist=$(printf '%s' "$hist" | python3 -c '
 import json,sys
 h=json.load(sys.stdin)
 for msg in h:
@@ -45,7 +47,9 @@ for msg in h:
             tc.pop("extra_content", None)
 print(json.dumps(h))
 ' 2>/dev/null) || true
-    [ -z "$hist" ] && hist="$1"
+        [ -z "$hist" ] && hist="$1"
+        ;;
+    esac
   fi
 
   printf '%s' "$hist"
