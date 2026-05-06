@@ -10,6 +10,7 @@ _REPO_MAP=""
 _REPO_MAP_MTIMES=""   # "file:mtime:file:mtime:..." for invalidation
 _REPO_MAP_TIME=0      # epoch seconds when map was built
 _REPO_MAP_TTL=600     # rebuild every 10 minutes
+_REPO_MAP_SKIP_INVALIDATION=false  # skip stat() checks within TTL (pure time-based)
 _CTAGS_EXE=""
 
 # Detect ctags once
