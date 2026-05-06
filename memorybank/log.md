@@ -175,3 +175,4 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - **Fix:** In `src/04b_extension_rebuild_tools.sh`, added a `python3` pass to minify and validate each extension's `_tool_schema` output via `json.dumps(json.load(...))` before appending it to `_new_json`.
 - **Result:** `TOOLS_JSON` is guaranteed single-line regardless of extension schema formatting. `test_ext_dispatch.sh` confirms correct minification.
 
+## [2026-05-06] ingest | Fix unescaped backticks in system prompt
