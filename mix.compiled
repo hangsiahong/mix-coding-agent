@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605060325'
+MIX_VERSION='202605061012'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1314,10 +1314,11 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
+- Shared State (Message Bus): Subagents are isolated. Use the \`.agent/bus/\` directory to share state, hand off context, or coordinate findings (e.g. \`create_file\` to write, \`read_file\` to read).
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM (or use spawn_subagent tool), /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
-- Testing/Orchestration: For interactive REPL/bug-hunting, isolate via `tmux new-session -d -s test_env "mix"`, then `tmux send-keys -t test_env "/cmd" Enter`, sleep, and `tmux capture-pane -p -t test_env`. Never block the main agent.
+- Testing/Orchestration: For interactive REPL/bug-hunting, isolate via \`tmux new-session -d -s test_env "mix"\`, then \`tmux send-keys -t test_env "/cmd" Enter\`, sleep, and \`tmux capture-pane -p -t test_env\`. Never block the main agent.
 
 ## SKILLS (available in ~/.mix/skills/)
 - swe-precision:       better edit matches + auto-verification
@@ -3478,11 +3479,12 @@ else:
       elif [ -z "$_sa_name" ] || [ -z "$_sa_task" ]; then
         result="Error: name and task are required"
       else
+        mkdir -p "${WORKDIR}/.agent/bus"
         _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
         tmux new-window -d -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
-          && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log" \
+          && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log. (Use .agent/bus/ to share data)" \
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
       ;;
@@ -5395,6 +5397,7 @@ handle_cmd() {
       API_KEY="${KCONSOLE_API_KEY:-}"
       if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
       MODEL="${AGENT_MODEL:-glm-5}"
+      unset _GOOGLE_VERTEX_MODEL_PREFIX 2>/dev/null || true
       echo "  Provider → default (koompi proxy)"
       _mix_save_defaults
       ;;
@@ -5410,6 +5413,7 @@ handle_cmd() {
         API_KEY="${KCONSOLE_API_KEY:-}"
         if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
         MODEL="${AGENT_MODEL:-glm-5}"
+        unset _GOOGLE_VERTEX_MODEL_PREFIX 2>/dev/null || true
         echo "  Provider → default (koompi proxy)"
       elif _load_provider "$_pname"; then
         case "$_paction" in
@@ -5510,9 +5514,6 @@ handle_cmd() {
       ;;
     /ext\ list)
       _ext_list
-      ;;
-    /compact)
-      compact_history
       ;;
     /sandbox)
       sandbox_cmd_status
@@ -5643,18 +5644,6 @@ handle_cmd() {
       if [ -n "${TEST_CMD:-}" ]; then echo "  Test Cmd:     $TEST_CMD"; fi
       echo ""
       _mixrc_show
-      ;;
-    /undo)
-      if [ "$GIT_ENABLED" = true ]; then
-        if git rev-parse HEAD~1 >/dev/null 2>&1; then
-          git reset --soft HEAD~1
-          echo "  Undo successful: git reset --soft HEAD~1"
-        else
-          echo "  Git undo failed: no previous commit found."
-        fi
-      else
-        echo "  Undo failed: git is not enabled or not a repository."
-      fi
       ;;
     /reload)
       echo -e "  \033[0;36m⟳ Rebuilding...\033[0m"
