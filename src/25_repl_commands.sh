@@ -249,6 +249,7 @@ handle_cmd() {
       case "$mode" in
         off|lite|full|ultra)
           CAVEMAN_MODE="$mode"
+          _sysprompt_invalidate
           echo "  Caveman → $CAVEMAN_MODE"
           ;;
         *) echo "  Unknown mode: $mode. Use: off lite full ultra" ;;
