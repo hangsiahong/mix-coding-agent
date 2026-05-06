@@ -408,11 +408,11 @@ while true; do
     _prompt_sandbox=""
     [ "${SANDBOX_ENABLED:-false}" = "true" ] && _prompt_sandbox=$' \033[0;90m·\033[0m \033[0;32m🔒\033[0m'
 
-    # Print the context line + prompt
-    printf $'  \033[0;90m┌─\033[0m \033[1;37m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
-    printf $'  \033[0;90m│\033[0m '"$_skill_status" > /dev/tty
+    # Print the context line
+    printf $'  \033[0;90m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
 
-    read -e -r -p $'\001\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
+    # Pass the skill status directly into readline's prompt string so it tracks length correctly
+    read -e -r -p $'\001'"$_skill_status"$'\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
       # If interrupted by SIGINT (read returns >128 status code), just continue the loop
       if [ $? -gt 128 ]; then
         continue
