@@ -260,4 +260,5 @@ repo_map_invalidate() {
   _REPO_MAP=""
   _REPO_MAP_MTIMES=""
   _REPO_MAP_TIME=0
+  _sysprompt_invalidate  # repo map is embedded in sysprompt
 }
