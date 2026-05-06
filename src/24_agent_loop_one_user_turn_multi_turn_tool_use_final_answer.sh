@@ -200,6 +200,39 @@ run_agent() {
       done
 
       rm -rf "$_batch_dir"
+
+      # ── Streak detection: break loops of repeated same-tool calls ──
+      # Track the tool names used this turn
+      local _turn_tools=""
+      for _pref in "${_parallel_refs[@]}"; do _turn_tools+=" ${_pref##*|}"; done
+      for tc in "${_sequential_tcs[@]}"; do
+        local _rest="${tc#TC:}"; _rest="${_rest#*|||}"; _rest="${_rest%%|||*}"
+        _turn_tools+=" $_rest"
+      done
+      if [ -n "$_turn_tools" ]; then
+        # Check if all tools this turn match the previous turn's tool
+        local _all_same=true
+        for _tn in $_turn_tools; do
+          [ "$_tn" != "$_last_tool_name" ] && _all_same=false
+        done
+        if [ "$_all_same" = true ] && [ -n "$_last_tool_name" ]; then
+          _tool_streak=$((_tool_streak + 1))
+        else
+          _tool_streak=1
+          _last_tool_name="${_turn_tools## }"
+          _last_tool_name="${_last_tool_name%% *}"
+        fi
+        # Inject a course-correction hint after 5 consecutive same-tool calls
+        if [ "$_tool_streak" -ge 5 ] && [ "$_warned_streak" = false ]; then
+          _warned_streak=true
+          echo -e "  \033[1;33m⚠ Tool loop detected: $_last_tool_name called $_tool_streak times in a row.\033[0m" >/dev/tty 2>/dev/null || true
+          echo -e "  \033[0;90m  Injecting hint: try read_file instead of repeated searches, or provide your final answer.\033[0m" >/dev/tty 2>/dev/null || true
+          # Inject a hint message into history so the model sees it
+          append_raw_nosave '{"role":"user","content":"[SYSTEM HINT] You have called '"$_last_tool_name"' '"$_tool_streak"' times in a row with similar queries. This is a loop. Switch to read_file to get the full file content, or provide your final answer now. Do NOT call '"$_last_tool_name"' again with a slightly different query."}'
+          save_history
+        fi
+      fi
+
       # Turn progress indicator — shows where we are in the agent loop
       echo -e "    \033[0;90m⤷ turn $turn · $_TOOLS_USED tools · ~$(_fmt_tok $((_SESSION_PROMPT_TOKENS + _SESSION_COMPLETION_TOKENS))) tokens\033[0m"
       # Loop continues — model will see tool results and respond
