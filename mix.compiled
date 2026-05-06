@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605061407'
+MIX_VERSION='202605061415'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -7436,7 +7436,38 @@ while true; do
       _skill_status="\033[0;90m(${_s_names%,})\033[0m "
     fi
 
-    read -e -r -p $'\001'"$_skill_status"$'\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
+    # ── Input context line: cwd + git + model ──
+    _prompt_cwd="${WORKDIR:-$PWD}"
+    _prompt_cwd="${_prompt_cwd/#$HOME/\~}"
+    # Shorten: keep first letter of each dir except last
+    _prompt_short=""
+    _IFS_save="$IFS"; IFS='/'
+    _parts=($_prompt_cwd)
+    IFS="$_IFS_save"
+    _plen=${#_parts[@]}
+    for (( _pi=0; _pi<_plen-1; _pi++ )); do
+      _d="${_parts[$_pi]}"
+      [ -n "$_d" ] && _prompt_short+="/${_d:0:1}"
+    done
+    [ "$_plen" -gt 0 ] && _prompt_short+="/${_parts[$((_plen-1))]}"
+    _prompt_short="${_prompt_short#/}"
+    [ -z "$_prompt_short" ] && _prompt_short="~"
+
+    _prompt_git=""
+    if [ "$GIT_ENABLED" = true ]; then
+      _gb=$(git -C "$WORKDIR" branch --show-current 2>/dev/null)
+      [ -n "$_gb" ] && _prompt_git=" \033[0;90m·\033[0m \033[0;36m${_gb}\033[0m"
+    fi
+
+    # Sandbox indicator
+    _prompt_sandbox=""
+    [ "${SANDBOX_ENABLED:-false}" = "true" ] && _prompt_sandbox=" \033[0;90m·\033[0m \033[0;32m🔒\033[0m"
+
+    # Print the context line + prompt
+    printf '  \033[0;90m┌─\033[0m \033[1;37m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
+    printf '  \033[0;90m│\033[0m '"$_skill_status" > /dev/tty
+
+    read -e -r -p $'\001\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
       # If interrupted by SIGINT (read returns >128 status code), just continue the loop
       if [ $? -gt 128 ]; then
         continue
