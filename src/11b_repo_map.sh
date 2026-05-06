@@ -247,7 +247,7 @@ _repo_map_files_unchanged() {
     local _mtime="${_rest%%:*}"
     _rest="${_rest#*:}"
     [ -z "$_entry" ] && continue
-    local _cur; _cur=$(stat -c '%Y' "$_entry" 2>/dev/null || echo 0)
+    local _cur; _cur=$(_mix_stat_mtime "$_entry")
     [ "$_cur" != "$_mtime" ] && _changed=1 && break
     _checked=$((_checked + 1))
   done
