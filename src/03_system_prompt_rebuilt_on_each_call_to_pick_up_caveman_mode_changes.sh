@@ -3,18 +3,19 @@
 # Cache: system prompt is cached and only rebuilt when state actually changes.
 # Invalidated by: /refresh, /reload, edit_file, create_file, compact, provider change.
 
-_SYSPROMPT_CACHE=""
+_SYSPROMPT_CACHE_FILE="/tmp/mix-sysprompt-cache-$$"
 _SYSPROMPT_DIRTY=true   # set true on first call and after any invalidation
 
 # Mark system prompt as needing rebuild (call from editors, compact, etc.)
 _sysprompt_invalidate() {
   _SYSPROMPT_DIRTY=true
+  rm -f "$_SYSPROMPT_CACHE_FILE" 2>/dev/null
 }
 
 build_system_prompt() {
-  # Return cached version if still valid
-  if [ "$_SYSPROMPT_DIRTY" != "true" ] && [ -n "$_SYSPROMPT_CACHE" ]; then
-    printf '%s' "$_SYSPROMPT_CACHE"
+  # Return cached version if still valid (file-based to survive subshell pipes)
+  if [ "$_SYSPROMPT_DIRTY" != "true" ] && [ -f "$_SYSPROMPT_CACHE_FILE" ]; then
+    cat "$_SYSPROMPT_CACHE_FILE"
     return
   fi
   # shellcheck disable=SC2016
