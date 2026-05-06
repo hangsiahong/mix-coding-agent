@@ -188,6 +188,7 @@ handle_cmd() {
         API_KEY="${KCONSOLE_API_KEY:-}"
         if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
         MODEL="${AGENT_MODEL:-glm-5}"
+        unset _GOOGLE_VERTEX_MODEL_PREFIX 2>/dev/null || true
         echo "  Provider → default (koompi proxy)"
       elif _load_provider "$_pname"; then
         case "$_paction" in
