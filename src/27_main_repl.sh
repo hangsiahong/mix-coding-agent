@@ -379,7 +379,7 @@ while true; do
         _bn=$(basename "$_s" .md)
         _s_names+="${_bn},"
       done
-      _skill_status="\033[0;90m(${_s_names%,})\033[0m "
+      _skill_status=$'\033[0;90m('"${_s_names%,}"$')\033[0m '
     fi
 
     # ── Input context line: cwd + git + model ──
