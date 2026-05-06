@@ -142,6 +142,7 @@ handle_cmd() {
         fi
       fi
       MODEL="$_new_model"
+      _sysprompt_invalidate
       echo "  Model → $MODEL"
       _mix_save_defaults
       ;;
