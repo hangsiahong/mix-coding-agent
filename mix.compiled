@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605061415'
+MIX_VERSION='202605061418'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -7456,16 +7456,16 @@ while true; do
     _prompt_git=""
     if [ "$GIT_ENABLED" = true ]; then
       _gb=$(git -C "$WORKDIR" branch --show-current 2>/dev/null)
-      [ -n "$_gb" ] && _prompt_git=" \033[0;90m·\033[0m \033[0;36m${_gb}\033[0m"
+      [ -n "$_gb" ] && _prompt_git=$' \033[0;90m·\033[0m \033[0;36m'"${_gb}"$'\033[0m'
     fi
 
     # Sandbox indicator
     _prompt_sandbox=""
-    [ "${SANDBOX_ENABLED:-false}" = "true" ] && _prompt_sandbox=" \033[0;90m·\033[0m \033[0;32m🔒\033[0m"
+    [ "${SANDBOX_ENABLED:-false}" = "true" ] && _prompt_sandbox=$' \033[0;90m·\033[0m \033[0;32m🔒\033[0m'
 
     # Print the context line + prompt
-    printf '  \033[0;90m┌─\033[0m \033[1;37m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
-    printf '  \033[0;90m│\033[0m '"$_skill_status" > /dev/tty
+    printf $'  \033[0;90m┌─\033[0m \033[1;37m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
+    printf $'  \033[0;90m│\033[0m '"$_skill_status" > /dev/tty
 
     read -e -r -p $'\001\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
       # If interrupted by SIGINT (read returns >128 status code), just continue the loop
