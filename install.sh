@@ -147,7 +147,7 @@ if [ ! -f "$CURRENT" ]; then
 fi
 
 # Quick health check — 3 second timeout
-_test_out=$(timeout 3 bash "$CURRENT" --self-test 2>"$CRASH_LOG")
+_test_out=$(perl -e 'alarm shift @ARGV; exec @ARGV' 3 bash "$CURRENT" --self-test 2>"$CRASH_LOG" || true)
 _test_rc=$?
 if [ $_test_rc -eq 0 ] && [ "$_test_out" = "OK" ]; then
   exec bash "$CURRENT" "$@"
