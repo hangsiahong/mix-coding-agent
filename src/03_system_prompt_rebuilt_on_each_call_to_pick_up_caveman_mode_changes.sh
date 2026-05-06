@@ -240,10 +240,9 @@ $(cat "$_skill" 2>/dev/null)
       ;;
   esac
 
-  printf '%s\n\n%s' "$base" "$cave_rules"
-
-  # Save to cache
-  _SYSPROMPT_CACHE="$(printf '%s\n\n%s' "$base" "$cave_rules")"
+  local _result="$(printf '%s\n\n%s' "$base" "$cave_rules")"
+  printf '%s' "$_result" > "$_SYSPROMPT_CACHE_FILE"
   _SYSPROMPT_DIRTY=false
+  printf '%s' "$_result"
 }
 
