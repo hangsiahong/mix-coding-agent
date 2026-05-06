@@ -1,6 +1,7 @@
 # ─── Sandbox ─────────────────────────────────────────────────────────────────
 # Full container-level isolation via Linux namespaces + cgroup v2.
 # No Docker, no podman. Pure unshare + chroot + direct /sys/fs/cgroup writes.
+# NOTE: Linux-only. macOS does not support namespaces/cgroups.
 #
 # Usage:
 #   /sandbox setup    — download Alpine rootfs + install deps (~35MB, one-time)
@@ -13,6 +14,16 @@
 # Rootfs location: ~/.mix/sandbox-rootfs.tar.gz (packed) / ~/.mix/sandbox-rootfs/ (unpacked)
 
 SANDBOX_ENABLED="${SANDBOX_ENABLED:-false}"
+
+# ── Platform guard: sandbox is Linux-only ──────────────────────────────────
+if [ "$_MIX_OS" != "Linux" ]; then
+  sandbox_check_prereqs() { echo "  Sandbox requires Linux (namespaces/cgroups)."; return 1; }
+  sandbox_run_cmd() { echo "  Sandbox requires Linux."; return 1; }
+  sandbox_setup() { echo "  Sandbox requires Linux."; return 1; }
+  _sandbox_unpack_rootfs() { return 1; }
+  # Skip rest of file on non-Linux
+  return 0 2>/dev/null || true
+fi
 _SANDBOX_ROOTFS_TAR="${HOME}/.mix/sandbox-rootfs.tar.gz"
 _SANDBOX_ROOTFS_DIR="${HOME}/.mix/sandbox-rootfs"
 _SANDBOX_ROOTFS_VERSION="${HOME}/.mix/sandbox-rootfs.version"
