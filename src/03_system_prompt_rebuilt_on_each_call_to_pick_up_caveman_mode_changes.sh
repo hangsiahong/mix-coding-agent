@@ -245,7 +245,7 @@ $(cat "$_skill" 2>/dev/null)
 
   local _result="$(printf '%s\n\n%s' "$base" "$cave_rules")"
   printf '%s' "$_result" > "$_SYSPROMPT_CACHE_FILE"
-  _SYSPROMPT_DIRTY=false
+  echo "false" > "$_SYSPROMPT_DIRTY_FILE"
   printf '%s' "$_result"
 }
 
