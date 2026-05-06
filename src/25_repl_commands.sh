@@ -73,7 +73,7 @@ handle_cmd() {
       echo "  Tools used:     $_TOOLS_USED"
       local _hist_n; _hist_n=$(printf '%s' "$HISTORY" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _hist_n="?"
       echo "  History msgs:   $_hist_n"
-      echo "  Sysprompt:      $([ "$_SYSPROMPT_DIRTY" = "true" ] && echo "dirty (will rebuild)" || echo "cached")"
+      echo "  Sysprompt:      $([ "$_SYSPROMPT_DIRTY" = "true" ] && echo "dirty (will rebuild)" || echo "cached ($(wc -c < "$_SYSPROMPT_CACHE_FILE" 2>/dev/null || echo 0) bytes)")"
       echo "  Repo map:       $([ -n "$_REPO_MAP" ] && echo "cached (${#_REPO_MAP} chars)" || echo "empty")"
       ;;
     /repomap)
