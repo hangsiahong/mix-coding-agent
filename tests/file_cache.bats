@@ -7,6 +7,7 @@ setup() {
     # Reset cache state before each test
     _FILE_CACHE='{}'
     _FILE_CACHE_ORDER=""
+    source "$PROJECT_ROOT/src/00a_compat.sh"
     source "$PROJECT_ROOT/src/11a_file_cache.sh"
 }
 
