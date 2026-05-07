@@ -8,6 +8,7 @@ setup() {
   export _MIX_EXTENSIONS_LOCAL="$WORKDIR/.mix/extensions"
   export _MIX_EXTENSIONS_LOADED=""
   mkdir -p "$_MIX_EXTENSIONS_DIR" "$_MIX_EXTENSIONS_LOCAL"
+  source src/00a_compat.sh
   source src/04b_extension_system.sh
 }
 
