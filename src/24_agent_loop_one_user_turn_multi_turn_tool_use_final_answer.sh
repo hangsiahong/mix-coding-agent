@@ -97,6 +97,11 @@ run_agent() {
       else
         local resp; resp=$(call_api)
         if [[ "$resp" == FAIL:* ]]; then
+          if [[ "$resp" == "FAIL:interrupted" ]]; then
+            stop_spinner
+            echo -e "\r\033[K  \033[1;31m(Turn Cancelled)\033[0m" >/dev/tty 2>/dev/null || true
+            break 2
+          fi
           stop_spinner
           if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
             echo -e "\r\033[K  \033[0;90m↻ API error (attempt $_api_attempt/$_api_max_retries), retrying...\033[0m"
