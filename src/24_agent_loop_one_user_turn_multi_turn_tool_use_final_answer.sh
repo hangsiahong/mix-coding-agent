@@ -51,7 +51,7 @@ msg=[
   {"role":"system","content":sys_prompt},
   {"role":"user","content":"User prompt: " + user_prompt + "\n\nDiff:\n" + diff}
 ]
-print(json.dumps({"model":"'$MODEL'","messages":msg,"temperature":0.1}))
+print(json.dumps({"model":"'"$MODEL"'","messages":msg,"temperature":0.1}))
 ' 2>/dev/null)
 
     local _api_key="$API_KEY"
