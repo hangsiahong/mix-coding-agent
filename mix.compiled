@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605071028'
+MIX_VERSION='202605071032'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -4188,7 +4188,6 @@ try:
 except KeyboardInterrupt:
     was_interrupted=True
     kill_spinner()
-    tty.write("\n    \033[38;5;196m[Cancelled by User]\033[0m\n")
     tty.flush()
 except urllib.error.HTTPError as e:
     kill_spinner()
@@ -7195,7 +7194,7 @@ case "${_CLI_ARG:-}" in
 esac
 
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
-trap 'echo -e "\n  \033[1;31m(Turn Cancelled)\033[0m"' SIGINT
+trap '' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
 trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-$$-* 2>/dev/null; exit' EXIT TERM HUP
 

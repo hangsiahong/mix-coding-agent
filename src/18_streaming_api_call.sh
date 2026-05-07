@@ -134,7 +134,6 @@ try:
 except KeyboardInterrupt:
     was_interrupted=True
     kill_spinner()
-    tty.write("\n    \033[38;5;196m[Cancelled by User]\033[0m\n")
     tty.flush()
 except urllib.error.HTTPError as e:
     kill_spinner()
