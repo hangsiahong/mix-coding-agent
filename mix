@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605071051'
+MIX_VERSION='202605071432'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1124,6 +1124,12 @@ else
 fi
 
 # ─── Config ──────────────────────────────────────────────────────────────────
+if [ -t 0 ]; then
+  INTERACTIVE=true
+else
+  INTERACTIVE=false
+fi
+
 API_KEY="${KCONSOLE_API_KEY:-}"
 if [ -z "$API_KEY" ]; then
   # Check persistent key file
@@ -1629,7 +1635,7 @@ $(cat "$_skill" 2>/dev/null)
 
 # ─── Project-local extensions ────────────────────────────────────────────────
 # Only source from ~/.mix/rc.sh — trusted user-controlled location.
-# Project-local .agent/rc.sh is NOT auto-sourced (untrusted working directory).
+# Project-local .mix/rc.sh is NOT auto-sourced (untrusted working directory).
 if [ -f "$HOME/.mix/rc.sh" ]; then
   source "$HOME/.mix/rc.sh"
 fi
@@ -2001,18 +2007,29 @@ auto_read_logs() {
 # ─── Session Persistence (/resume) ───────────────────────────────────────────
 # Saves session state on exit, restores on /resume.
 # File cache, repo map, env info, config — all survive restart.
-# Session file: .mix/session.json (gitignored, < 50KB)
+# Session file: .agent/session.json (gitignored, < 50KB)
 # Defines persistence across restarts.
 
-_SESSION_FILE=".mix/session.json"
+_SESSION_FILE=".agent/session.json"
 _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
 
+# Default variables to satisfy set -u during early exits
+_FILE_CACHE="${_FILE_CACHE:-}"
+_FILE_CACHE_ORDER="${_FILE_CACHE_ORDER:-}"
+_REPO_MAP="${_REPO_MAP:-}"
+_REPO_MAP_MTIMES="${_REPO_MAP_MTIMES:-}"
+_REPO_MAP_TIME="${_REPO_MAP_TIME:-0}"
+_LAST_INPUT="${_LAST_INPUT:-}"
+
 # Save current session state to disk
 session_save() {
-  # Don't save in piped mode or if no meaningful state
+  # Don't save in piped mode
   [ "$INTERACTIVE" = false ] && return
+  # If session available on disk but not resumed, don't overwrite it until we have new state
+  [ "$_SESSION_AVAILABLE" = true ] && [ -z "$_LAST_INPUT" ] && return
+
   local _cache_size=${#_FILE_CACHE}
   # Truncate file cache if too large (keep under 40KB to leave room for rest)
   local _save_cache="$_FILE_CACHE"
@@ -2072,7 +2089,7 @@ with open(sys.argv[18], "w") as f:
     return 1
   }
 
-  mkdir -p .mix 2>/dev/null || true
+  mkdir -p .agent 2>/dev/null || true
   mv "$_sess_tmp" "$_SESSION_FILE" 2>/dev/null || rm -f "$_sess_tmp"
 }
 
@@ -2576,6 +2593,7 @@ if [ -f "$HIST_FILE" ] && [ -s "$HIST_FILE" ]; then
 fi
 
 save_history() {
+  mkdir -p "$(dirname "$HIST_FILE")"
   if [ -n "${KCONSOLE_API_KEY:-}" ]; then
     printf '%s' "$HISTORY" | sed "s/$KCONSOLE_API_KEY/\[REDACTED_API_KEY\]/g" > "$HIST_FILE"
   else
@@ -2857,7 +2875,7 @@ _REPO_MAP_SKIP_DIRS=(
   .git node_modules __pycache__ .venv venv dist build .next
   .nuxt target .gradle .idea .vscode .cache .tox .mypy_cache
   .pytest_cache coverage htmlcov .sass-cache bower_components
-  vendor/bundle .mix .agent .terraform .terragrunt-cache
+  vendor/bundle .mix .terraform .terragrunt-cache
   .worktrees .turbo .vercel .contentlayer .docusaurus
 )
 
@@ -3557,7 +3575,7 @@ with open(p + ".next", "w") as f:
     f.write(d["content"])
 print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
 ' 2>/dev/null) || result="Error: bad args"
-      
+
       if [[ "$result" == Created* ]]; then
         local _cfp; _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
         if [ -f "$_cfp.next" ]; then
@@ -3661,7 +3679,7 @@ else:
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
         tmux new-window -d -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
-          && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log. (Use .agent/bus/ to share data)" \
+        result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log. (Use .mix/bus/ to share data)" \
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
       ;;
@@ -7175,10 +7193,8 @@ if [ "${_SKIP_BANNER:-}" != true ] && [ -n "$TMUX" ]; then
   echo ""
 fi
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then return 0 2>/dev/null || true; fi
-if [ -t 0 ]; then
-  INTERACTIVE=true
-else
-  INTERACTIVE=false
+if [ -z "${INTERACTIVE:-}" ]; then
+  if [ -t 0 ]; then INTERACTIVE=true; else INTERACTIVE=false; fi
 fi
 
 # ─── Initialize Extensions (After all base tools are defined) ────────────────
@@ -7195,9 +7211,11 @@ case "${_CLI_ARG:-}" in
 esac
 
 # Trap SIGINT (Ctrl+C) to cancel current turn and return to prompt instead of exiting
-trap '' SIGINT
+trap ':' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
 trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-$$-* 2>/dev/null; exit' EXIT TERM HUP
+
+_skill_status=""
 
 # ─── Autocomplete ─────────────────────────────────────────────
 
@@ -7589,6 +7607,8 @@ while true; do
 
     # Print the context line
     printf $'  \033[0;90m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
+
+    session_save 2>/dev/null
 
     # Pass the skill status directly into readline's prompt string so it tracks length correctly
     read -e -r -p $'\001'"$_skill_status"$'\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
