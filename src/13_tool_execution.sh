@@ -264,7 +264,7 @@ with open(p + ".next", "w") as f:
     f.write(d["content"])
 print("Created "+p+" ("+str(len(d["content"].splitlines()))+" lines)")
 ' 2>/dev/null) || result="Error: bad args"
-      
+
       if [[ "$result" == Created* ]]; then
         local _cfp; _cfp=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
         if [ -f "$_cfp.next" ]; then
@@ -368,7 +368,7 @@ else:
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
         tmux new-window -d -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
-          && result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log. (Use .agent/bus/ to share data)" \
+        result="Subagent [$_sa_name] spawned. Output → /tmp/${_sa_name}.log. (Use .mix/bus/ to share data)" \
           || result="Error: failed to spawn subagent (tmux new-window failed)"
       fi
       ;;
