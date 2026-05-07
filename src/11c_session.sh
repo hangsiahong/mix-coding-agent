@@ -1,7 +1,7 @@
 # ─── Session Persistence (/resume) ───────────────────────────────────────────
 # Saves session state on exit, restores on /resume.
 # File cache, repo map, env info, config — all survive restart.
-# Session file: .mix/session.json (gitignored, < 50KB)
+# Session file: .agent/session.json (gitignored, < 50KB)
 # Defines persistence across restarts.
 
 _SESSION_FILE=".agent/session.json"
