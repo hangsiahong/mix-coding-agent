@@ -89,7 +89,7 @@ except:
     fi
 
     if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
-      local _stat_print; _stat_print="($_diff_stat)"
+      local _stat_print="(${_diff_stat})"
       echo -e "  \033[0;90m↳ commit: $_cmsg $_stat_print\033[0m" >/dev/tty 2>/dev/null || true
     fi
   fi
