@@ -36,12 +36,8 @@ run_agent() {
     # Skip turn 1 (already compacted above). Check every turn — cheap count
     # gate inside compact_history means real compact only fires at MAX_HIST_MSGS.
     [ "$turn" -gt 1 ] && compact_history
-    # Always start animated spinner (Python will kill it before streaming first token)
-    start_spinner "mix (turn $turn)"
-    export SPIN_PID="$_SPIN_PID"
-    tmux_update   # show ⟳ in tmux status while thinking
 
-    # Show pre-process latency on first turn
+    # Show pre-process latency on first turn before starting spinner
     if [ "$turn" -eq 1 ] && [ "$_t_start" -gt 0 ]; then
       local _t_now; _t_now=$(_mix_date_nano)
       if [ "$_t_now" -gt 0 ]; then
@@ -49,6 +45,11 @@ run_agent() {
         [ "$_pp_ms" -gt 50 ] && echo -e "  \033[0;90m  pre-process: ${_pp_ms}ms\033[0m" >/dev/tty 2>/dev/null || true
       fi
     fi
+
+    # Always start animated spinner (Python will kill it before streaming first token)
+    start_spinner "mix (turn $turn)"
+    export SPIN_PID="$_SPIN_PID"
+    tmux_update   # show ⟳ in tmux status while thinking
 
     local parsed
     local _api_attempt _api_max_retries=3

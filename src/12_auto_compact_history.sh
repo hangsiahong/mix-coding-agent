@@ -5,7 +5,18 @@ compact_history() {
   # Fast path: use cheap counter instead of spawning python3 to count
   local count
   count=$(printf '%s' "$HISTORY" | grep -o '"role"' | wc -l) || return
-  [ "$count" -lt "$MAX_HIST_MSGS" ] && return
+  
+  local _hist_chars=${#HISTORY}
+  local _est_tokens=$(( _hist_chars / 3 ))
+  local _should_compact=false
+  
+  if [ "$count" -ge "$MAX_HIST_MSGS" ]; then
+    _should_compact=true
+  elif [ "$_est_tokens" -ge "$(( CTX_TOKENS * 85 / 100 ))" ]; then
+    _should_compact=true
+  fi
+  
+  [ "$_should_compact" = false ] && return
 
   # Resolve API key — provider may override
   local _compact_key="$API_KEY"
