@@ -178,10 +178,7 @@ $_rh"
           if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
             _ext_hook on_create "$p"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
-            local _create_lines; _create_lines=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("content","").splitlines()),"lines")' 2>/dev/null || echo "new")
-            git -C "$WORKDIR" commit -m "agent: create $(basename "$p") ($_create_lines)" --quiet 2>/dev/null \
-              && echo -e "    \033[0;90m↳ committed: create $(basename "$p")\033[0m" \
-              && result="$result (committed)" || true
+            _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
           fi
         else
           result="User declined create."
