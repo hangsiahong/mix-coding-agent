@@ -17,6 +17,7 @@ Save session state on exit, restore on next startup via `/resume`. Eliminates 2-
 - repo_map TTL still enforced (10min)
 - CWD must match (or subdirectory) — don't restore wrong project's context
 - `/flush` also clears session file
+- **Overwrite Protection**: `session_save` skips if a session is waiting to be resumed and no new turn has been taken, preventing accidental deletion of a saved session on a fresh startup.
 
 ## Tests
-27 bats tests in `tests/session.bats`
+28 bats tests in `tests/session.bats`
