@@ -8,7 +8,13 @@ _commit_turn() {
   if ! git -C "$WORKDIR" diff --staged --quiet 2>/dev/null; then
     local _diff_stat; _diff_stat=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | tail -n 1 | sed 's/^[ \t]*//')
     
-    # Simple conventional commit inference based on the user's prompt or the diff
+    # We rely on an LLM API call to generate a top-tier conventional commit message.
+    # If the user's provider is set up and we can reach it, we'll stream a small payload.
+    # To keep things robust, if it fails, we fall back to a basic string manipulation approach.
+    
+    local _cmsg="agent: auto-commit ($_diff_stat)"
+    
+    # Simple conventional commit inference fallback
     local _prefix="refactor"
     local _linput
     _linput=$(echo "$_input" | tr '[:upper:]' '[:lower:]')
@@ -23,11 +29,64 @@ _commit_turn() {
       _prefix="test"
     fi
 
-    # Take first ~60 chars of user input as the commit summary
     local _summary; _summary=$(echo "$_input" | head -n 1 | cut -c1-60 | tr -d '\n' | sed 's/^[ \t]*//;s/[ \t]*$//')
     [ -z "$_summary" ] && _summary="auto-commit by agent"
     
-    local _cmsg="$_prefix: $_summary"
+    local _fallback_cmsg="$_prefix: $_summary"
+    
+    # Build a minimal, single-turn LLM request asking for a conventional commit.
+    # We pass the diff stat and the exact git diff.
+    local _diff_content
+    _diff_content=$(git -C "$WORKDIR" --no-pager diff --staged 2>/dev/null | head -n 200) # clip massive diffs
+    
+    # Use python to construct a JSON payload quickly to ping the API directly, bypassing agent loop state
+    local _commit_payload
+    _commit_payload=$(printf '%s\n%s\n' "$_diff_content" "$_input" | python3 -c '
+import json,sys
+diff=sys.stdin.readline().strip()
+user_prompt=sys.stdin.read().strip()
+sys_prompt="You are a senior developer. Write a precise, single-line Conventional Commit message (e.g. \"feat: add user login\", \"fix: resolve null pointer in auth\"). Read the user request and the diff below. Output ONLY the commit message line, no quotes, no markdown, no explanation."
+msg=[
+  {"role":"system","content":sys_prompt},
+  {"role":"user","content":f"User prompt: {user_prompt}\n\nDiff:\n{diff}"}
+]
+print(json.dumps({"model":"'$MODEL'","messages":msg,"temperature":0.1}))
+' 2>/dev/null)
+
+    local _api_key="$API_KEY"
+    if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+      local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+      [ -n "$_pkey" ] && _api_key="$_pkey"
+    fi
+
+    local _curl_args=(-s -w "%{http_code}" --max-time 15
+      "${BASE_URL}/chat/completions"
+      -H "Content-Type: application/json")
+      
+    # Assume standard Bearer auth for this quick call (default/openai-like)
+    [ -n "$_api_key" ] && _curl_args+=(-H "Authorization: Bearer $_api_key")
+
+    local _tmp; _tmp=$(mktemp)
+    local _code
+    _code=$(curl "${_curl_args[@]}" -o "$_tmp" -d "$_commit_payload" 2>/dev/null) || _code="err"
+    
+    local _body; _body=$(cat "$_tmp" 2>/dev/null || true); rm -f "$_tmp"
+    
+    if [ "$_code" = "200" ]; then
+      local _ai_cmsg
+      _ai_cmsg=$(printf '%s' "$_body" | python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    print(d["choices"][0]["message"]["content"].strip().strip("\"").strip("\'"))
+except:
+    pass
+' 2>/dev/null)
+      [ -n "$_ai_cmsg" ] && _cmsg="$_ai_cmsg" || _cmsg="$_fallback_cmsg"
+    else
+      _cmsg="$_fallback_cmsg"
+    fi
+
     if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
       echo -e "  \033[0;90m↳ commit: $_cmsg ($_diff_stat)\033[0m" >/dev/tty 2>/dev/null || true
     fi
