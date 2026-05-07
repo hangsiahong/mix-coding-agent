@@ -79,7 +79,7 @@ _REPO_MAP_SKIP_DIRS=(
   .git node_modules __pycache__ .venv venv dist build .next
   .nuxt target .gradle .idea .vscode .cache .tox .mypy_cache
   .pytest_cache coverage htmlcov .sass-cache bower_components
-  vendor/bundle .mix .agent .terraform .terragrunt-cache
+  vendor/bundle .mix .terraform .terragrunt-cache
   .worktrees .turbo .vercel .contentlayer .docusaurus
 )
 
