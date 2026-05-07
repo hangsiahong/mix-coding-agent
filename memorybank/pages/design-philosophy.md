@@ -161,7 +161,7 @@ The key insight: most commands are LOW risk. Only ~5% of commands need confirmat
 
 1. **Risk scoring** — pattern-matches command string
 2. **Diff preview** — shows colored diff before edit_file applies
-3. **Git auto-commit** — every edit committed immediately, `/undo` reverts
+3. **Git auto-commit** — at the end of each agent turn, all staged file edits are squashed into a single conventional commit with an LLM-generated summary, `/undo` reverts the entire turn.
 4. **Auto-verify** — syntax/lint/typecheck after every edit_file/create_file
 5. **Trusted rc only** — only `~/.mix/rc.sh` auto-sourced, never project-local `.agent/rc.sh`
 
