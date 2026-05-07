@@ -1,4 +1,10 @@
 # ─── Config ──────────────────────────────────────────────────────────────────
+if [ -t 0 ]; then
+  INTERACTIVE=true
+else
+  INTERACTIVE=false
+fi
+
 API_KEY="${KCONSOLE_API_KEY:-}"
 if [ -z "$API_KEY" ]; then
   # Check persistent key file
