@@ -126,27 +126,9 @@ $_rh"
             if [ "$GIT_ENABLED" = true ]; then
               git -C "$WORKDIR" add "$p" 2>/dev/null || true
               local _gdiff
-              _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
+              _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat "$p" 2>/dev/null | head -5)
               [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
-              # Extract meaningful commit message from the edit
-              local _cmsg
-              _cmsg="agent: $(printf '%s' "$targs" | python3 -c '
-import json,sys,difflib
-d=json.load(sys.stdin)
-p=d.get("path","").split("/")[-1]
-o,n=d.get("old_text",""),d.get("new_text","")
-diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),n=0))
-added=[l[1:].strip() for l in diff if l.startswith("+") and not l.startswith("+++") and l[1:].strip()]
-removed=[l[1:].strip() for l in diff if l.startswith("-") and not l.startswith("---") and l[1:].strip()]
-if added: summary=added[0][:60]
-elif removed: summary="remove: "+removed[0][:50]
-else: summary="edit"
-print("edit "+p+" — "+summary)
-' 2>/dev/null || echo "edit $(basename "$p")")"
-              if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
-                echo -e "    \033[0;90m↳ committed: $_cmsg\033[0m"
-                result="$result (committed)"
-              fi
+              _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
             fi
             # Offer test run if test command configured
             if [ -n "$TEST_CMD" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
