@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605072253'
+MIX_VERSION='202605072311'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -3082,13 +3082,22 @@ compact_history() {
   count=$(printf '%s' "$HISTORY" | grep -o '"role"' | wc -l) || return
   
   local _hist_chars=${#HISTORY}
-  local _est_tokens=$(( _hist_chars / 3 ))
+  local _sys_chars _tools_chars
+  _sys_chars=$(build_system_prompt | wc -c) || _sys_chars=0
+  _tools_chars=${#TOOLS_JSON}
+  
+  local _total_chars=$(( _hist_chars + _sys_chars + _tools_chars ))
+  local _est_tokens=$(( _total_chars / 3 ))
   local _should_compact=false
   
   if [ "$count" -ge "$MAX_HIST_MSGS" ]; then
     _should_compact=true
   elif [ "$_est_tokens" -ge "$(( CTX_TOKENS * 85 / 100 ))" ]; then
-    _should_compact=true
+    # Only compact if history actually contributes significantly (e.g. >10% of context limit)
+    # Otherwise, it's file cache bloating the context, and shrinking history won't help.
+    if [ "$(( _hist_chars / 3 ))" -ge "$(( CTX_TOKENS * 10 / 100 ))" ]; then
+      _should_compact=true
+    fi
   fi
   
   [ "$_should_compact" = false ] && return
@@ -3204,10 +3213,23 @@ for k,v in json.load(sys.stdin).items():
   fi
   rm -f "$_resp_tmp" "$_py_err"
 
-  # Keep last 10 messages verbatim
+  # Keep last 10 messages verbatim, bounded to 30% of context size to prevent loops
+  local _max_recent_chars=$(( CTX_TOKENS * 3 * 30 / 100 ))
   local recent
-  recent=$(printf '%s' "$HISTORY" | python3 -c \
-    'import json,sys;h=json.load(sys.stdin);print(json.dumps(h[-10:]))' 2>/dev/null) || recent='[]'
+  recent=$(printf '%s' "$HISTORY" | python3 -c "
+import json,sys
+h=json.load(sys.stdin)
+max_chars=$_max_recent_chars
+recent=[]
+cur=0
+for m in reversed(h):
+  l=len(json.dumps(m))
+  if cur+l > max_chars and len(recent)>0: break
+  recent.insert(0,m)
+  cur+=l
+  if len(recent)==10: break
+print(json.dumps(recent))
+" 2>/dev/null) || recent='[]'
 
   # New history: summary injection + recent tail
   local sum_esc
