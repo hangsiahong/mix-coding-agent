@@ -76,8 +76,12 @@ for k,v in json.load(sys.stdin).items():
   local body; body=$(cat "$tmp" 2>/dev/null || true); rm -f "$tmp"
   
   if [ "$curl_err" -ne 0 ]; then
-    # E.g. curl exits 2 or >128 on interrupt
-    echo "FAIL:interrupted"
+    # curl exits 2 or >128 on interrupt. Other codes (e.g., 6, 7, 28) are network errors.
+    if [ "$curl_err" -eq 2 ] || [ "$curl_err" -ge 128 ]; then
+      echo "FAIL:interrupted"
+    else
+      echo "FAIL:curl_error_$curl_err"
+    fi
     return 1
   fi
   [ "$code" != "200" ] && { echo "FAIL:$code:$body"; return 1; }

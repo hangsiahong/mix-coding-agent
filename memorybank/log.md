@@ -199,3 +199,9 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - At the end of the turn, it runs an offline LLM sub-call with the user's prompt and `git diff --staged` to generate a high-quality conventional commit message.
 - Fallback string manipulation (first 60 chars) if the API call fails.
 - Keeps git history clean, human-readable, and ensures `/undo` rolls back the entire semantic task at once.
+
+## [2026-05-08] bugfix | Network drop vs Interrupts
+- The agent was immediately terminating turns (Turn Cancelled) upon network failures instead of retrying.
+- Root cause: `src/16_api.sh` unconditionally mapped all non-zero `curl` exit codes to `FAIL:interrupted`. The retry loop in `src/24_agent_loop...` rightly halts on interrupts.
+- Fix: Modified `16_api.sh` to only map exit code 2 and >=128 (e.g. 130 SIGINT) to `FAIL:interrupted`. All other network errors (6, 7, 28) map to `FAIL:curl_error_$err`.
+- Result: The agent now correctly identifies network drops and utilizes the 3-attempt retry logic.
