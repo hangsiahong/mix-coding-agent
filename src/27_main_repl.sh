@@ -413,6 +413,8 @@ while true; do
     # Print the context line
     printf $'  \033[0;90m%s\033[0m%s%s\n' "$_prompt_short" "$_prompt_git" "$_prompt_sandbox" > /dev/tty
 
+    session_save 2>/dev/null
+
     # Pass the skill status directly into readline's prompt string so it tracks length correctly
     read -e -r -p $'\001'"$_skill_status"$'\033[1;37m\002❯ \001\033[0m\002' INPUT < /dev/tty || {
       # If interrupted by SIGINT (read returns >128 status code), just continue the loop
