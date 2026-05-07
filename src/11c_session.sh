@@ -11,8 +11,11 @@ export _SESSION_AVAILABLE
 
 # Save current session state to disk
 session_save() {
-  # Don't save in piped mode or if no meaningful state
+  # Don't save in piped mode
   [ "$INTERACTIVE" = false ] && return
+  # If session available on disk but not resumed, don't overwrite it until we have new state
+  [ "$_SESSION_AVAILABLE" = true ] && [ -z "$_LAST_INPUT" ] && return
+
   local _cache_size=${#_FILE_CACHE}
   # Truncate file cache if too large (keep under 40KB to leave room for rest)
   local _save_cache="$_FILE_CACHE"
