@@ -73,6 +73,11 @@ run_agent() {
           _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         fi
         if [[ "$parsed" == FAIL:* ]]; then
+          if [[ "$parsed" == "FAIL:interrupted" ]]; then
+            stop_spinner
+            echo -e "\r\033[K  \033[1;31m(Turn Cancelled)\033[0m" >/dev/tty 2>/dev/null || true
+            break 2
+          fi
           [ "$INTERACTIVE" = false ] \
             && echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
             || echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
