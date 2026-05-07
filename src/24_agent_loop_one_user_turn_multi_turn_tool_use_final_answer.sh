@@ -41,18 +41,18 @@ _commit_turn() {
     
     # Use python to construct a JSON payload quickly to ping the API directly, bypassing agent loop state
     local _commit_payload
-    _commit_payload=$(printf '%s\n__DIFF_SEP__\n%s\n' "$_diff_content" "$_input" | python3 -c '
+    _commit_payload=$(printf '%s\n__DIFF_SEP__\n%s\n' "$_diff_content" "$_input" | python3 -c "
 import json,sys
-parts=sys.stdin.read().split("__DIFF_SEP__\n")
+parts=sys.stdin.read().split('__DIFF_SEP__\n')
 diff=parts[0].strip()
-user_prompt=parts[1].strip() if len(parts)>1 else ""
-sys_prompt="You are a senior developer. Write a precise, single-line Conventional Commit message (e.g. \"feat: add user login\", \"fix: resolve null pointer in auth\"). Read the user request and the diff below. Output ONLY the commit message line, no quotes, no markdown, no explanation."
+user_prompt=parts[1].strip() if len(parts)>1 else ''
+sys_prompt='You are a senior developer. Write a precise, single-line Conventional Commit message (e.g. \"feat: add user login\", \"fix: resolve null pointer in auth\"). Read the user request and the diff below. Output ONLY the commit message line, no quotes, no markdown, no explanation.'
 msg=[
-  {"role":"system","content":sys_prompt},
-  {"role":"user","content":"User prompt: " + user_prompt + "\n\nDiff:\n" + diff}
+  {'role':'system','content':sys_prompt},
+  {'role':'user','content':'User prompt: ' + user_prompt + '\n\nDiff:\n' + diff}
 ]
-print(json.dumps({"model":"'"$MODEL"'","messages":msg,"temperature":0.1}))
-' 2>/dev/null)
+print(json.dumps({'model':'$MODEL','messages':msg,'temperature':0.1}))
+" 2>/dev/null)
 
     local _api_key="$API_KEY"
     if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
