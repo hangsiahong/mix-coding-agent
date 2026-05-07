@@ -146,7 +146,7 @@ $_fctx"
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
-GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, patterns, lessons. Update proactively with update_global_memory when you learn something reusable. Short bullet points only."
+GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, general patterns, lessons. Update proactively with update_global_memory when you learn something reusable. DO NOT store project-specific logic here (breaks prompt cache and pollutes other projects). Short bullet points only."
 
   # Context budget warning — inject when history is consuming significant context
   local _hist_chars=${#HISTORY}
