@@ -141,6 +141,12 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Manual cleanup of `~/.mix/memory.md`: 30 bullets (6,810 chars) → 21 bullets (2,338 chars).
 - memorybank/solutions/prompt-optimization.md created with full audit.
 
+## [2026-08-07] bugfix | set -u session hardening
+- Agent exited immediately after provider activation in interactive mode.
+- Root cause: EXIT trap called `session_save()` referencing uninitialized vars (`_FILE_CACHE`, `_REPO_MAP`, etc.) during `exec tmux` handoff — `set -u` killed process.
+- Fix: safe defaults in `src/11c_session.sh`, early INTERACTIVE detection in `src/01_config.sh`, REPL guard with `${INTERACTIVE:-}` fallback.
+- Verified: `--version`, piped mode, `--self-test` all pass. No more crash.
+
 ## [2026-07-15] bugfix | Mid-loop auto-compact not triggering during tool-use turns
 - **Problem:** `compact_history` only called at top of `run_agent()` (before user message appended). During multi-turn tool-use loop (up to MAX_TURNS=100), history grows unbounded — no compact check between turns.
 - **Impact:** Heavy sessions (20+ tool calls) could hit context limit mid-loop without triggering compact.
