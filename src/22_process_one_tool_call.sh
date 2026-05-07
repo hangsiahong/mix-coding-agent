@@ -234,6 +234,15 @@ print("edit "+p+" — "+summary)
   esac
   [ -z "$result" ] && result="(no output)"
 
+  # Guard against massive outputs that cause API 400 Bad Request
+  # Limit total response size to 32KB per turn
+  local byte_len
+  byte_len=$(printf '%s' "$result" | wc -c)
+  if [ "$byte_len" -gt 32000 ]; then
+    result="$(printf '%s' "$result" | head -c 32000)
+... [TRUNCATED: Output exceeded 32KB ($byte_len bytes).]"
+  fi
+
   if [ "$silent" != "true" ]; then
     # Extract and display VERIFY results prominently
     if printf '%s' "$result" | grep -q '\[VERIFY:'; then
