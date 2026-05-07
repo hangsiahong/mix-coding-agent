@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605072247'
+MIX_VERSION='202605072253'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────

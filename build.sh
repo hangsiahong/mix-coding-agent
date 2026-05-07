@@ -79,6 +79,14 @@ chmod +x mix.compiled mix
 echo "Compiled to mix (and mix.compiled)!"
 
 # ─── Health gate: only version + install if binary passes self-test ──────────
+if ! bash -n mix 2> mix_syntax.err; then
+  echo "⚠️  Syntax check FAILED — binary not installed or versioned:"
+  cat mix_syntax.err | head -5
+  rm -f mix_syntax.err
+  exit 1
+fi
+rm -f mix_syntax.err
+
 _self_test_out=$(bash mix --self-test 2>&1)
 _self_test_rc=$?
 if [ $_self_test_rc -ne 0 ]; then
