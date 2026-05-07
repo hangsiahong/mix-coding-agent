@@ -1,7 +1,5 @@
-if [ -t 0 ]; then
-  INTERACTIVE=true
-else
-  INTERACTIVE=false
+if [ -z "${INTERACTIVE:-}" ]; then
+  if [ -t 0 ]; then INTERACTIVE=true; else INTERACTIVE=false; fi
 fi
 
 # ─── Initialize Extensions (After all base tools are defined) ────────────────
