@@ -303,6 +303,9 @@ run_agent() {
   done
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
+  
+  _commit_turn "$input"
+
   ctx_bar       # show context window usage after every agent turn
   tmux_update   # refresh tmux status bar
 
