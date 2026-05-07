@@ -197,11 +197,18 @@ handle_cmd() {
       if [ "$_pname" = "default" ]; then
         PROVIDER="default"
         BASE_URL="https://ai.koompi.cloud/v1"
-        API_KEY="${KCONSOLE_API_KEY:-}"
-        if [ -z "$API_KEY" ] && [ -f "${HOME}/.mix/api_key" ]; then API_KEY=$(cat "${HOME}/.mix/api_key"); fi
-        MODEL="${AGENT_MODEL:-glm-5}"
+        local _pm=""
+        if [ -f "$_MIX_DEFAULTS_FILE" ]; then
+          _pm=$(grep "^MODEL_default=" "$_MIX_DEFAULTS_FILE" | cut -d= -f2- || true)
+        fi
+        if [ -n "$_pm" ]; then
+          MODEL="$_pm"
+        else
+          MODEL="${AGENT_MODEL:-glm-5}"
+        fi
         unset _GOOGLE_VERTEX_MODEL_PREFIX 2>/dev/null || true
-        echo "  Provider → default (koompi proxy)"
+        echo "  Provider → default (koompi proxy) [model: $MODEL]"
+        _mix_save_defaults
       elif _load_provider "$_pname"; then
         # Restore the previously used model for this specific provider if it exists
         local _pm=""
