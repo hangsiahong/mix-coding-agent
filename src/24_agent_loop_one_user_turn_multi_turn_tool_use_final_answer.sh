@@ -75,14 +75,14 @@ print(json.dumps({'model':'$MODEL','messages':msg,'temperature':0.1}))
     
     if [ "$_code" = "200" ]; then
       local _ai_cmsg
-      _ai_cmsg=$(printf '%s' "$_body" | python3 -c '
+      _ai_cmsg=$(printf '%s' "$_body" | python3 -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
-    print(d["choices"][0]["message"]["content"].strip().strip("\"").strip("\'"))
+    print(d['choices'][0]['message']['content'].strip().strip('\"').strip(\"'\"))
 except:
     pass
-' 2>/dev/null)
+" 2>/dev/null)
       [ -n "$_ai_cmsg" ] && _cmsg="$_ai_cmsg" || _cmsg="$_fallback_cmsg"
     else
       _cmsg="$_fallback_cmsg"
