@@ -3,6 +3,7 @@
 
 # Compute PROJECT_ROOT from test location
 PROJECT_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+source "$PROJECT_ROOT/src/00a_compat.sh"
 source "$PROJECT_ROOT/src/11a_file_cache.sh"
 source "$PROJECT_ROOT/src/11c_session.sh"
 
