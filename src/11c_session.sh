@@ -9,6 +9,14 @@ _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
 
+# Default variables to satisfy set -u during early exits
+_FILE_CACHE="${_FILE_CACHE:-}"
+_FILE_CACHE_ORDER="${_FILE_CACHE_ORDER:-}"
+_REPO_MAP="${_REPO_MAP:-}"
+_REPO_MAP_MTIMES="${_REPO_MAP_MTIMES:-}"
+_REPO_MAP_TIME="${_REPO_MAP_TIME:-0}"
+_LAST_INPUT="${_LAST_INPUT:-}"
+
 # Save current session state to disk
 session_save() {
   # Don't save in piped mode
