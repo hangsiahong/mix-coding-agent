@@ -72,7 +72,7 @@ with open(sys.argv[18], "w") as f:
     return 1
   }
 
-  mkdir -p .mix 2>/dev/null || true
+  mkdir -p .agent 2>/dev/null || true
   mv "$_sess_tmp" "$_SESSION_FILE" 2>/dev/null || rm -f "$_sess_tmp"
 }
 
