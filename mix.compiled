@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605071032'
+MIX_VERSION='202605071051'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1151,7 +1151,7 @@ if [ -z "$API_KEY" ]; then
 fi
 BASE_URL="https://ai.koompi.cloud/v1"
 MODEL="${AGENT_MODEL:-glm-5}"
-HIST_FILE=".agent_history.json"
+HIST_FILE=".mix/history.json"
 MAX_TURNS="${MAX_TURNS:-100}"
 MAX_HIST_MSGS="${MAX_HIST_MSGS:-200}"  # compact history after this many messages
 CTX_TOKENS="${CTX_TOKENS:-131072}"   # model context window size (for % display)
@@ -1420,7 +1420,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 - Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
 - Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
-- Shared State (Message Bus): Subagents are isolated. Use the \`.agent/bus/\` directory to share state, hand off context, or coordinate findings (e.g. \`create_file\` to write, \`read_file\` to read).
+- Shared State (Message Bus): Subagents are isolated. Use the \`.mix/bus/\` directory to share state, hand off context, or coordinate findings (e.g. \`create_file\` to write, \`read_file\` to read).
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
 - REPL shortcuts: /worker <name> <cmd> to spawn bash, /subagent <name> <task> for LLM (or use spawn_subagent tool), /workers to list, /skills to list loaded, /skill <name> to load from ~/.mix/skills/
@@ -2001,9 +2001,10 @@ auto_read_logs() {
 # ─── Session Persistence (/resume) ───────────────────────────────────────────
 # Saves session state on exit, restores on /resume.
 # File cache, repo map, env info, config — all survive restart.
-# Session file: .agent/session.json (gitignored, < 50KB)
+# Session file: .mix/session.json (gitignored, < 50KB)
+# Defines persistence across restarts.
 
-_SESSION_FILE=".agent/session.json"
+_SESSION_FILE=".mix/session.json"
 _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
@@ -2071,7 +2072,7 @@ with open(sys.argv[18], "w") as f:
     return 1
   }
 
-  mkdir -p .agent 2>/dev/null || true
+  mkdir -p .mix 2>/dev/null || true
   mv "$_sess_tmp" "$_SESSION_FILE" 2>/dev/null || rm -f "$_sess_tmp"
 }
 
@@ -3655,7 +3656,7 @@ else:
       elif [ -z "$_sa_name" ] || [ -z "$_sa_task" ]; then
         result="Error: name and task are required"
       else
-        mkdir -p "${WORKDIR}/.agent/bus"
+        mkdir -p "${WORKDIR}/.mix/bus"
         _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
