@@ -20,6 +20,8 @@ trap ':' SIGINT
 # Cleanup trap for crashes and exits (R1, R2)
 trap '_ext_hook on_shutdown 2>/dev/null; session_save 2>/dev/null; stop_spinner 2>/dev/null; rm -f /tmp/mix-$$-* 2>/dev/null; exit' EXIT TERM HUP
 
+_skill_status=""
+
 # ─── Autocomplete ─────────────────────────────────────────────
 
 if [ "$INTERACTIVE" = true ]; then
