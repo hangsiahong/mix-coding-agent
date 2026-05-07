@@ -363,7 +363,7 @@ else:
       elif [ -z "$_sa_name" ] || [ -z "$_sa_task" ]; then
         result="Error: name and task are required"
       else
-        mkdir -p "${WORKDIR}/.agent/bus"
+        mkdir -p "${WORKDIR}/.mix/bus"
         _sa_tmp=$(mktemp -t mix-$$-XXXXXX)
         _sa_tty=$(tty 2>/dev/null || echo /dev/null)
         printf '%s\n' "$_sa_task" > "$_sa_tmp"
