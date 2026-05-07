@@ -70,8 +70,16 @@ for k,v in json.load(sys.stdin).items():
 
   local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
-  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
-  local body; body=$(cat "$tmp"); rm -f "$tmp"
+  # Run curl and record exit status (which is 130/2/etc. on SIGINT)
+  local curl_err=0
+  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || curl_err=$?
+  local body; body=$(cat "$tmp" 2>/dev/null || true); rm -f "$tmp"
+  
+  if [ "$curl_err" -ne 0 ]; then
+    # E.g. curl exits 2 or >128 on interrupt
+    echo "FAIL:interrupted"
+    return 1
+  fi
   [ "$code" != "200" ] && { echo "FAIL:$code:$body"; return 1; }
   printf '%s' "$body"
 }

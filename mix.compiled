@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605071016'
+MIX_VERSION='202605071028'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -4013,8 +4013,16 @@ for k,v in json.load(sys.stdin).items():
 
   local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
-  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || true
-  local body; body=$(cat "$tmp"); rm -f "$tmp"
+  # Run curl and record exit status (which is 130/2/etc. on SIGINT)
+  local curl_err=0
+  code=$(curl "${_curl_args[@]}" -o "$tmp" -d "$payload" 2>/dev/null) || curl_err=$?
+  local body; body=$(cat "$tmp" 2>/dev/null || true); rm -f "$tmp"
+  
+  if [ "$curl_err" -ne 0 ]; then
+    # E.g. curl exits 2 or >128 on interrupt
+    echo "FAIL:interrupted"
+    return 1
+  fi
   [ "$code" != "200" ] && { echo "FAIL:$code:$body"; return 1; }
   printf '%s' "$body"
 }
@@ -4904,12 +4912,22 @@ run_agent() {
           _SESSION_CACHE_TOKENS=$((_SESSION_CACHE_TOKENS + _cache))
         fi
         if [[ "$parsed" == FAIL:* ]]; then
+          if [[ "$parsed" == "FAIL:interrupted" ]]; then
+            stop_spinner
+            echo -e "\r\033[K  \033[1;31m(Turn Cancelled)\033[0m" >/dev/tty 2>/dev/null || true
+            break 2
+          fi
           [ "$INTERACTIVE" = false ] \
             && echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >&2 \
             || echo -e "    \033[0;90m↻ API error '${parsed#FAIL:}' (attempt $_api_attempt/$_api_max_retries) — retrying without streaming...\033[0m" >/dev/tty 2>/dev/null
           start_spinner "turn $turn (retry $_api_attempt)"
           local resp; resp=$(call_api)
           if [[ "$resp" == FAIL:* ]]; then
+            if [[ "$resp" == "FAIL:interrupted" ]]; then
+              stop_spinner
+              echo -e "\r\033[K  \033[1;31m(Turn Cancelled)\033[0m" >/dev/tty 2>/dev/null || true
+              break 2
+            fi
             stop_spinner
             if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
               echo -e "\r\033[K  \033[0;90m↻ API error, retrying...\033[0m"
@@ -4923,6 +4941,11 @@ run_agent() {
       else
         local resp; resp=$(call_api)
         if [[ "$resp" == FAIL:* ]]; then
+          if [[ "$resp" == "FAIL:interrupted" ]]; then
+            stop_spinner
+            echo -e "\r\033[K  \033[1;31m(Turn Cancelled)\033[0m" >/dev/tty 2>/dev/null || true
+            break 2
+          fi
           stop_spinner
           if [ "$_api_attempt" -lt "$_api_max_retries" ]; then
             echo -e "\r\033[K  \033[0;90m↻ API error (attempt $_api_attempt/$_api_max_retries), retrying...\033[0m"
