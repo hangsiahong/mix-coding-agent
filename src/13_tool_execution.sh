@@ -382,14 +382,5 @@ else:
       ;;
   esac
   [ -z "$result" ] && result="(no output)"
-
-  # Guard against massive tool outputs that cause API 400 Bad Request
-  local byte_len
-  byte_len=$(printf '%s' "$result" | wc -c)
-  if [ "$byte_len" -gt 32000 ]; then
-    result="$(printf '%s' "$result" | head -c 32000)
-... [TRUNCATED: Output exceeded 32KB ($byte_len bytes). If you need more, redirect to a file, pipe to 'head', or be more specific.]"
-  fi
-
   printf '%s' "$result"
 }
