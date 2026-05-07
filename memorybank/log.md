@@ -180,3 +180,9 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 ## [2026-05-06] ingest | Add multi-agent message bus convention
 ## [2026-05-06] ingest | Fix google model prefix bleeding into default provider
 ## [2026-05-06] perf | Optimize prompt-to-LLM latency — system prompt caching, repo map TTL, file cache throttling, compact fast path
+
+## [2026-07-29] fix | Session Recovery Hardening
+- Aligned `src/11c_session.sh` with `SPEC.md`: session file moved from `.mix/session.json` to `.agent/session.json`.
+- Implemented overwrite protection in `session_save`: skips if session is pending and no new input detected.
+- Fixed `bats` test dependencies: added `src/00a_compat.sh` to `test_helper.bash` and `tests/session.bats`.
+- Verified all 184 tests pass.
