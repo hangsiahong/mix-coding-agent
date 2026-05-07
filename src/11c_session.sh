@@ -4,7 +4,7 @@
 # Session file: .mix/session.json (gitignored, < 50KB)
 # Defines persistence across restarts.
 
-_SESSION_FILE=".mix/session.json"
+_SESSION_FILE=".agent/session.json"
 _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
