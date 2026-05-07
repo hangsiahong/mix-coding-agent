@@ -108,7 +108,21 @@ _MIX_DEFAULTS_FILE="${HOME}/.mix/defaults"
 
 _mix_save_defaults() {
   mkdir -p "${HOME}/.mix"
-  printf 'PROVIDER=%s\nMODEL=%s\nBASE_URL=%s\n' "$PROVIDER" "$MODEL" "$BASE_URL" > "$_MIX_DEFAULTS_FILE"
+  # Save current config + remember the model specifically for this provider
+  local _tmp_file; _tmp_file=$(mktemp)
+  [ -f "$_MIX_DEFAULTS_FILE" ] && cp "$_MIX_DEFAULTS_FILE" "$_tmp_file" || touch "$_tmp_file"
+  
+  # Remove current general keys and this provider's model key
+  sed -i '/^PROVIDER=/d' "$_tmp_file"
+  sed -i '/^MODEL=/d' "$_tmp_file"
+  sed -i '/^BASE_URL=/d' "$_tmp_file"
+  sed -i "/^MODEL_${PROVIDER}=/d" "$_tmp_file"
+  
+  # Append updated values
+  printf 'PROVIDER=%s\nMODEL=%s\nBASE_URL=%s\nMODEL_%s=%s\n' \
+    "$PROVIDER" "$MODEL" "$BASE_URL" "$PROVIDER" "$MODEL" >> "$_tmp_file"
+  
+  mv "$_tmp_file" "$_MIX_DEFAULTS_FILE"
 }
 
 # Load saved defaults (overridden by env vars if set)
