@@ -136,6 +136,13 @@ print(" ".join(f"/tmp/file_{i}.sh" for i in range(20)))
   fi
 }
 
+@test "session_save skips if session available but no new input" {
+  _SESSION_AVAILABLE=true
+  _LAST_INPUT=""
+  session_save
+  [ ! -f ".agent/session.json" ]
+}
+
 # ─── session_load ──────────────────────────────────────────────────────
 
 @test "session_load returns 1 when no session file" {
