@@ -210,6 +210,9 @@ handle_cmd() {
         echo "  Provider → default (koompi proxy) [model: $MODEL]"
         _mix_save_defaults
       elif _load_provider "$_pname"; then
+        # Switch provider name now so we look up the right model
+        PROVIDER="$_pname"
+        
         # Restore the previously used model for this specific provider if it exists
         local _pm=""
         if [ -f "$_MIX_DEFAULTS_FILE" ]; then
