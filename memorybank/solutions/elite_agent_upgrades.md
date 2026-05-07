@@ -26,7 +26,7 @@ The goal was to move `mix` from a "standard" coding agent to an "Elite" level as
 - **Implementation**: `_cmsg` variable in `src/22_process_one_tool_call.sh`, generated via inline python3 `difflib`.
 
 ## Design Decision: No Hunk Review
-Interactive hunk review (`y/n/a/q` loop) was implemented then **stripped** (commit `c783a5b`). Reason: contradicts yolo mode philosophy. Every edit auto-commits, `/undo` (= `git revert HEAD`) is sufficient rollback. Simpler UX, fewer interruptions.
+Interactive hunk review (`y/n/a/q` loop) was implemented then **stripped** (commit `c783a5b`). Reason: contradicts yolo mode philosophy. The agent stages edits and creates a single LLM-summarized auto-commit per turn, `/undo` (= `git revert HEAD`) is sufficient rollback. Simpler UX, cleaner git history.
 
 ## Impact
 - **Sharper Context**: LLM sees a structured map of definitions, not just a list of files.
