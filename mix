@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605071751'
+MIX_VERSION='202605072229'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -4728,27 +4728,9 @@ $_rh"
             if [ "$GIT_ENABLED" = true ]; then
               git -C "$WORKDIR" add "$p" 2>/dev/null || true
               local _gdiff
-              _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | head -5)
+              _gdiff=$(git -C "$WORKDIR" --no-pager diff --staged --stat "$p" 2>/dev/null | head -5)
               [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
-              # Extract meaningful commit message from the edit
-              local _cmsg
-              _cmsg="agent: $(printf '%s' "$targs" | python3 -c '
-import json,sys,difflib
-d=json.load(sys.stdin)
-p=d.get("path","").split("/")[-1]
-o,n=d.get("old_text",""),d.get("new_text","")
-diff=list(difflib.unified_diff(o.splitlines(keepends=True),n.splitlines(keepends=True),n=0))
-added=[l[1:].strip() for l in diff if l.startswith("+") and not l.startswith("+++") and l[1:].strip()]
-removed=[l[1:].strip() for l in diff if l.startswith("-") and not l.startswith("---") and l[1:].strip()]
-if added: summary=added[0][:60]
-elif removed: summary="remove: "+removed[0][:50]
-else: summary="edit"
-print("edit "+p+" — "+summary)
-' 2>/dev/null || echo "edit $(basename "$p")")"
-              if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
-                echo -e "    \033[0;90m↳ committed: $_cmsg\033[0m"
-                result="$result (committed)"
-              fi
+              _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
             fi
             # Offer test run if test command configured
             if [ -n "$TEST_CMD" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
@@ -4798,10 +4780,7 @@ print("edit "+p+" — "+summary)
           if [[ "$result" == Created* ]] && [ "$GIT_ENABLED" = true ]; then
             _ext_hook on_create "$p"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
-            local _create_lines; _create_lines=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("content","").splitlines()),"lines")' 2>/dev/null || echo "new")
-            git -C "$WORKDIR" commit -m "agent: create $(basename "$p") ($_create_lines)" --quiet 2>/dev/null \
-              && echo -e "    \033[0;90m↳ committed: create $(basename "$p")\033[0m" \
-              && result="$result (committed)" || true
+            _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
           fi
         else
           result="User declined create."
@@ -4911,10 +4890,108 @@ print(json.dumps({"model":m,"messages":msg}))
 }
 
 
+# ─── Auto-Commit Turn ───────────────────────────────────────────────────────
+_commit_turn() {
+  local _input="$1"
+  [ "${GIT_ENABLED:-false}" != true ] && return 0
+  [ -z "${_TURN_STAGED_FILES:-}" ] && return 0
+
+  # Check if anything is actually staged
+  if ! git -C "$WORKDIR" diff --staged --quiet 2>/dev/null; then
+    local _diff_stat; _diff_stat=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | tail -n 1 | sed 's/^[ \t]*//')
+    
+    # We rely on an LLM API call to generate a top-tier conventional commit message.
+    # If the user's provider is set up and we can reach it, we'll stream a small payload.
+    # To keep things robust, if it fails, we fall back to a basic string manipulation approach.
+    
+    local _cmsg="agent: auto-commit ($_diff_stat)"
+    
+    # Simple conventional commit inference fallback
+    local _prefix="refactor"
+    local _linput
+    _linput=$(echo "$_input" | tr '[:upper:]' '[:lower:]')
+    
+    if [[ "$_linput" == *bug* || "$_linput" == *fix* || "$_linput" == *error* || "$_linput" == *issue* ]]; then
+      _prefix="fix"
+    elif [[ "$_linput" == *add* || "$_linput" == *feat* || "$_linput" == *new* || "$_linput" == *create* ]]; then
+      _prefix="feat"
+    elif [[ "$_linput" == *doc* || "$_linput" == *readme* ]]; then
+      _prefix="docs"
+    elif [[ "$_linput" == *test* ]]; then
+      _prefix="test"
+    fi
+
+    local _summary; _summary=$(echo "$_input" | head -n 1 | cut -c1-60 | tr -d '\n' | sed 's/^[ \t]*//;s/[ \t]*$//')
+    [ -z "$_summary" ] && _summary="auto-commit by agent"
+    
+    local _fallback_cmsg="$_prefix: $_summary"
+    
+    # Build a minimal, single-turn LLM request asking for a conventional commit.
+    # We pass the diff stat and the exact git diff.
+    local _diff_content
+    _diff_content=$(git -C "$WORKDIR" --no-pager diff --staged 2>/dev/null | head -n 200) # clip massive diffs
+    
+    # Use python to construct a JSON payload quickly to ping the API directly, bypassing agent loop state
+    local _commit_payload
+    _commit_payload=$(printf '%s\n__DIFF_SEP__\n%s\n' "$_diff_content" "$_input" | python3 -c '
+import json,sys
+parts=sys.stdin.read().split("__DIFF_SEP__\n")
+diff=parts[0].strip()
+user_prompt=parts[1].strip() if len(parts)>1 else ""
+sys_prompt="You are a senior developer. Write a precise, single-line Conventional Commit message (e.g. \"feat: add user login\", \"fix: resolve null pointer in auth\"). Read the user request and the diff below. Output ONLY the commit message line, no quotes, no markdown, no explanation."
+msg=[
+  {"role":"system","content":sys_prompt},
+  {"role":"user","content":"User prompt: " + user_prompt + "\n\nDiff:\n" + diff}
+]
+print(json.dumps({"model":"'$MODEL'","messages":msg,"temperature":0.1}))
+' 2>/dev/null)
+
+    local _api_key="$API_KEY"
+    if [ "$PROVIDER" != "default" ] && type "${PROVIDER}_get_api_key" >/dev/null 2>&1; then
+      local _pkey; _pkey=$(${PROVIDER}_get_api_key 2>/dev/null) || true
+      [ -n "$_pkey" ] && _api_key="$_pkey"
+    fi
+
+    local _curl_args=(-s -w "%{http_code}" --max-time 15
+      "${BASE_URL}/chat/completions"
+      -H "Content-Type: application/json")
+      
+    # Assume standard Bearer auth for this quick call (default/openai-like)
+    [ -n "$_api_key" ] && _curl_args+=(-H "Authorization: Bearer $_api_key")
+
+    local _tmp; _tmp=$(mktemp)
+    local _code
+    _code=$(curl "${_curl_args[@]}" -o "$_tmp" -d "$_commit_payload" 2>/dev/null) || _code="err"
+    
+    local _body; _body=$(cat "$_tmp" 2>/dev/null || true); rm -f "$_tmp"
+    
+    if [ "$_code" = "200" ]; then
+      local _ai_cmsg
+      _ai_cmsg=$(printf '%s' "$_body" | python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    print(d["choices"][0]["message"]["content"].strip().strip("\"").strip("\'"))
+except:
+    pass
+' 2>/dev/null)
+      [ -n "$_ai_cmsg" ] && _cmsg="$_ai_cmsg" || _cmsg="$_fallback_cmsg"
+    else
+      _cmsg="$_fallback_cmsg"
+    fi
+
+    if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
+      echo -e "  \033[0;90m↳ commit: $_cmsg [${_diff_stat}]\033[0m" >/dev/tty 2>/dev/null || true
+    fi
+  fi
+  _TURN_STAGED_FILES=""
+}
+
 # ─── Agent Loop (one user turn → multi-turn tool use → final answer) ────────
 run_agent() {
   local input="$1"
   local _t_start; _t_start=$(_mix_date_nano)
+  _TURN_STAGED_FILES=""
   compact_history  # auto-compact before adding new turn
   append_text "user" "$input"
   _TOOLS_USED=0
@@ -5179,6 +5256,9 @@ run_agent() {
   done
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
+  
+  _commit_turn "$input"
+
   ctx_bar       # show context window usage after every agent turn
   tmux_update   # refresh tmux status bar
 

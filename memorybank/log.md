@@ -192,3 +192,10 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Implemented overwrite protection in `session_save`: skips if session is pending and no new input detected.
 - Fixed `bats` test dependencies: added `src/00a_compat.sh` to `test_helper.bash` and `tests/session.bats`.
 - Verified all 184 tests pass.
+
+## [2026-05-07] refactor | Deferred LLM-powered Auto-Commits
+- Switched auto-commit behavior from 1-commit-per-edit to 1-commit-per-turn.
+- Agent now stages (`git add`) edits during its tool execution loop.
+- At the end of the turn, it runs an offline LLM sub-call with the user's prompt and `git diff --staged` to generate a high-quality conventional commit message.
+- Fallback string manipulation (first 60 chars) if the API call fails.
+- Keeps git history clean, human-readable, and ensures `/undo` rolls back the entire semantic task at once.
