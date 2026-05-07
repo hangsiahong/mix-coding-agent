@@ -1,3 +1,40 @@
+# ─── Auto-Commit Turn ───────────────────────────────────────────────────────
+_commit_turn() {
+  local _input="$1"
+  [ "${GIT_ENABLED:-false}" != true ] && return 0
+  [ -z "${_TURN_STAGED_FILES:-}" ] && return 0
+
+  # Check if anything is actually staged
+  if ! git -C "$WORKDIR" diff --staged --quiet 2>/dev/null; then
+    local _diff_stat; _diff_stat=$(git -C "$WORKDIR" --no-pager diff --staged --stat 2>/dev/null | tail -n 1 | sed 's/^[ \t]*//')
+    
+    # Simple conventional commit inference based on the user's prompt or the diff
+    local _prefix="refactor"
+    local _linput
+    _linput=$(echo "$_input" | tr '[:upper:]' '[:lower:]')
+    
+    if [[ "$_linput" == *bug* || "$_linput" == *fix* || "$_linput" == *error* || "$_linput" == *issue* ]]; then
+      _prefix="fix"
+    elif [[ "$_linput" == *add* || "$_linput" == *feat* || "$_linput" == *new* || "$_linput" == *create* ]]; then
+      _prefix="feat"
+    elif [[ "$_linput" == *doc* || "$_linput" == *readme* ]]; then
+      _prefix="docs"
+    elif [[ "$_linput" == *test* ]]; then
+      _prefix="test"
+    fi
+
+    # Take first ~60 chars of user input as the commit summary
+    local _summary; _summary=$(echo "$_input" | head -n 1 | cut -c1-60 | tr -d '\n' | sed 's/^[ \t]*//;s/[ \t]*$//')
+    [ -z "$_summary" ] && _summary="auto-commit by agent"
+    
+    local _cmsg="$_prefix: $_summary"
+    if git -C "$WORKDIR" commit -m "$_cmsg" --quiet 2>/dev/null; then
+      echo -e "  \033[0;90m↳ commit: $_cmsg ($_diff_stat)\033[0m" >/dev/tty 2>/dev/null || true
+    fi
+  fi
+  _TURN_STAGED_FILES=""
+}
+
 # ─── Agent Loop (one user turn → multi-turn tool use → final answer) ────────
 run_agent() {
   local input="$1"
