@@ -197,6 +197,13 @@ handle_cmd() {
         unset _GOOGLE_VERTEX_MODEL_PREFIX 2>/dev/null || true
         echo "  Provider → default (koompi proxy)"
       elif _load_provider "$_pname"; then
+        # Restore the previously used model for this specific provider if it exists
+        local _pm=""
+        if [ -f "$_MIX_DEFAULTS_FILE" ]; then
+          _pm=$(grep "^MODEL_${PROVIDER}=" "$_MIX_DEFAULTS_FILE" | cut -d= -f2- || true)
+        fi
+        [ -n "$_pm" ] && MODEL="$_pm"
+
         case "$_paction" in
           "")
             # Activate
