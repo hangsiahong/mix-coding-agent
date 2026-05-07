@@ -39,6 +39,7 @@ _commit_turn() {
 run_agent() {
   local input="$1"
   local _t_start; _t_start=$(_mix_date_nano)
+  _TURN_STAGED_FILES=""
   compact_history  # auto-compact before adding new turn
   append_text "user" "$input"
   _TOOLS_USED=0
