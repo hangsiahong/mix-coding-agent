@@ -215,7 +215,14 @@ handle_cmd() {
         if [ -f "$_MIX_DEFAULTS_FILE" ]; then
           _pm=$(grep "^MODEL_${PROVIDER}=" "$_MIX_DEFAULTS_FILE" | cut -d= -f2- || true)
         fi
-        [ -n "$_pm" ] && MODEL="$_pm"
+        
+        if [ -n "$_pm" ]; then
+          MODEL="$_pm"
+        else
+          # First time switching to this provider — unset MODEL so the provider can set its default
+          # unless user explicitly forced it via env var
+          [ -z "${AGENT_MODEL:-}" ] && unset MODEL
+        fi
 
         case "$_paction" in
           "")
