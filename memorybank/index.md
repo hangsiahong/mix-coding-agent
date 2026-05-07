@@ -49,7 +49,8 @@ Update this file after every ingest or new page created.
 | file | summary |
 |---|---|
 | codebase-audit-2025.md | Original audit (preserved). 4/4 critical fixed, 5/7 bugs fixed. See security.md for current posture |
-| google-provider.md | Implementation of Google AI Studio and Vertex AI providers, OpenAI-compat headers, and region handling |- [Fix unescaped backticks in system prompt](solutions/fix-unescaped-backticks-in-system-prompt.md)
+| google-provider.md | Implementation of Google AI Studio and Vertex AI providers, OpenAI-compat headers, and region handling |- [set -u session hardening](solutions/set-u-session-hardening.md) | Fix immediate exit after provider activation — EXIT trap referenced unbound vars during early exec tmux handoff
+- [Fix unescaped backticks in system prompt](solutions/fix-unescaped-backticks-in-system-prompt.md)
 - [Fix shadowed compact command in REPL](solutions/fix-shadowed-compact-command-in-repl.md)
 - [Add multi-agent message bus convention](solutions/add-multi-agent-message-bus-convention.md)
 - [Fix google model prefix bleeding into default provider](solutions/fix-google-model-prefix-bleeding-into-default-provider.md)
