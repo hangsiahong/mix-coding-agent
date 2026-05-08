@@ -3,400 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mix — Autonomous Terminal AI Coding Agent</title>
-    <meta name="description" content="High-performance, zero-dependency AI pair programmer for terminal power users.">
-    
-    <!-- Fonts: Outfit (Heading) + Inter (Body) -->
+    <title>Mix — Autonomous Terminal AI Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        heading: ['Outfit', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
-                    },
-                    colors: {
-                        bg: '#09090b',
-                        surface: '#121216',
-                        accent: '#22d3ee',
-                        muted: '#71717a',
-                        border: '#27272a',
-                    },
-                }
-            }
-        }
-    </script>
-
-    <style type="text/css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <style>
         :root {
-            --accent-glow: rgba(34, 211, 238, 0.15);
+            --bg: #0c0a09;
+            --fg: #fafaf9;
+            --accent: #c2410c;
+            --border: #292524;
+            --muted: #78716c;
         }
 
         body {
-            background-color: #09090b;
-            color: #fafafa;
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .glass {
-            background: rgba(18, 18, 22, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(39, 39, 42, 0.5);
+        h1, h2, h3, .font-mono {
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        .hero-gradient {
-            background: radial-gradient(circle at 50% -20%, var(--accent-glow), transparent 70%);
+        .brutalist-border {
+            border: 1px solid var(--border);
         }
 
-        @keyframes fade-up {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+        .brutalist-card {
+            border: 1px solid var(--border);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .animate-fade-up {
-            animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        .brutalist-card:hover {
+            border-color: var(--accent);
+            transform: translate(-2px, -2px);
+            box-shadow: 4px 4px 0px var(--accent);
         }
 
-        .delay-100 { animation-delay: 100ms; }
-        .delay-200 { animation-delay: 200ms; }
-        .delay-300 { animation-delay: 300ms; }
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.1s;
+        }
 
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #09090b; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        .btn-primary:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 4px 4px 0px white;
+        }
 
-        .token-stream {
+        .terminal-glow {
+            box-shadow: 0 0 50px -12px var(--accent);
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .cursor {
             display: inline-block;
-            border-right: 2px solid #22d3ee;
-            animation: blink 1s step-end infinite;
+            width: 10px;
+            height: 1.2em;
+            background: var(--accent);
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: middle;
         }
-        @keyframes blink { 50% { border-color: transparent; } }
 
-        .feature-card:hover {
-            border-color: #22d3ee;
-            transform: translateY(-2px);
-            transition: all 0.3s ease;
-        }
+        .type-scale-hero { font-size: clamp(3rem, 8vw, 6rem); line-height: 1; }
+        .type-scale-h2 { font-size: clamp(1.5rem, 4vw, 3rem); line-height: 1.1; }
     </style>
 </head>
-<body class="font-sans antialiased hero-gradient">
+<body class="selection:bg-orange-900 selection:text-white">
 
-    <!-- Header/Nav -->
-    <nav class="fixed top-0 w-full z-50 border-b border-white/5 glass px-6 py-4">
-        <div class="max-w-7xl mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-2 group cursor-pointer">
-                <div class="w-8 h-8 bg-accent rounded-lg flex items-center justify-center font-heading font-bold text-bg group-hover:rotate-12 transition-transform">M</div>
-                <span class="font-heading font-bold text-xl tracking-tight">mix</span>
+    <!-- Nav -->
+    <nav class="sticky top-0 z-50 border-b border-[#292524] bg-[#0c0a09]/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-[#c2410c] flex items-center justify-center font-bold text-white font-mono text-xl">M</div>
+                <span class="font-mono font-bold text-xl tracking-tighter">MIX</span>
             </div>
-            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-muted">
-                <a href="#features" class="hover:text-accent transition-colors">Features</a>
-                <a href="#comparison" class="hover:text-accent transition-colors">Comparison</a>
-                <a href="#install" class="hover:text-accent transition-colors">Install</a>
-                <a href="https://github.com/hangsiahong/mix-coding-agent" class="text-white hover:text-accent transition-colors flex items-center gap-2">
-                    <img src="https://svgl.app/library/github_dark.svg" class="w-4 h-4" alt="GitHub">
-                    Source
-                </a>
+            <div class="hidden md:flex gap-8 text-sm font-medium uppercase tracking-widest text-[#78716c]">
+                <a href="#features" class="hover:text-[#fafaf9] transition-colors">Features</a>
+                <a href="#stack" class="hover:text-[#fafaf9] transition-colors">Stack</a>
+                <a href="https://github.com/koompi/mix" class="hover:text-[#fafaf9] transition-colors">GitHub</a>
             </div>
+            <a href="https://github.com/koompi/mix" class="btn-primary text-xs">Deploy Now</a>
         </div>
     </nav>
 
-    <main class="pt-32 pb-20 px-6">
-        <!-- Hero Section -->
-        <section class="max-w-7xl mx-auto text-center md:text-left grid md:grid-cols-2 gap-12 items-center">
-            <div class="animate-fade-up">
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold mb-6 uppercase tracking-wider">
-                    <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-                    v2.5.0 now live
-                </div>
-                <h1 class="font-heading text-6xl md:text-8xl font-bold leading-[0.9] tracking-tighter mb-8">
-                    Autonomous <br>
-                    <span class="text-accent">Terminal AI</span> <br>
-                    Coding Agent
-                </h1>
-                <p class="text-lg md:text-xl text-muted max-w-xl mb-10 leading-relaxed">
-                    A high-performance, zero-dependency pair programmer for power users. Written in Bash. Built for the CLI. No Node, no pip, no bloat.
-                </p>
-                
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <a href="#install" class="px-8 py-4 bg-white text-bg font-bold rounded-full hover:bg-accent transition-all text-center">Get Started</a>
-                    <div class="flex items-center gap-4 px-6 py-4 glass rounded-full text-sm font-mono group cursor-pointer overflow-hidden relative" onclick="copyInstall()">
-                        <span class="text-muted group-hover:text-accent transition-colors">$</span>
-                        <code id="cmd-text" class="truncate">curl -fsSL mix.sh | bash</code>
-                        <div id="copy-hint" class="absolute inset-0 bg-accent text-bg font-bold flex items-center justify-center opacity-0 translate-y-full transition-all text-center">Copied!</div>
+    <!-- Hero -->
+    <header class="relative pt-20 pb-32 overflow-hidden border-b border-[#292524]">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid lg:grid-cols-2 gap-16 items-center">
+                <div>
+                    <div class="inline-block px-3 py-1 border border-[#c2410c] text-[#c2410c] text-xs font-mono mb-6 uppercase tracking-widest">
+                        v0.4.2 — Beta Active
                     </div>
-                </div>
-            </div>
-
-            <div class="relative animate-fade-up delay-100">
-                <div class="glass rounded-2xl p-1 overflow-hidden shadow-2xl">
-                    <div class="bg-black/50 p-4 border-b border-border flex items-center gap-1.5">
-                        <div class="w-3 h-3 rounded-full bg-red-500/50"></div>
-                        <div class="w-3 h-3 rounded-full bg-yellow-500/50"></div>
-                        <div class="w-3 h-3 rounded-full bg-green-500/50"></div>
-                        <span class="ml-4 text-[10px] uppercase tracking-widest text-muted font-mono">mix — bash — 132ms</span>
-                    </div>
-                    <div class="p-6 font-mono text-sm leading-relaxed min-h-[320px] bg-bg/80">
-                        <div class="flex gap-2">
-                            <span class="text-accent font-bold">$</span>
-                            <span>mix fix the broken oauth flow</span>
-                        </div>
-                        <div class="mt-4 space-y-2 text-muted/80">
-                            <div class="flex items-center gap-2">
-                                <span class="w-1 h-1 rounded-full bg-accent/40"></span>
-                                <span>Analyzing project structure...</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="w-1 h-1 rounded-full bg-accent/40"></span>
-                                <span>Scanning <span class="text-white">src/auth.ts</span> and <span class="text-white">memorybank/</span></span>
-                            </div>
-                            <div class="mt-4 text-white">
-                                <span class="text-accent">▸</span> Found missing state validation in <span class="text-cyan-400">auth_handler()</span>
-                            </div>
-                            <div class="text-white">
-                                <span class="text-accent">▸</span> Proposed fix: Add CSRF protection via state param
-                            </div>
-                            <div class="mt-4 text-xs bg-accent/5 p-3 border-l-2 border-accent rounded-r italic">
-                                [AUTO-VERIFY] Running tsc and eslint... Passed.
-                            </div>
-                            <div class="flex items-center gap-2 text-accent">
-                                <span class="animate-pulse">_</span>
-                                <span class="token-stream">Task completed. Changes committed to git.</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Decorative elements -->
-                <div class="absolute -top-10 -right-10 w-40 h-40 bg-accent/10 rounded-full blur-3xl -z-10"></div>
-                <div class="absolute -bottom-10 -left-10 w-60 h-60 bg-purple-500/5 rounded-full blur-3xl -z-10"></div>
-            </div>
-        </section>
-
-        <!-- Features Grid -->
-        <section id="features" class="max-w-7xl mx-auto mt-40">
-            <div class="mb-20">
-                <h2 class="font-heading text-4xl md:text-5xl font-bold mb-4">Built for scale.</h2>
-                <p class="text-muted max-w-lg">Advanced agentic capabilities packed into a single script that runs anywhere.</p>
-            </div>
-
-            <div class="grid md:grid-cols-3 gap-6">
-                <!-- Feature 1 -->
-                <div class="feature-card glass rounded-2xl p-8 group">
-                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <img src="https://svgl.app/library/bash.svg" class="w-6 h-6" alt="Bash">
-                    </div>
-                    <h3 class="font-heading text-xl font-bold mb-3">Zero Dependencies</h3>
-                    <p class="text-muted text-sm leading-relaxed">Runs on pure Bash and Python3. No npm install, no venv, no broken environments. Just one 200KB binary.</p>
-                </div>
-
-                <!-- Feature 2 -->
-                <div class="feature-card glass rounded-2xl p-8 group">
-                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-accent">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    </div>
-                    <h3 class="font-heading text-xl font-bold mb-3">Agentic Orchestration</h3>
-                    <p class="text-muted text-sm leading-relaxed">Spawn parallel subagents in tmux to hunt bugs, write tests, or refactor code while you stay in the flow.</p>
-                </div>
-
-                <!-- Feature 3 -->
-                <div class="feature-card glass rounded-2xl p-8 group">
-                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <img src="https://svgl.app/library/linux.svg" class="w-6 h-6" alt="Linux">
-                    </div>
-                    <h3 class="font-heading text-xl font-bold mb-3">Native Sandboxing</h3>
-                    <p class="text-muted text-sm leading-relaxed">Isolate tool execution using Linux namespaces (PID, Mount, Net). Safe, lightweight, and fast. No Docker required.</p>
-                </div>
-
-                <!-- Feature 4 -->
-                <div class="feature-card glass rounded-2xl p-8 group">
-                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-accent">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                    </div>
-                    <h3 class="font-heading text-xl font-bold mb-3">Self-Growing Memory</h3>
-                    <p class="text-muted text-sm leading-relaxed">Automatically extracts architectural lessons and bug fixes into a local wiki (memorybank) for continuous learning.</p>
-                </div>
-
-                <!-- Feature 5 -->
-                <div class="feature-card glass rounded-2xl p-8 group">
-                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <img src="https://svgl.app/library/copilot.svg" class="w-6 h-6" alt="Copilot">
-                    </div>
-                    <h3 class="font-heading text-xl font-bold mb-3">Multi-Provider</h3>
-                    <p class="text-muted text-sm leading-relaxed">Native support for GitHub Copilot, Google Gemini 2.0/3, and Claude 3.5 Sonnet. Swap models instantly.</p>
-                </div>
-
-                <!-- Feature 6 -->
-                <div class="feature-card glass rounded-2xl p-8 group">
-                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-accent">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04a12 12 0 00-1.723 5.304 12 12 0 005.074 10.387l.102.066.102-.066a12 12 0 005.074-10.387 12 12 0 00-1.723-5.304z"></path></svg>
-                    </div>
-                    <h3 class="font-heading text-xl font-bold mb-3">Auto-Verification</h3>
-                    <p class="text-muted text-sm leading-relaxed">Automatically runs linters, typecheckers, and tests after every edit. Fixes its own bugs before you see them.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Comparison Table -->
-        <section id="comparison" class="max-w-7xl mx-auto mt-40">
-            <div class="text-center mb-20">
-                <h2 class="font-heading text-4xl md:text-5xl font-bold mb-4">Built different.</h2>
-                <p class="text-muted">How Mix stacks up against the heavyweights.</p>
-            </div>
-
-            <div class="overflow-x-auto glass rounded-3xl border border-border">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b border-border">
-                            <th class="p-8 font-heading text-lg font-bold">Feature</th>
-                            <th class="p-8 font-heading text-lg font-bold text-accent">Mix</th>
-                            <th class="p-8 font-heading text-lg font-bold text-muted">Aider</th>
-                            <th class="p-8 font-heading text-lg font-bold text-muted">Cline / Roo</th>
-                        </tr>
-                    </thead>
-                    <tbody class="text-sm">
-                        <tr class="border-b border-border/50">
-                            <td class="p-8 font-medium">Runtime</td>
-                            <td class="p-8 text-accent font-semibold">Bash/Python (Native)</td>
-                            <td class="p-8 text-muted">Python</td>
-                            <td class="p-8 text-muted">Node/TypeScript</td>
-                        </tr>
-                        <tr class="border-b border-border/50">
-                            <td class="p-8 font-medium">Install Size</td>
-                            <td class="p-8 text-accent font-semibold">&lt; 1MB</td>
-                            <td class="p-8 text-muted">~50MB</td>
-                            <td class="p-8 text-muted">~200MB+</td>
-                        </tr>
-                        <tr class="border-b border-border/50">
-                            <td class="p-8 font-medium">Subagents</td>
-                            <td class="p-8 text-accent font-semibold">Yes (Tmux Native)</td>
-                            <td class="p-8 text-muted">No</td>
-                            <td class="p-8 text-muted">No</td>
-                        </tr>
-                        <tr class="border-b border-border/50">
-                            <td class="p-8 font-medium">Sandboxing</td>
-                            <td class="p-8 text-accent font-semibold">Native Namespaces</td>
-                            <td class="p-8 text-muted">Docker (Complex)</td>
-                            <td class="p-8 text-muted">None</td>
-                        </tr>
-                        <tr>
-                            <td class="p-8 font-medium">Self-Healing</td>
-                            <td class="p-8 text-accent font-semibold">Built-in Diagnostic</td>
-                            <td class="p-8 text-muted">Limited</td>
-                            <td class="p-8 text-muted">Manual</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Tech Stack -->
-        <section class="max-w-7xl mx-auto mt-40 text-center">
-            <h2 class="font-heading text-2xl font-bold mb-12 text-muted">Powered by local & global intelligence</h2>
-            <div class="flex flex-wrap justify-center gap-12 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-                <img src="https://svgl.app/library/copilot_dark.svg" class="h-10" alt="GitHub Copilot">
-                <img src="https://svgl.app/library/google.svg" class="h-10" alt="Google">
-                <img src="https://svgl.app/library/python.svg" class="h-10" alt="Python">
-                <img src="https://svgl.app/library/linux.svg" class="h-10" alt="Linux">
-                <img src="https://svgl.app/library/bash_dark.svg" class="h-10" alt="Bash">
-            </div>
-        </section>
-
-        <!-- CTA Section -->
-        <section id="install" class="max-w-7xl mx-auto mt-40">
-            <div class="glass rounded-[3rem] p-12 md:p-24 text-center overflow-hidden relative">
-                <div class="relative z-10">
-                    <h2 class="font-heading text-5xl md:text-7xl font-bold mb-8 tracking-tighter">Ready to ship?</h2>
-                    <p class="text-xl text-muted mb-12 max-w-2xl mx-auto italic">
-                        "Mix isn't just a tool, it's a force multiplier for the terminal."
+                    <h1 class="type-scale-hero font-bold mb-8">
+                        CODE <br>
+                        <span class="text-[#c2410c]">POETRY</span> <br>
+                        IN MOTION.
+                    </h1>
+                    <p class="text-xl text-[#78716c] max-w-lg mb-12 leading-relaxed">
+                        Mix is an autonomous terminal agent that doesn't just write code — it orchestrates systems. Zero slop. Maximum precision. 
                     </p>
-                    
-                    <div class="max-w-2xl mx-auto bg-black rounded-2xl p-6 border border-border group cursor-pointer" onclick="copyInstall()">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex gap-2">
-                                <div class="w-2 h-2 rounded-full bg-border"></div>
-                                <div class="w-2 h-2 rounded-full bg-border"></div>
-                                <div class="w-2 h-2 rounded-full bg-border"></div>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <button class="btn-primary">Get Started</button>
+                        <button class="px-8 py-3 border border-[#292524] font-mono uppercase text-xs hover:bg-[#1c1917] transition-colors">View Documentation</button>
+                    </div>
+                </div>
+
+                <!-- Terminal Mockup -->
+                <div class="relative group">
+                    <div class="absolute -inset-1 bg-gradient-to-r from-[#c2410c] to-orange-900 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                    <div class="relative bg-[#000] border border-[#292524] rounded shadow-2xl overflow-hidden">
+                        <div class="bg-[#1c1917] px-4 py-2 border-b border-[#292524] flex items-center justify-between">
+                            <div class="flex gap-1.5">
+                                <div class="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"></div>
+                                <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
+                                <div class="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50"></div>
                             </div>
-                            <span class="text-[10px] text-muted uppercase font-mono tracking-widest">Install Command</span>
+                            <div class="text-[10px] font-mono text-[#78716c]">mix — bash — 80x24</div>
+                            <div class="w-10"></div>
                         </div>
-                        <div class="flex items-center gap-4 text-left">
-                            <span class="text-accent font-mono">$</span>
-                            <code class="font-mono text-sm md:text-base break-all text-gray-300 group-hover:text-white transition-colors">
-                                curl -fsSL https://raw.githubusercontent.com/hangsiahong/mix-coding-agent/master/install.sh | bash
-                            </code>
+                        <div class="p-6 font-mono text-sm leading-relaxed min-h-[320px]">
+                            <div class="text-green-500 mb-2">jiren@mix:~/projects/funs $ <span class="text-white">mix "refactor the auth layer"</span></div>
+                            <div class="text-[#78716c] mb-1">[SCANNING] Analyzing src/auth.sh...</div>
+                            <div class="text-[#78716c] mb-1">[IDENTIFIED] 3 redundant calls found in middleware.</div>
+                            <div class="text-orange-500 mb-2">Executing fix...</div>
+                            <div class="text-blue-400 mb-1">PATCH src/auth.sh +12 -4</div>
+                            <div class="text-blue-400 mb-1">PATCH src/middleware.sh +2 -1</div>
+                            <div class="text-[#78716c] mb-4">[VERIFY] Syntax OK. Tests passing.</div>
+                            <div class="text-white">Done. Refactored auth layer. <span class="cursor"></span></div>
                         </div>
                     </div>
-                    
-                    <p class="mt-8 text-sm text-muted">
-                        Requires bash, curl, and python3. <br>
-                        Works on Linux, macOS, and WSL2.
-                    </p>
                 </div>
-                <!-- Background decoration -->
-                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-accent/5 blur-[120px] -z-0"></div>
             </div>
-        </section>
-    </main>
+        </div>
+    </header>
 
-    <footer class="border-t border-border mt-20 py-12 px-6">
-        <div class="max-w-7xl mx-auto flex flex-col md:row justify-between items-center gap-8 text-center md:text-left">
-            <div class="flex items-center gap-2">
-                <div class="w-6 h-6 bg-accent rounded flex items-center justify-center font-heading font-bold text-bg text-xs">M</div>
-                <span class="font-heading font-bold tracking-tight text-muted">mix</span>
+    <!-- Stats -->
+    <section class="border-b border-[#292524]">
+        <div class="max-w-7xl mx-auto divide-x divide-[#292524] grid grid-cols-2 md:grid-cols-4">
+            <div class="p-8 text-center">
+                <div class="text-3xl font-bold font-mono mb-1 text-[#c2410c]">50ms</div>
+                <div class="text-[10px] uppercase tracking-widest text-[#78716c]">Inference Latency</div>
             </div>
-            
-            <div class="text-xs text-muted/60 font-medium">
-                © 2024 Mix Coding Agent. Built with stubbornness and <a href="https://github.com/hangsiahong/youeye" class="text-muted hover:text-accent underline decoration-accent/20">youeye</a>.
+            <div class="p-8 text-center">
+                <div class="text-3xl font-bold font-mono mb-1">98%</div>
+                <div class="text-[10px] uppercase tracking-widest text-[#78716c]">Execution Success</div>
+            </div>
+            <div class="p-8 text-center">
+                <div class="text-3xl font-bold font-mono mb-1 text-[#c2410c]">12+</div>
+                <div class="text-[10px] uppercase tracking-widest text-[#78716c]">Supported Skills</div>
+            </div>
+            <div class="p-8 text-center">
+                <div class="text-3xl font-bold font-mono mb-1">0</div>
+                <div class="text-[10px] uppercase tracking-widest text-[#78716c]">Slop Tolerance</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="py-32 bg-[#0a0a0a]">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
+                <div class="max-w-2xl">
+                    <h2 class="type-scale-h2 font-bold mb-6">BUILT FOR <br> SYSTEMS THINKERS.</h2>
+                    <p class="text-[#78716c]">Most agents just suggest code. Mix owns the terminal. It detects the environment, heals its own failures, and maintains its own wiki.</p>
+                </div>
+                <div class="font-mono text-[10px] text-[#c2410c] border-b border-[#c2410c] pb-1 uppercase tracking-tighter">Deep Orchestration</div>
             </div>
 
-            <div class="flex gap-6">
-                <a href="https://github.com/hangsiahong/mix-coding-agent" class="text-muted hover:text-white transition-colors">
-                    <img src="https://svgl.app/library/github_dark.svg" class="w-5 h-5 opacity-50 hover:opacity-100 transition-opacity" alt="GitHub">
-                </a>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="brutalist-card p-8 bg-[#0c0a09]">
+                    <div class="w-12 h-12 border border-[#292524] flex items-center justify-center mb-6">
+                        <img src="https://svgl.app/library/git.svg" class="w-6 h-6 grayscale invert" alt="Git">
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 font-mono">Auto-Commit Workflow</h3>
+                    <p class="text-sm text-[#78716c] leading-relaxed">Every change is tracked. Mix understands branch context and commits with precise messages that actually make sense.</p>
+                </div>
+
+                <div class="brutalist-card p-8 bg-[#0c0a09]">
+                    <div class="w-12 h-12 border border-[#292524] flex items-center justify-center mb-6">
+                        <img src="https://svgl.app/library/jetbrains.svg" class="w-6 h-6 grayscale invert" alt="Dev">
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 font-mono">Self-Healing Runtime</h3>
+                    <p class="text-sm text-[#78716c] leading-relaxed">Bash failure? Mix analyzes the stderr, checks the environment, and fixes the root cause before you even see the error.</p>
+                </div>
+
+                <div class="brutalist-card p-8 bg-[#0c0a09]">
+                    <div class="w-12 h-12 border border-[#292524] flex items-center justify-center mb-6">
+                        <img src="https://svgl.app/library/openai.svg" class="w-6 h-6 grayscale invert" alt="AI">
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 font-mono">Skill-Based Scaling</h3>
+                    <p class="text-sm text-[#78716c] leading-relaxed">Load modular skills like 'youeye' for design or 'bug-hunter' for deep diagnostics. Tailor the agent to your project needs.</p>
+                </div>
             </div>
+        </div>
+    </section>
+
+    <!-- Stack -->
+    <section id="stack" class="py-32 border-t border-[#292524]">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <h2 class="font-mono text-sm uppercase tracking-[0.4em] text-[#78716c] mb-16">Powered by the Industry Standard</h2>
+            <div class="flex flex-wrap justify-center gap-12 opacity-40 hover:opacity-100 transition-opacity duration-700">
+                <img src="https://svgl.app/library/github_dark.svg" class="h-8" alt="GitHub">
+                <img src="https://svgl.app/library/copilot_dark.svg" class="h-8" alt="Copilot">
+                <img src="https://svgl.app/library/openai_dark.svg" class="h-8" alt="OpenAI">
+                <img src="https://svgl.app/library/claude-ai-wordmark-icon_dark.svg" class="h-8" alt="Claude">
+                <img src="https://svgl.app/library/tailwindcss-wordmark-dark.svg" class="h-8" alt="Tailwind">
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="py-40 bg-[#c2410c] text-white">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <h2 class="type-scale-h2 font-bold mb-8 uppercase">Ready to transcend the <br> IDE bubble?</h2>
+            <p class="text-xl mb-12 text-orange-100 max-w-2xl mx-auto">Mix is open source and ready for deployment. Stop copy-pasting code blocks and start shipping from the terminal.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <button class="bg-white text-[#c2410c] px-10 py-4 font-bold font-mono uppercase text-sm hover:translate-x-1 hover:-translate-y-1 transition-transform shadow-[4px_4px_0px_#000]">Install Mix</button>
+                <button class="border-2 border-white px-10 py-4 font-bold font-mono uppercase text-sm hover:bg-white hover:text-[#c2410c] transition-colors">Star on GitHub</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-[#292524] text-[10px] font-mono text-[#78716c] uppercase tracking-widest">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
+            <div>&copy; 2024 Mix Agent. All Rights Reserved.</div>
+            <div class="flex gap-12">
+                <a href="#" class="hover:text-[#fafaf9]">Privacy</a>
+                <a href="#" class="hover:text-[#fafaf9]">Terms</a>
+                <a href="#" class="hover:text-[#fafaf9]">Discord</a>
+            </div>
+            <div>Built by <span class="text-[#fafaf9]">Koompi AI</span></div>
         </div>
     </footer>
 
-    <script>
-        function copyInstall() {
-            const cmd = 'curl -fsSL https://raw.githubusercontent.com/hangsiahong/mix-coding-agent/master/install.sh | bash';
-            navigator.clipboard.writeText(cmd).then(() => {
-                const hint = document.getElementById('copy-hint');
-                hint.classList.remove('opacity-0', 'translate-y-full');
-                hint.classList.add('opacity-100', 'translate-y-0');
-                
-                setTimeout(() => {
-                    hint.classList.add('opacity-0', 'translate-y-full');
-                    hint.classList.remove('opacity-100', 'translate-y-0');
-                }, 2000);
-            });
-        }
-
-        // Simple scroll reveal
-        const observerOptions = {
-            threshold: 0.1
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('animate-fade-up');
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('section').forEach(section => {
-            section.classList.add('opacity-0');
-            observer.observe(section);
-        });
-    </script>
 </body>
 </html>
