@@ -334,6 +334,12 @@ for i, (path, content) in enumerate(files.items()):
       result=$(run_tool update_global_memory "$targs")
       FAIL_STREAK=0
       ;;
+    spawn_subagent)
+      local _san; _san=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("name","subagent"))' 2>/dev/null) || _san="subagent"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_TOOL spawning subagent: $_san\033[0m"
+      result=$(run_tool spawn_subagent "$targs")
+      FAIL_STREAK=0
+      ;;
     *)
       # Try extension tools before reporting unknown
       local _ext_result
