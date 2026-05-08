@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mix — Autonomous Terminal AI Coding Agent</title>
+    <meta name="description" content="High-performance, zero-dependency AI pair programmer for terminal power users.">
+    
+    <!-- Fonts: Outfit (Heading) + Inter (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        bg: '#09090b',
+                        surface: '#121216',
+                        accent: '#22d3ee',
+                        muted: '#71717a',
+                        border: '#27272a',
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style type="text/css">
+        :root {
+            --accent-glow: rgba(34, 211, 238, 0.15);
+        }
+
+        body {
+            background-color: #09090b;
+            color: #fafafa;
+        }
+
+        .glass {
+            background: rgba(18, 18, 22, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(39, 39, 42, 0.5);
+        }
+
+        .hero-gradient {
+            background: radial-gradient(circle at 50% -20%, var(--accent-glow), transparent 70%);
+        }
+
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-up {
+            animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+        .token-stream {
+            display: inline-block;
+            border-right: 2px solid #22d3ee;
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink { 50% { border-color: transparent; } }
+
+        .feature-card:hover {
+            border-color: #22d3ee;
+            transform: translateY(-2px);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased hero-gradient">
+
+    <!-- Header/Nav -->
+    <nav class="fixed top-0 w-full z-50 border-b border-white/5 glass px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2 group cursor-pointer">
+                <div class="w-8 h-8 bg-accent rounded-lg flex items-center justify-center font-heading font-bold text-bg group-hover:rotate-12 transition-transform">M</div>
+                <span class="font-heading font-bold text-xl tracking-tight">mix</span>
+            </div>
+            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-muted">
+                <a href="#features" class="hover:text-accent transition-colors">Features</a>
+                <a href="#comparison" class="hover:text-accent transition-colors">Comparison</a>
+                <a href="#install" class="hover:text-accent transition-colors">Install</a>
+                <a href="https://github.com/hangsiahong/mix-coding-agent" class="text-white hover:text-accent transition-colors flex items-center gap-2">
+                    <img src="https://svgl.app/library/github_dark.svg" class="w-4 h-4" alt="GitHub">
+                    Source
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="pt-32 pb-20 px-6">
+        <!-- Hero Section -->
+        <section class="max-w-7xl mx-auto text-center md:text-left grid md:grid-cols-2 gap-12 items-center">
+            <div class="animate-fade-up">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold mb-6 uppercase tracking-wider">
+                    <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+                    v2.5.0 now live
+                </div>
+                <h1 class="font-heading text-6xl md:text-8xl font-bold leading-[0.9] tracking-tighter mb-8">
+                    Autonomous <br>
+                    <span class="text-accent">Terminal AI</span> <br>
+                    Coding Agent
+                </h1>
+                <p class="text-lg md:text-xl text-muted max-w-xl mb-10 leading-relaxed">
+                    A high-performance, zero-dependency pair programmer for power users. Written in Bash. Built for the CLI. No Node, no pip, no bloat.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <a href="#install" class="px-8 py-4 bg-white text-bg font-bold rounded-full hover:bg-accent transition-all text-center">Get Started</a>
+                    <div class="flex items-center gap-4 px-6 py-4 glass rounded-full text-sm font-mono group cursor-pointer overflow-hidden relative" onclick="copyInstall()">
+                        <span class="text-muted group-hover:text-accent transition-colors">$</span>
+                        <code id="cmd-text" class="truncate">curl -fsSL mix.sh | bash</code>
+                        <div id="copy-hint" class="absolute inset-0 bg-accent text-bg font-bold flex items-center justify-center opacity-0 translate-y-full transition-all text-center">Copied!</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative animate-fade-up delay-100">
+                <div class="glass rounded-2xl p-1 overflow-hidden shadow-2xl">
+                    <div class="bg-black/50 p-4 border-b border-border flex items-center gap-1.5">
+                        <div class="w-3 h-3 rounded-full bg-red-500/50"></div>
+                        <div class="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-500/50"></div>
+                        <span class="ml-4 text-[10px] uppercase tracking-widest text-muted font-mono">mix — bash — 132ms</span>
+                    </div>
+                    <div class="p-6 font-mono text-sm leading-relaxed min-h-[320px] bg-bg/80">
+                        <div class="flex gap-2">
+                            <span class="text-accent font-bold">$</span>
+                            <span>mix fix the broken oauth flow</span>
+                        </div>
+                        <div class="mt-4 space-y-2 text-muted/80">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1 h-1 rounded-full bg-accent/40"></span>
+                                <span>Analyzing project structure...</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-1 h-1 rounded-full bg-accent/40"></span>
+                                <span>Scanning <span class="text-white">src/auth.ts</span> and <span class="text-white">memorybank/</span></span>
+                            </div>
+                            <div class="mt-4 text-white">
+                                <span class="text-accent">▸</span> Found missing state validation in <span class="text-cyan-400">auth_handler()</span>
+                            </div>
+                            <div class="text-white">
+                                <span class="text-accent">▸</span> Proposed fix: Add CSRF protection via state param
+                            </div>
+                            <div class="mt-4 text-xs bg-accent/5 p-3 border-l-2 border-accent rounded-r italic">
+                                [AUTO-VERIFY] Running tsc and eslint... Passed.
+                            </div>
+                            <div class="flex items-center gap-2 text-accent">
+                                <span class="animate-pulse">_</span>
+                                <span class="token-stream">Task completed. Changes committed to git.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Decorative elements -->
+                <div class="absolute -top-10 -right-10 w-40 h-40 bg-accent/10 rounded-full blur-3xl -z-10"></div>
+                <div class="absolute -bottom-10 -left-10 w-60 h-60 bg-purple-500/5 rounded-full blur-3xl -z-10"></div>
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section id="features" class="max-w-7xl mx-auto mt-40">
+            <div class="mb-20">
+                <h2 class="font-heading text-4xl md:text-5xl font-bold mb-4">Built for scale.</h2>
+                <p class="text-muted max-w-lg">Advanced agentic capabilities packed into a single script that runs anywhere.</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <!-- Feature 1 -->
+                <div class="feature-card glass rounded-2xl p-8 group">
+                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <img src="https://svgl.app/library/bash.svg" class="w-6 h-6" alt="Bash">
+                    </div>
+                    <h3 class="font-heading text-xl font-bold mb-3">Zero Dependencies</h3>
+                    <p class="text-muted text-sm leading-relaxed">Runs on pure Bash and Python3. No npm install, no venv, no broken environments. Just one 200KB binary.</p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="feature-card glass rounded-2xl p-8 group">
+                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-accent">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3 class="font-heading text-xl font-bold mb-3">Agentic Orchestration</h3>
+                    <p class="text-muted text-sm leading-relaxed">Spawn parallel subagents in tmux to hunt bugs, write tests, or refactor code while you stay in the flow.</p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="feature-card glass rounded-2xl p-8 group">
+                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <img src="https://svgl.app/library/linux.svg" class="w-6 h-6" alt="Linux">
+                    </div>
+                    <h3 class="font-heading text-xl font-bold mb-3">Native Sandboxing</h3>
+                    <p class="text-muted text-sm leading-relaxed">Isolate tool execution using Linux namespaces (PID, Mount, Net). Safe, lightweight, and fast. No Docker required.</p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="feature-card glass rounded-2xl p-8 group">
+                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-accent">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    </div>
+                    <h3 class="font-heading text-xl font-bold mb-3">Self-Growing Memory</h3>
+                    <p class="text-muted text-sm leading-relaxed">Automatically extracts architectural lessons and bug fixes into a local wiki (memorybank) for continuous learning.</p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="feature-card glass rounded-2xl p-8 group">
+                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <img src="https://svgl.app/library/copilot.svg" class="w-6 h-6" alt="Copilot">
+                    </div>
+                    <h3 class="font-heading text-xl font-bold mb-3">Multi-Provider</h3>
+                    <p class="text-muted text-sm leading-relaxed">Native support for GitHub Copilot, Google Gemini 2.0/3, and Claude 3.5 Sonnet. Swap models instantly.</p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="feature-card glass rounded-2xl p-8 group">
+                    <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-accent">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04a12 12 0 00-1.723 5.304 12 12 0 005.074 10.387l.102.066.102-.066a12 12 0 005.074-10.387 12 12 0 00-1.723-5.304z"></path></svg>
+                    </div>
+                    <h3 class="font-heading text-xl font-bold mb-3">Auto-Verification</h3>
+                    <p class="text-muted text-sm leading-relaxed">Automatically runs linters, typecheckers, and tests after every edit. Fixes its own bugs before you see them.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison Table -->
+        <section id="comparison" class="max-w-7xl mx-auto mt-40">
+            <div class="text-center mb-20">
+                <h2 class="font-heading text-4xl md:text-5xl font-bold mb-4">Built different.</h2>
+                <p class="text-muted">How Mix stacks up against the heavyweights.</p>
+            </div>
+
+            <div class="overflow-x-auto glass rounded-3xl border border-border">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-border">
+                            <th class="p-8 font-heading text-lg font-bold">Feature</th>
+                            <th class="p-8 font-heading text-lg font-bold text-accent">Mix</th>
+                            <th class="p-8 font-heading text-lg font-bold text-muted">Aider</th>
+                            <th class="p-8 font-heading text-lg font-bold text-muted">Cline / Roo</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm">
+                        <tr class="border-b border-border/50">
+                            <td class="p-8 font-medium">Runtime</td>
+                            <td class="p-8 text-accent font-semibold">Bash/Python (Native)</td>
+                            <td class="p-8 text-muted">Python</td>
+                            <td class="p-8 text-muted">Node/TypeScript</td>
+                        </tr>
+                        <tr class="border-b border-border/50">
+                            <td class="p-8 font-medium">Install Size</td>
+                            <td class="p-8 text-accent font-semibold">&lt; 1MB</td>
+                            <td class="p-8 text-muted">~50MB</td>
+                            <td class="p-8 text-muted">~200MB+</td>
+                        </tr>
+                        <tr class="border-b border-border/50">
+                            <td class="p-8 font-medium">Subagents</td>
+                            <td class="p-8 text-accent font-semibold">Yes (Tmux Native)</td>
+                            <td class="p-8 text-muted">No</td>
+                            <td class="p-8 text-muted">No</td>
+                        </tr>
+                        <tr class="border-b border-border/50">
+                            <td class="p-8 font-medium">Sandboxing</td>
+                            <td class="p-8 text-accent font-semibold">Native Namespaces</td>
+                            <td class="p-8 text-muted">Docker (Complex)</td>
+                            <td class="p-8 text-muted">None</td>
+                        </tr>
+                        <tr>
+                            <td class="p-8 font-medium">Self-Healing</td>
+                            <td class="p-8 text-accent font-semibold">Built-in Diagnostic</td>
+                            <td class="p-8 text-muted">Limited</td>
+                            <td class="p-8 text-muted">Manual</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Tech Stack -->
+        <section class="max-w-7xl mx-auto mt-40 text-center">
+            <h2 class="font-heading text-2xl font-bold mb-12 text-muted">Powered by local & global intelligence</h2>
+            <div class="flex flex-wrap justify-center gap-12 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+                <img src="https://svgl.app/library/copilot_dark.svg" class="h-10" alt="GitHub Copilot">
+                <img src="https://svgl.app/library/google.svg" class="h-10" alt="Google">
+                <img src="https://svgl.app/library/python.svg" class="h-10" alt="Python">
+                <img src="https://svgl.app/library/linux.svg" class="h-10" alt="Linux">
+                <img src="https://svgl.app/library/bash_dark.svg" class="h-10" alt="Bash">
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section id="install" class="max-w-7xl mx-auto mt-40">
+            <div class="glass rounded-[3rem] p-12 md:p-24 text-center overflow-hidden relative">
+                <div class="relative z-10">
+                    <h2 class="font-heading text-5xl md:text-7xl font-bold mb-8 tracking-tighter">Ready to ship?</h2>
+                    <p class="text-xl text-muted mb-12 max-w-2xl mx-auto italic">
+                        "Mix isn't just a tool, it's a force multiplier for the terminal."
+                    </p>
+                    
+                    <div class="max-w-2xl mx-auto bg-black rounded-2xl p-6 border border-border group cursor-pointer" onclick="copyInstall()">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex gap-2">
+                                <div class="w-2 h-2 rounded-full bg-border"></div>
+                                <div class="w-2 h-2 rounded-full bg-border"></div>
+                                <div class="w-2 h-2 rounded-full bg-border"></div>
+                            </div>
+                            <span class="text-[10px] text-muted uppercase font-mono tracking-widest">Install Command</span>
+                        </div>
+                        <div class="flex items-center gap-4 text-left">
+                            <span class="text-accent font-mono">$</span>
+                            <code class="font-mono text-sm md:text-base break-all text-gray-300 group-hover:text-white transition-colors">
+                                curl -fsSL https://raw.githubusercontent.com/hangsiahong/mix-coding-agent/master/install.sh | bash
+                            </code>
+                        </div>
+                    </div>
+                    
+                    <p class="mt-8 text-sm text-muted">
+                        Requires bash, curl, and python3. <br>
+                        Works on Linux, macOS, and WSL2.
+                    </p>
+                </div>
+                <!-- Background decoration -->
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-accent/5 blur-[120px] -z-0"></div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="border-t border-border mt-20 py-12 px-6">
+        <div class="max-w-7xl mx-auto flex flex-col md:row justify-between items-center gap-8 text-center md:text-left">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 bg-accent rounded flex items-center justify-center font-heading font-bold text-bg text-xs">M</div>
+                <span class="font-heading font-bold tracking-tight text-muted">mix</span>
+            </div>
+            
+            <div class="text-xs text-muted/60 font-medium">
+                © 2024 Mix Coding Agent. Built with stubbornness and <a href="https://github.com/hangsiahong/youeye" class="text-muted hover:text-accent underline decoration-accent/20">youeye</a>.
+            </div>
+
+            <div class="flex gap-6">
+                <a href="https://github.com/hangsiahong/mix-coding-agent" class="text-muted hover:text-white transition-colors">
+                    <img src="https://svgl.app/library/github_dark.svg" class="w-5 h-5 opacity-50 hover:opacity-100 transition-opacity" alt="GitHub">
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function copyInstall() {
+            const cmd = 'curl -fsSL https://raw.githubusercontent.com/hangsiahong/mix-coding-agent/master/install.sh | bash';
+            navigator.clipboard.writeText(cmd).then(() => {
+                const hint = document.getElementById('copy-hint');
+                hint.classList.remove('opacity-0', 'translate-y-full');
+                hint.classList.add('opacity-100', 'translate-y-0');
+                
+                setTimeout(() => {
+                    hint.classList.add('opacity-0', 'translate-y-full');
+                    hint.classList.remove('opacity-100', 'translate-y-0');
+                }, 2000);
+            });
+        }
+
+        // Simple scroll reveal
+        const observerOptions = {
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-fade-up');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('section').forEach(section => {
+            section.classList.add('opacity-0');
+            observer.observe(section);
+        });
+    </script>
+</body>
+</html>
