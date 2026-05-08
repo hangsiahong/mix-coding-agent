@@ -27,13 +27,24 @@ info(){ echo -e "${CYN}  → $1${RST}"; }
 # ── Dependency check ──────────────────────────────────────────────────────────
 check_deps() {
   local missing=()
-  command -v bash   >/dev/null 2>&1 || missing+=("bash")
-  command -v curl   >/dev/null 2>&1 || missing+=("curl")
+  command -v bash    >/dev/null 2>&1 || missing+=("bash")
+  command -v curl    >/dev/null 2>&1 || missing+=("curl")
   command -v python3 >/dev/null 2>&1 || missing+=("python3")
+  command -v git     >/dev/null 2>&1 || missing+=("git")
+  
   if [ ${#missing[@]} -gt 0 ]; then
-    die "missing dependencies: ${missing[*]}\nInstall them first, then re-run."
+    die "missing mandatory dependencies: ${missing[*]}\nInstall them first, then re-run."
   fi
-  ok "dependencies: bash curl python3"
+  ok "dependencies: bash curl python3 git"
+
+  # Optional but highly recommended
+  local optional=()
+  command -v tmux    >/dev/null 2>&1 || optional+=("tmux (for /subagent)")
+  command -v ctags   >/dev/null 2>&1 || optional+=("universal-ctags (for repo-maps)")
+  
+  if [ ${#optional[@]} -gt 0 ]; then
+    echo -e "${YLW}  ! Missing optional tools: ${optional[*]}${RST}"
+  fi
 }
 
 # ── Pick install dir ──────────────────────────────────────────────────────────

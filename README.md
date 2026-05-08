@@ -1,8 +1,10 @@
 # mix — Autonomous Terminal AI Coding Agent (LLM CLI)
 
-**A high-performance, zero-dependency AI pair programmer and autonomous coding assistant for the terminal.**
+**A high-performance AI pair programmer and autonomous coding assistant for the terminal.**
 
-> Single bash binary. No Node, no pip, no venv. Just `bash`, `curl`, and `python3`.
+> Single bash binary. Optimized for Linux/macOS. 
+> Mandatory: `bash`, `curl`, `python3`, `git`.
+> Optional: `tmux` (for parallel workers), `universal-ctags` (for repo maps).
 
 `mix` is an **autonomous terminal coding agent** designed for CLI power users. It transforms your terminal into an AI-driven development environment, compiling into a single self-contained executable. With a full tool suite (read, edit, create, execute bash commands, grep search) and live streaming output, `mix` operates as a true **AI developer assistant**. 
 
