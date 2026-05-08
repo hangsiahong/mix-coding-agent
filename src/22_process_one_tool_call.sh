@@ -184,6 +184,96 @@ $_rh"
       result=$(run_tool list_files "$targs")
       FAIL_STREAK=0
       ;;
+    send_message)
+      local t m; t=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["to"])' 2>/dev/null) || t="?"
+      m=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["message"])' 2>/dev/null) || m="?"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_MAIL sending message to $t\033[0m"
+      result=$(run_tool send_message "$targs")
+      ;;
+    read_messages)
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_MAIL checking inbox\033[0m"
+      result=$(run_tool read_messages "$targs")
+      ;;
+    find_definition)
+      local s; s=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["symbol"])' 2>/dev/null) || s="?"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_SEARCH finding definition: $s\033[0m"
+      result=$(run_tool find_definition "$targs")
+      ;;
+    check_job)
+      local jid; jid=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["job_id"])' 2>/dev/null) || jid="?"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_READ checking job $jid\033[0m"
+      result=$(run_tool check_job "$targs")
+      ;;
+    delete_file)
+      local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
+      if [ "$silent" = "true" ]; then
+        result="Error: delete_file cannot be run in parallel/silent mode."
+      else
+        echo -e "      \033[1;31m$I_WARN   Deleting: $p\033[0m"
+        if confirm "    Delete file? [y/N] " "n"; then
+          result=$(run_tool delete_file "$targs")
+          _TOOLS_USED=$((_TOOLS_USED + 1))
+        else
+          result="User declined deletion."
+        fi
+      fi
+      ;;
+    move_file)
+      local s d; s=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["source"])' 2>/dev/null) || s="?"
+      d=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["destination"])' 2>/dev/null) || d="?"
+      if [ "$silent" = "true" ]; then
+        result="Error: move_file cannot be run in parallel/silent mode."
+      else
+        echo -e "      \033[0;36mMoving: $s -> $d\033[0m"
+        if confirm "    Move file? [Y/n] "; then
+          result=$(run_tool move_file "$targs")
+          _TOOLS_USED=$((_TOOLS_USED + 1))
+        else
+          result="User declined move."
+        fi
+      fi
+      ;;
+    create_files)
+      if [ "$silent" = "true" ]; then
+        result="Error: create_files cannot be run in parallel/silent mode."
+      else
+        echo -e "      \033[0;90mCreating multiple files...\033[0m"
+        printf '%s' "$targs" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+files=d.get("files",{})
+GRN,RST="\033[0;32m","\033[0m"
+for i, (path, content) in enumerate(files.items()):
+    if i >= 5:
+        print(f"      ... and {len(files)-5} more files")
+        break
+    print(f"      {GRN}file: {path}{RST}")
+    lines = content.splitlines()
+    for l in lines[:3]: print(f"        + {l}")
+    if len(lines) > 3: print(f"        ... ({len(lines)-3} more lines)")
+' 2>/dev/null
+        local _do_create=false
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
+          _do_create=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-creating (batch mode)\033[0m"
+        else
+          local _prompt="    Create files? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _do_create=true ;;
+            n*|N*) _do_create=false; result="User declined create_files." ;;
+            *) _do_create=true ;;
+          esac
+        fi
+        if [ "$_do_create" = "true" ]; then
+          result=$(run_tool create_files "$targs")
+          _TOOLS_USED=$((_TOOLS_USED + 1))
+          FAIL_STREAK=0
+        fi
+      fi
+      ;;
     create_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
       [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_WRITE $p (new file)\033[0m"

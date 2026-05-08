@@ -220,6 +220,14 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
     - Support for cheap `PLAN_MODEL` offloading.
     - Telegraphic/Caveman history compaction summaries.
 - Documented in `memorybank/solutions/context_and_token_efficiency.md`.
+- Implemented Roadmap V2 Features:
+    - Multi-file creation tool (`create_files`).
+    - Move/Delete tools with cache synchronization.
+    - Background job support (`bash(background: true)` + `check_job`).
+    - Definition-aware search (`find_definition`).
+    - Diagnostic REPL command (`/doctor`).
+    - Structured agent message bus (`send_message`/`read_messages`).
+- Documented in `memorybank/solutions/roadmap_v2_features.md`.
 - Reduced tool output truncation limit: 32KB → 16KB in `src/22_process_one_tool_call.sh`.
 - Prevents "context poisoning" from large bash/file-read results.
 - Documented in `memorybank/solutions/efficiency_optimization.md`.

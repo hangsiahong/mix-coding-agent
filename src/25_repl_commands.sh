@@ -526,6 +526,46 @@ handle_cmd() {
           || echo "  Failed to spawn subagent."
       fi
       ;;
+    /doctor*)
+      echo -e "\n  \033[1;36m$I_SEARCH Diagnosing environment...\033[0m"
+      local _diag_file; _diag_file=$(mktemp -t mix-diag-XXXXXX)
+      {
+        echo "## SYSTEM INFO"
+        uname -a; date; uptime
+        echo -e "\n## DISK USAGE"
+        df -h .
+        echo -e "\n## MEMORY"
+        free -m 2>/dev/null || vmstat
+        echo -e "\n## RECENT FAILURES"
+        echo "Last tool result: ${_LAST_TOOL_RESULT:-none}"
+        echo -e "\n## ENVIRONMENT VARIABLES (selected)"
+        env | grep -E "PATH|EDITOR|LANG|SHELL|TERM|USER|WORKDIR|SANDBOX|PROVIDER|MODEL" | head -20
+        echo -e "\n## GIT STATUS"
+        git status -s 2>/dev/null || echo "not a git repo"
+      } > "$_diag_file"
+      
+      local _diag_content; _diag_content=$(cat "$_diag_file")
+      rm -f "$_diag_file"
+      
+      echo -e "  \033[0;90mAnalyzing snapshot with specialist model...\033[0m"
+      
+      # Use specialized prompt for diagnostic
+      local _diag_payload
+      _diag_payload=$(printf '%s\n' "$_diag_content" | python3 -c '
+import json,sys
+diag = sys.stdin.read()
+prompt = f"You are a Senior SRE/DevOps specialist. Analyze this environment snapshot and identify potential root causes for recent failures or environmental issues. Be extremely concise.\n\nSNAPSHOT:\n{diag}"
+print(json.dumps([{"role":"user","content":prompt}]))
+')
+      
+      local _old_hist="$HISTORY"
+      HISTORY="$_diag_payload"
+      local _fix; _fix=$(call_api)
+      HISTORY="$_old_hist"
+      
+      echo -e "\n\033[38;5;82m$I_OK DIAGNOSIS:\033[0m"
+      echo -e "$_fix\n"
+      ;;
     /afk\ setup)
       telegram_setup
       ;;

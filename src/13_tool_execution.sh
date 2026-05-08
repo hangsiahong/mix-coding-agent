@@ -39,41 +39,124 @@ run_tool() {
 
   case "$name" in
     bash)
-      local cmd
+      local cmd bg
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        if _sandbox_needs_host_network "$cmd"; then
-          # Run on host with network — cd to $WORKDIR so relative paths work
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
-          result="[host] $result"
+      bg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("background",False))' 2>/dev/null)
+      
+      if [ "$bg" = "True" ]; then
+        local jid; jid="job-$RANDOM"
+        local log="/tmp/mix-$jid.log"
+        if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+           # For simplicity, background jobs in sandbox use nohup
+           (sandbox_run_cmd "$cmd" >"$log" 2>&1) &
         else
-          result=$(sandbox_run_cmd "$cmd" </dev/null)
+           (bash -c "$cmd" >"$log" 2>&1) &
         fi
+        result="Background job started. ID: $jid. Check output with check_job."
       else
-        result=$(bash -c "$cmd" </dev/null 2>&1)
-      fi
-      local _ec=$?
-      if [ ${#result} -gt 16000 ]; then
-        result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
-      fi
-      [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
+        if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+          if _sandbox_needs_host_network "$cmd"; then
+            result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
+            result="[host] $result"
+          else
+            result=$(sandbox_run_cmd "$cmd" </dev/null)
+          fi
+        else
+          result=$(bash -c "$cmd" </dev/null 2>&1)
+        fi
+        local _ec=$?
+        if [ ${#result} -gt 16000 ]; then
+          result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
+        fi
+        [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
+      fi
+      ;;
+    send_message)
+      local to msg
+      to=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["to"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      msg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["message"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      mkdir -p "$bus_dir"
+      # Append message to target mailbox
+      local box="$bus_dir/${to}.jsonl"
+      printf '{"from": "%s", "time": %s, "msg": %s}\n' \
+        "${AGENT_NAME:-main}" "$(date +%s)" "$(printf '%s' "$msg" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+        >> "$box"
+      result="Message sent to $to."
+      ;;
+    read_messages)
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      local my_name="${AGENT_NAME:-main}"
+      local box="$bus_dir/${my_name}.jsonl"
+      if [ -f "$box" ]; then
+        result=$(cat "$box")
+        # Clear box after reading? Or keep? Let's rename to archive to clear.
+        mv "$box" "${box}.old"
+      else
+        result="No new messages for $my_name."
+      fi
+      ;;
+    find_definition)
+      local sym; sym=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["symbol"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      _detect_ctags
+      if [ -z "$_CTAGS_EXE" ]; then
+        # Fallback to grep for common definition patterns
+        result=$(grep -rnE "(def |class |fn |function |struct |interface )$sym" . --exclude-dir=.git --exclude-dir=node_modules | head -10)
+        [ -z "$result" ] && result="Symbol '$sym' not found (ctags missing, grep failed)."
+      else
+        # Use ctags
+        result=$("$_CTAGS_EXE" --output-format=json --fields=+nS -R . 2>/dev/null | python3 -c '
+import json,sys
+sym = sys.argv[1]
+matches = []
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        if d.get("name") == sym:
+            matches.append(f"{d.get(\"path\")}:{d.get(\"line\")}")
+    except: continue
+if matches: print("\n".join(matches[:10]))
+' "$sym")
+        [ -z "$result" ] && result="Symbol '$sym' not found via ctags."
+      fi
+      ;;
+    check_job)
+      local jid; jid=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["job_id"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      local log="/tmp/mix-$jid.log"
+      if [ ! -f "$log" ]; then
+        result="Error: job log not found: $log"
+      else
+        # Check if process still running — hard to do accurately without PID, but we can check log age or look for marker
+        # We will just return the tail of the log
+        result=$(tail -n 100 "$log")
+        [ -z "$result" ] && result="(job started but no output yet)"
+      fi
       ;;
     bash_with_heal)
-      local cmd
+      local cmd bg
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        if _sandbox_needs_host_network "$cmd"; then
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
-          result="[host] $result"
-        else
-          result=$(sandbox_run_cmd "$cmd" </dev/null)
-        fi
+      bg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("background",False))' 2>/dev/null)
+      
+      if [ "$bg" = "True" ]; then
+        local jid; jid="job-$RANDOM"
+        local log="/tmp/mix-$jid.log"
+        (bash -c "$cmd" >"$log" 2>&1) &
+        result="Background job started. ID: $jid. Check output with check_job."
       else
-        result=$(bash -c "$cmd" </dev/null 2>&1)
-      fi
-      if [ ${#result} -gt 16000 ]; then
-        result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
+        if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+          if _sandbox_needs_host_network "$cmd"; then
+            result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
+            result="[host] $result"
+          else
+            result=$(sandbox_run_cmd "$cmd" </dev/null)
+          fi
+        else
+          result=$(bash -c "$cmd" </dev/null 2>&1)
+        fi
+        if [ ${#result} -gt 16000 ]; then
+          result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
+        fi
       fi
       ;;
     read_file)
@@ -249,6 +332,92 @@ else:
       fi
       [ ! -d "$path" ] && { echo "Error: not a dir: $path"; return; }
       result=$(ls -F --color=never "$path" 2>&1) || true
+      ;;
+    delete_file)
+      local path
+      path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ] && ! _sandbox_path_allowed "$path"; then
+        echo "Error: sandbox mode — delete_file restricted to project dir. Path: $path"; return
+      fi
+      if [ -f "$path" ]; then
+        rm "$path" && result="Deleted $path" || result="Error: failed to delete $path"
+        if [[ "$result" == Deleted* ]]; then
+          file_cache_del "$path"
+          _sysprompt_invalidate
+        fi
+      else
+        result="Error: file not found: $path"
+      fi
+      ;;
+    move_file)
+      local src dst
+      src=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["source"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      dst=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["destination"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+        if ! _sandbox_path_allowed "$src" || ! _sandbox_path_allowed "$dst"; then
+          echo "Error: sandbox mode — move_file restricted to project dir."; return
+        fi
+      fi
+      if [ -f "$src" ]; then
+        mkdir -p "$(dirname "$dst")"
+        mv "$src" "$dst" && result="Moved $src to $dst" || result="Error: failed to move $src"
+        if [[ "$result" == Moved* ]]; then
+          # Update cache: remove old, put new (if we have content)
+          # We check if old path was in cache by grep
+          if printf '%s' "$_FILE_CACHE" | grep -qF "\"$src\""; then
+             # Extract content from old cache entry
+             local _content; _content=$(printf '%s' "$_FILE_CACHE" | python3 -c "import json,sys;print(json.load(sys.stdin).get('$src',{}).get('content',''))" 2>/dev/null)
+             file_cache_del "$src"
+             [ -n "$_content" ] && file_cache_put "$dst" "$_content"
+          fi
+          _sysprompt_invalidate
+        fi
+      else
+        result="Error: source file not found: $src"
+      fi
+      ;;
+    create_files)
+      # args is {"files": {"path": "content", ...}}
+      result=$(python3 -c '
+import json, sys, os
+try:
+    args = json.load(sys.stdin)
+    files = args.get("files", {})
+    created = []
+    errors = []
+    for path, content in files.items():
+        if os.path.exists(path):
+            errors.append(f"Error: already exists: {path}")
+            continue
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                f.write(content)
+            created.append(path)
+        except Exception as e:
+            errors.append(f"Error: {path}: {str(e)}")
+    
+    if created:
+        print("Created files: " + ", ".join(created))
+    if errors:
+        print("\n".join(errors))
+except Exception as e:
+    print(f"Error parsing create_files args: {str(e)}")
+' <<< "$args" 2>/dev/null)
+      
+      # Update cache for all successfully created files
+      # We extract paths from the result string "Created files: path1, path2..."
+      if [[ "$result" == Created\ files:* ]]; then
+        local _paths_str="${result%%Error:*}"
+        _paths_str="${_paths_str#Created files: }"
+        IFS=', ' read -r -a _paths_arr <<< "$_paths_str"
+        for _p in "${_paths_arr[@]}"; do
+           # We need to get the content back from the args JSON to put in cache
+           local _c; _c=$(printf '%s' "$args" | python3 -c "import json,sys;print(json.load(sys.stdin)['files'].get('$(_mix_realpath "$_p")',''))" 2>/dev/null)
+           [ -n "$_c" ] && file_cache_put "$_p" "$_c" 2>/dev/null
+        done
+        _sysprompt_invalidate
+      fi
       ;;
     create_file)
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
