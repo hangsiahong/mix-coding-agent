@@ -27,7 +27,7 @@ Vertex AI requires specific region endpoints. kconsole routing logic must handle
 `https://[REGION]-aiplatform.googleapis.com/v1/projects/[PROJECT_ID]/locations/[REGION]/publishers/google/models/[MODEL_ID]:streamGenerateContent`
 
 **Common Regions:** `us-central1`, `europe-west4`, `asia-southeast1`.
-**Common Models:** `gemini-1.5-pro-preview-0409`, `gemini-1.5-flash-preview-0514`.
+**Common Models:** `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`, `gemini-3.1-pro-preview`, and image models like `imagen-3.0-generate-001` (or latest preview).
 
 ## Step 4: Token Generation (Gateway side)
 kconsole must dynamically generate OAuth tokens using the Service Account JSON.
@@ -40,7 +40,7 @@ kconsole must adapt standard OpenAI-style payloads to Vertex Gemini format.
 **kconsole Input (OpenAI style):**
 ```json
 {
-  "model": "gemini-1.5-pro",
+  "model": "gemini-3.1-pro-preview",
   "messages": [{"role": "user", "content": "Hello"}]
 }
 ```
@@ -68,7 +68,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <kconsole_api_key>" \
   -d '{
-    "model": "vertex/gemini-1.5-pro",
+    "model": "vertex/gemini-3.1-pro-preview",
     "messages": [{"role": "user", "content": "Test vertex integration"}]
   }'
 ```
