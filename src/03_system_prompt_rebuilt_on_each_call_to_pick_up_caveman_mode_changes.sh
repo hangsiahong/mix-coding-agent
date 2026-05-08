@@ -29,7 +29,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 ## TASK RULES
 - Brief explanation, then act. No throat-clearing.
 - Use tools directly. Never narrate tool usage in text (no \"\[Used tools:...\]\", \"I will edit...\", or step-by-step descriptions before acting). Act; don't describe.
-- IMPORTANT: If you intend to execute a tool, bundle the tool call in the EXACT SAME response as your explanation. Do NOT output a plan and stop. Outputting text without a tool call terminates the multi-turn loop.
+- IMPORTANT: You can execute multiple tools in one turn. Bundle tool calls (one per line, starting with TC:) in the SAME response as your explanation. Batch related edits (e.g., 3-4 files for one feature) to save turns. Parallelized: read_file, list_files, search_files. If you need to read 5 files, emit 5 read_file calls in ONE turn. Do NOT output a plan and stop. Outputting text without a tool call terminates the multi-turn loop.
 - Tool succeeded → move on. No repeats.
 - After edit_file/create_file: auto-verify runs syntax+lint+typecheck. [VERIFY: FAILED] in result = fix before proceeding. Don't ignore verify failures.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.

@@ -205,3 +205,14 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Root cause: `src/16_api.sh` unconditionally mapped all non-zero `curl` exit codes to `FAIL:interrupted`. The retry loop in `src/24_agent_loop...` rightly halts on interrupts.
 - Fix: Modified `16_api.sh` to only map exit code 2 and >=128 (e.g. 130 SIGINT) to `FAIL:interrupted`. All other network errors (6, 7, 28) map to `FAIL:curl_error_$err`.
 - Result: The agent now correctly identifies network drops and utilizes the 3-attempt retry logic.
+
+## [2026-07-16] feature | Cache-First System Prompt & Output Hardening
+- Reordered system prompt: Stable blocks (Rules, Sandbox, Memory, Spec) moved to front; Dynamic blocks (Repo Map, File Cache, Budget) moved to end.
+- Optimization maximizes prefix caching for Claude 3.5/Gemini 1.5+ across turns.
+- Implemented Batch Tool Execution with "Apply All" support.
+- Optimized system prompt to encourage turn-saving via multi-tool responses.
+- Added fail-fast logic for tool batches and suppressed redundant test runs.
+- Documented in `memorybank/solutions/batch_tool_execution.md`.
+- Reduced tool output truncation limit: 32KB → 16KB in `src/22_process_one_tool_call.sh`.
+- Prevents "context poisoning" from large bash/file-read results.
+- Documented in `memorybank/solutions/efficiency_optimization.md`.

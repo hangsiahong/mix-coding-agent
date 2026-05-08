@@ -1,15 +1,21 @@
 # ─── Process one tool call ──────────────────────────────────────────────────
-# args: tc_line [silent_mode: "true"|"false"]
+# args: tc_line [silent_mode: "true"|"false"] [current_idx] [total_count]
 process_tc() {
   local tc_line="$1"
   local silent="${2:-false}"
+  local cur_idx="${3:-1}"
+  local total_count="${4:-1}"
   local rest="${tc_line#TC:}"
   local tid="${rest%%|||*}"
   rest="${rest#*|||}"
   local tname="${rest%%|||*}"
   local targs="${rest#*|||}"
 
-  [ "$silent" != "true" ] && echo -e "    \033[38;5;99m$I_TOOL\033[0m \033[1;36m$tname\033[0m"
+  if [ "$silent" != "true" ]; then
+    local _batch_prefix=""
+    [ "$total_count" -gt 1 ] && _batch_prefix="\033[0;90m[$cur_idx/$total_count]\033[0m "
+    echo -e "    ${_batch_prefix}\033[38;5;99m$I_TOOL\033[0m \033[1;36m$tname\033[0m"
+  fi
 
   local result=""
   case "$tname" in
@@ -61,14 +67,21 @@ process_tc() {
            else result="User declined (HIGH risk)."; fi
         fi
       elif [ "$_risk" = "MED" ]; then
-        if [ "$AUTO_YES" = "true" ]; then
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
           _run=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-running (batch mode)\033[0m"
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
-        elif confirm "    Run? [Y/n] "; then
-          _run=true
         else
-          result="User declined.";
+          local _prompt="    Run? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _run=true ;;
+            n*|N*) _run=false; result="User declined." ;;
+            *) _run=true ;;
+          esac
         fi
       else
         _run=true  # LOW: auto-run
@@ -117,7 +130,23 @@ $_rh"
         fi
         # Always show Python-computed diff first (works on new/untracked files too)
         show_edit_diff "$targs"
-        if confirm "    Apply edit? [Y/n] "; then
+        local _do_edit=false
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
+          _do_edit=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-applying (batch mode)\033[0m"
+        else
+          local _prompt="    Apply edit? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _do_edit=true ;;
+            n*|N*) _do_edit=false; result="User declined edit." ;;
+            *) _do_edit=true ;;
+          esac
+        fi
+
+        if [ "$_do_edit" = "true" ]; then
           result=$(run_tool edit_file "$targs")
           FAIL_STREAK=0
           _TOOLS_USED=$((_TOOLS_USED + 1))
@@ -130,8 +159,8 @@ $_rh"
               [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
               _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
             fi
-            # Offer test run if test command configured
-            if [ -n "$TEST_CMD" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
+            # Offer test run if test command configured AND it is the last tool in batch
+            if [ -n "$TEST_CMD" ] && [ "$cur_idx" -eq "$total_count" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
               echo -e "    \033[0;90m↳ $TEST_CMD...\033[0m"
               local _tres; _tres=$(eval "$TEST_CMD" 2>&1 | tail -30) || true
               printf '%s\n' "$_tres" | head -8 | while IFS= read -r _tl; do
@@ -146,7 +175,6 @@ $_rh"
             git -C "$WORKDIR" checkout -- "$p" 2>/dev/null || true
             echo -e "    \033[0;90m↳ rolled back (checkout --)\033[0m"
           fi
-          result="User declined edit."
         fi
       fi
       ;;
@@ -171,7 +199,23 @@ $_rh"
   for l in lines[:15]: sys.stdout.write("    "+GRN+"+ "+l+RST+"\n")
   if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" % (len(lines)-15))
   ' 2>/dev/null
-        if confirm "    Create file? [Y/n] "; then
+        local _do_create=false
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
+          _do_create=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-creating (batch mode)\033[0m"
+        else
+          local _prompt="    Create file? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _do_create=true ;;
+            n*|N*) _do_create=false; result="User declined create." ;;
+            *) _do_create=true ;;
+          esac
+        fi
+
+        if [ "$_do_create" = "true" ]; then
           result=$(run_tool create_file "$targs")
           _TOOLS_USED=$((_TOOLS_USED + 1))
           FAIL_STREAK=0
@@ -180,9 +224,6 @@ $_rh"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
             _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
           fi
-        else
-          result="User declined create."
-          FAIL_STREAK=${FAIL_STREAK:-0}
         fi
       fi
       ;;
@@ -212,6 +253,7 @@ $_rh"
       ;;
   esac
   [ -z "$result" ] && result="(no output)"
+  _LAST_TOOL_RESULT="$result"
 
   # Guard against massive outputs that cause API 400 Bad Request
   # Limit total response size to 16KB per tool call in history to save tokens.

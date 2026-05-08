@@ -309,8 +309,17 @@ run_agent() {
       fi
 
       # Process sequential tools (bash, edit, create)
+      local _seq_count=${#_sequential_tcs[@]}
+      local _seq_idx=0
+      _BATCH_AUTO_YES=false
       for tc in "${_sequential_tcs[@]}"; do
-        process_tc "$tc"
+        _seq_idx=$((_seq_idx + 1))
+        process_tc "$tc" "false" "$_seq_idx" "$_seq_count"
+        # Abort batch if tool failed (bash error or user decline)
+        if [[ "$_LAST_TOOL_RESULT" == "[FAILED"* ]] || [[ "$_LAST_TOOL_RESULT" == "Error:"* ]] || [[ "$_LAST_TOOL_RESULT" == "User declined"* ]]; then
+          [ "$_seq_idx" -lt "$_seq_count" ] && echo -e "    \033[0;90m↳ aborting remaining tools in batch due to failure/decline\033[0m"
+          break
+        fi
       done
 
       rm -rf "$_batch_dir"
