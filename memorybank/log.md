@@ -231,3 +231,14 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Reduced tool output truncation limit: 32KB → 16KB in `src/22_process_one_tool_call.sh`.
 - Prevents "context poisoning" from large bash/file-read results.
 - Documented in `memorybank/solutions/efficiency_optimization.md`.
+
+## [2026-08-08] bugfix | Project Pulse Recovery
+- Fixed Project Pulse recovery bug (absolute paths + python quoting).
+- Integrated `_sysprompt_invalidate` into `pulse_save`.
+
+## [2026-08-08] task | Bloat Reduction & Bug Fixes
+- Fixed bash_with_heal (missing run_with_heal call).
+- Fixed spawn_subagent dispatcher (was Unknown).
+- Extracted shared API payload logic to src/16_api.sh.
+- Modularized tool dispatchers: created src/22a_tool_bash.sh and src/22b_tool_edit.sh.
+- Removed dead code: _mix_readlink_f and _repo_map_files_unchanged.
