@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-MIX_VERSION='202605072322'
+MIX_VERSION='202605082346'
 # ─── Embedded provider: copilot.sh ───
 _EMBEDDED_PROVIDER_copilot=1
 # ─── Provider: GitHub Copilot ────────────────────────────────────────────────
@@ -1425,7 +1425,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 ## TASK RULES
 - Brief explanation, then act. No throat-clearing.
 - Use tools directly. Never narrate tool usage in text (no \"\[Used tools:...\]\", \"I will edit...\", or step-by-step descriptions before acting). Act; don't describe.
-- IMPORTANT: If you intend to execute a tool, bundle the tool call in the EXACT SAME response as your explanation. Do NOT output a plan and stop. Outputting text without a tool call terminates the multi-turn loop.
+- IMPORTANT: You can call multiple tools in a single response. Batch related actions (e.g., 3-4 edits for one feature) to save turns. read_file/list_files/search_files run in parallel — emit all of them together. Do NOT output a plan and stop. Outputting text without a tool call terminates the multi-turn loop.
 - Tool succeeded → move on. No repeats.
 - After edit_file/create_file: auto-verify runs syntax+lint+typecheck. [VERIFY: FAILED] in result = fix before proceeding. Don't ignore verify failures.
 - Valuable answer → file it (new wiki page). Don't let insight die in chat.
@@ -1439,7 +1439,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 ## WORKERS (tmux)
 - Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
-- Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
+- Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log
 - Shared State (Message Bus): Subagents are isolated. Use the \`.mix/bus/\` directory to share state, hand off context, or coordinate findings (e.g. \`create_file\` to write, \`read_file\` to read).
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
@@ -1458,8 +1458,7 @@ Suggest loading a skill if it matches the current task difficulty.
 wiki/maintainer mode — use when memorybank/ exists or user asks to build knowledge base.
 memorybank/index.md = catalog (read FIRST on fresh start). memorybank/log.md = timeline.
 INGEST: read→extract→write sources/<slug>.md→update entity pages→update index→append log.
-QUERY: index→find pages→synthesize→good answers become new pages.
-CAVEKIT: /spec creates SPEC.md, /build executes tasks, /check reads drift."
+QUERY: index→find pages→synthesize→good answers become new pages."
 
   # Inject discovered environment
   [ -n "$ENV_INFO" ]         && base+="
@@ -1522,41 +1521,11 @@ Common install commands to suggest:
   /sandbox install make             (build tooling)"
   fi
 
-  # Repo map — structural awareness of codebase
-  local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
-  if [ -n "$_rmap" ]; then
-    base+="
-
-## REPO MAP (files + structure — use this to navigate without reading files)
-$_rmap"
-  fi
-
-  # File content cache — recently accessed files, survives compaction
-  local _fctx; _fctx=$(build_file_context 2>/dev/null) || true
-  if [ -n "$_fctx" ]; then
-    base+="
-
-$_fctx"
-  fi
-
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
 GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, general patterns, lessons. Update proactively with update_global_memory when you learn something reusable. DO NOT store project-specific logic here (breaks prompt cache and pollutes other projects). Short bullet points only."
 
-  # Context budget warning — inject when history is consuming significant context
-  local _hist_chars=${#HISTORY}
-  local _est_ctx_tokens=$(( _hist_chars / 3 ))
-  local _ctx_pct=$(( _est_ctx_tokens * 100 / CTX_TOKENS ))
-  if [ "$_ctx_pct" -gt 60 ]; then
-    local _ctx_level=""
-    [ "$_ctx_pct" -gt 90 ] && _ctx_level="CRITICAL"
-    [ "$_ctx_pct" -gt 75 ] && [ "$_ctx_pct" -le 90 ] && _ctx_level="HIGH"
-    [ "$_ctx_pct" -gt 60 ] && [ "$_ctx_pct" -le 75 ] && _ctx_level="MODERATE"
-    base+="
-
-CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. Save key findings to memorybank before they get compacted. Avoid re-reading files you already have cached."
-  fi
   if [ -f "$_gmem_file" ]; then
     local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
     # Cap injection at 2000 chars — keeps system prompt lean.
@@ -1575,13 +1544,6 @@ CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. 
 $_gmem_content
 ---"
   fi
-  # Mode-specific reasoning
-  case "$AGENT_MODE" in
-    deep) base+="
-MODE:deep — explain root cause before acting. justify why edit fixes the problem. min necessary changes. double-check before edit_file." ;;
-    plan) base+="
-MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
-  esac
 
   # Inject SPEC.md context if present — gives agent project spec every call
   # Cap at 1500 chars to keep system prompt lean. Full spec available via read_file.
@@ -1610,6 +1572,45 @@ CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutat
 Suggest /spec when: new project, unclear scope, user describes features/constraints, or repeated direction-changes."
   fi
 
+  # Repo map — structural awareness of codebase
+  local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
+  if [ -n "$_rmap" ]; then
+    base+="
+
+## REPO MAP (files + structure — use this to navigate without reading files)
+$_rmap"
+  fi
+
+  # File content cache — recently accessed files, survives compaction
+  local _fctx; _fctx=$(build_file_context 2>/dev/null) || true
+  if [ -n "$_fctx" ]; then
+    base+="
+
+$_fctx"
+  fi
+
+  # Context budget warning — inject when history is consuming significant context
+  local _hist_chars=${#HISTORY}
+  local _est_ctx_tokens=$(( _hist_chars / 3 ))
+  local _ctx_pct=$(( _est_ctx_tokens * 100 / CTX_TOKENS ))
+  if [ "$_ctx_pct" -gt 60 ]; then
+    local _ctx_level=""
+    [ "$_ctx_pct" -gt 90 ] && _ctx_level="CRITICAL"
+    [ "$_ctx_pct" -gt 75 ] && [ "$_ctx_pct" -le 90 ] && _ctx_level="HIGH"
+    [ "$_ctx_pct" -gt 60 ] && [ "$_ctx_pct" -le 75 ] && _ctx_level="MODERATE"
+    base+="
+
+CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. Save key findings to memorybank before they get compacted. Avoid re-reading files you already have cached."
+  fi
+
+  # Mode-specific reasoning
+  case "$AGENT_MODE" in
+    deep) base+="
+MODE:deep — explain root cause before acting. justify why edit fixes the problem. min necessary changes. double-check before edit_file." ;;
+    plan) base+="
+MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
+  esac
+
   if [ -n "$ACTIVE_SKILLS" ]; then
     base+="
 
@@ -1620,6 +1621,14 @@ Suggest /spec when: new project, unclear scope, user describes features/constrai
 $(cat "$_skill" 2>/dev/null)
 "
     done
+  fi
+
+  # Load pulse (long-term summary)
+  local pulse; pulse=$(pulse_load)
+  if [ -n "$pulse" ]; then
+    base="$base
+
+$pulse"
   fi
 
   if [ "$CAVEMAN_MODE" = "off" ]; then
@@ -2025,6 +2034,7 @@ auto_read_logs() {
 # Defines persistence across restarts.
 
 _SESSION_FILE=".agent/session.json"
+_PULSE_FILE=".agent/pulse.json"
 _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
@@ -2256,6 +2266,33 @@ session_apply() {
 session_clear() {
   rm -f "$_SESSION_FILE" 2>/dev/null
   _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE
+}
+
+# --- Project Pulse (Context survival across /flush) ---
+
+pulse_save() {
+  local summary="$1"
+  [ -z "$summary" ] && return
+  python3 -c '
+import json, os, time, sys
+path = sys.argv[1]
+summary = sys.argv[2]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {"summary": summary, "timestamp": int(time.time())}
+with open(path, "w") as f:
+    json.dump(data, f)
+' "$_PULSE_FILE" "$summary" 2>/dev/null
+}
+
+pulse_load() {
+  [ ! -f "$_PULSE_FILE" ] && return
+  python3 -c '
+import json, sys, time
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+    age = (time.time() - d["timestamp"]) / 3600
+    print(f"\n[LAST SESSION PULSE ({age:.1f}h ago)]\n{d[\"summary\"]}")
+' "$_PULSE_FILE" 2>/dev/null
 }
 
 # Show startup hint if session available
@@ -2591,7 +2628,7 @@ for f in sorted(files): print(f"- {f}")
 }
 
 # ─── Tools (OpenAI function calling) ────────────────────────────────────────
-TOOLS_JSON='[{"type":"function","function":{"name":"spawn_subagent","description":"Spawn a parallel mix LLM subagent in a new tmux window. Runs independently and logs to /tmp/<name>.log. Requires tmux.","parameters":{"type":"object","properties":{"name":{"type":"string","description":"Short identifier for the subagent window (no spaces)"},"task":{"type":"string","description":"Full task description to send to the subagent"}},"required":["name","task"]}}},{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"create_file","description":"Create a new file with given content. Fails if file already exists — use edit_file to modify existing files.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"},"content":{"type":"string","description":"Full file content"}},"required":["path","content"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace in existing file. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}},{"type":"function","function":{"name":"search_files","description":"Search file contents by regex pattern (grep -rn). Returns matching lines with file:line context.","parameters":{"type":"object","properties":{"pattern":{"type":"string","description":"Regex search pattern"},"path":{"type":"string","description":"Absolute directory or file path to search in"}},"required":["pattern","path"]}}},{"type":"function","function":{"name":"update_global_memory","description":"Append or update a note in ~/.mix/memory.md — persistent cross-project memory. Use proactively to record user preferences, general dev patterns, or tool tricks. DO NOT record project-specific architecture, logic, or state (e.g., specific bot logic, app routes) here, as it pollutes other projects and breaks prompt caching. Use the local memorybank/ for project details. Short bullet points.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["append","replace"],"description":"append: add new bullet to end. replace: find old_text and replace with new_text."},"content":{"type":"string","description":"For append: the new bullet text. For replace: the replacement text."},"old_text":{"type":"string","description":"For replace only: exact text to find."}},"required":["action","content"]}}}]'
+TOOLS_JSON='[{"type":"function","function":{"name":"spawn_subagent","description":"Spawn a parallel mix LLM subagent in a new tmux window. Runs independently and logs to /tmp/<name>.log. Requires tmux.","parameters":{"type":"object","properties":{"name":{"type":"string","description":"Short identifier for the subagent window (no spaces)"},"task":{"type":"string","description":"Full task description to send to the subagent"}},"required":["name","task"]}}},{"type":"function","function":{"name":"bash","description":"Run a shell command and return stdout+stderr","parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell command"},"background":{"type":"boolean","description":"If true, run command in background and return a job ID immediately"}},"required":["command"]}}},{"type":"function","function":{"name":"read_file","description":"Read file contents","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"read_messages","description":"Read all messages from the agent message bus (.mix/bus/).","parameters":{"type":"object","properties":{}}}},{"type":"function","function":{"name":"send_message","description":"Send a message to another agent or subagent via the message bus.","parameters":{"type":"object","properties":{"to":{"type":"string","description":"Target agent name"},"message":{"type":"string","description":"Message content"}},"required":["to","message"]}}},{"type":"function","function":{"name":"find_definition","description":"Search for the definition of a symbol (function, class, etc.) using ctags.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"The symbol name to find"}},"required":["symbol"]}}},{"type":"function","function":{"name":"check_job","description":"Check status and output of a background job.","parameters":{"type":"object","properties":{"job_id":{"type":"string","description":"The job ID returned by a background bash command"}},"required":["job_id"]}}},{"type":"function","function":{"name":"delete_file","description":"Delete a file. This also removes it from the agent cache.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"}},"required":["path"]}}},{"type":"function","function":{"name":"move_file","description":"Move or rename a file. Updates agent cache to the new path.","parameters":{"type":"object","properties":{"source":{"type":"string","description":"Current file path"},"destination":{"type":"string","description":"New file path"}},"required":["source","destination"]}}},{"type":"function","function":{"name":"create_files","description":"Create multiple new files at once. Fails for any path that already exists.","parameters":{"type":"object","properties":{"files":{"type":"object","description":"Map of absolute file paths to their full content"}},"required":["files"]}}},{"type":"function","function":{"name":"create_file","description":"Create a new file with given content. Fails if file already exists — use edit_file to modify existing files.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Absolute file path"},"content":{"type":"string","description":"Full file content"}},"required":["path","content"]}}},{"type":"function","function":{"name":"edit_file","description":"Exact search/replace in existing file. old_text must match exactly one location.","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"old_text":{"type":"string","description":"Exact text to find (must be unique)"},"new_text":{"type":"string","description":"Replacement text"}},"required":["path","old_text","new_text"]}}},{"type":"function","function":{"name":"list_files","description":"List files in a directory","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Directory path"}},"required":["path"]}}},{"type":"function","function":{"name":"search_files","description":"Search file contents by regex pattern (grep -rn). Returns matching lines with file:line context.","parameters":{"type":"object","properties":{"pattern":{"type":"string","description":"Regex search pattern"},"path":{"type":"string","description":"Absolute directory or file path to search in"}},"required":["pattern","path"]}}},{"type":"function","function":{"name":"update_global_memory","description":"Append or update a note in ~/.mix/memory.md — persistent cross-project memory. Use proactively to record user preferences, general dev patterns, or tool tricks. DO NOT record project-specific architecture, logic, or state (e.g., specific bot logic, app routes) here, as it pollutes other projects and breaks prompt caching. Use the local memorybank/ for project details. Short bullet points.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["append","replace"],"description":"append: add new bullet to end. replace: find old_text and replace with new_text."},"content":{"type":"string","description":"For append: the new bullet text. For replace: the replacement text."},"old_text":{"type":"string","description":"For replace only: exact text to find."}},"required":["action","content"]}}}]'
 
 
 # ─── History ─────────────────────────────────────────────────────────────────
@@ -2765,8 +2802,16 @@ build_file_context() {
   _nfiles=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nfiles=0
   [ "$_nfiles" -eq 0 ] && return
 
-  # Budget: 3000 chars total, max 8 files, 400 chars per file
-  local _budget=3000 _max_files=8 _per_file=400
+  # Budget: Scale based on context window.
+  # Default ~3k chars (1k tokens). Max 30k chars (10k tokens) or 5% of context.
+  local _budget=3000
+  if [ "${CTX_TOKENS:-0}" -gt 20000 ]; then
+    _budget=$(( CTX_TOKENS * 3 * 5 / 100 ))
+    [ "$_budget" -gt 30000 ] && _budget=30000
+  fi
+  local _max_files=15 _per_file=$(( _budget / 4 ))
+  [ "$_per_file" -gt 4000 ] && _per_file=4000
+  [ "$_per_file" -lt 400 ] && _per_file=400
 
   # Get ordered paths from cache (most recent first via reversed order)
   local _ordered_paths
@@ -2850,7 +2895,9 @@ for line in sys.stdin:
         line_num = d.get("line", 0)
         # Skip internal/noisy kinds
         if kind in ("variable", "local", "member", "namespace", "import"): continue
-        display = f"{name}{sig} ({kind})"
+        # Compact prefixes
+        pfx = {"function":"f:", "class":"c:", "method":"m:", "struct":"s:", "trait":"t:", "interface":"i:", "enum":"e:", "api":"a:"}.get(kind, "d:")
+        display = f"{pfx}{name}{sig}"
         symbols.append((line_num, display))
     except: continue
 # Sort by line number
@@ -3020,14 +3067,20 @@ ${_entry}"
   done <<< "$_file_list"
 
   # Git awareness: show recently changed files (if git enabled)
+  local _recent=""
   if [ "$GIT_ENABLED" = true ]; then
-    local _recent
     _recent=$(git -C "$WORKDIR" diff --name-only HEAD~5 2>/dev/null | head -20 || true)
-    if [ -n "$_recent" ]; then
-      _map="${_map}
-── recently changed ──
-${_recent}"
-    fi
+  fi
+  # Add cached files (recently read)
+  local _cached_files; _cached_files=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | tac | head -10)
+  _recent="${_recent}
+${_cached_files}"
+  _recent=$(printf '%s' "$_recent" | sed '/^$/d' | sort -u | head -20)
+
+  if [ -n "$_recent" ]; then
+    _map="${_map}
+── recently active ──
+$(printf '%s' "$_recent" | sed 's/^/  /')"
   fi
 
   # Hard trim to budget — system prompt has no room for excess
@@ -3122,7 +3175,7 @@ compact_history() {
   printf '%s' "$_hist_for_compact" > "$_hist_tmp"
   python3 -c '
 import json,sys
-s="Summarize the conversation into a dense structured summary. Use these sections:\n## Task\nWhat is the user trying to accomplish? What is the current goal?\n## Done\nKey decisions made, files edited/created, commands run, bugs fixed.\n## State\nWhere things stand right now. Any open loops, pending actions, or blockers.\n## Context\nImportant paths, variable names, API details, or config values referenced.\n\nRules:\n- Do NOT include full file contents — they are available in the file cache.\n- Do NOT repeat tool outputs verbatim — extract conclusions only.\n- Do NOT include diagnostic/verify output — only the final resolution.\n- Include: file paths edited, key variable names, error patterns resolved.\n- Be complete but concise. Output only the summary, nothing else."
+s="Summarize conversation into dense telegraphic summary (caveman style). Use sections:\n## Task\nGoal?\n## Done\nKey actions, files edited (paths), commands run.\n## State\nOpen loops, blockers.\n## Context\nPaths, vars, API details.\n\nRules:\n- NO redundant file contents.\n- NO verbatim tool outputs.\n- NO filler phrases.\n- Be extremely concise but technical."
 h=json.load(open(sys.argv[1]))
 m=sys.argv[2]
 msg=h+[{"role":"user","content":s}]
@@ -3386,35 +3439,124 @@ run_tool() {
 
   case "$name" in
     bash)
-      local cmd
+      local cmd bg
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        if _sandbox_needs_host_network "$cmd"; then
-          # Run on host with network — cd to $WORKDIR so relative paths work
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
-          result="[host] $result"
+      bg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("background",False))' 2>/dev/null)
+      
+      if [ "$bg" = "True" ]; then
+        local jid; jid="job-$RANDOM"
+        local log="/tmp/mix-$jid.log"
+        if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+           # For simplicity, background jobs in sandbox use nohup
+           (sandbox_run_cmd "$cmd" >"$log" 2>&1) &
         else
-          result=$(sandbox_run_cmd "$cmd" </dev/null)
+           (bash -c "$cmd" >"$log" 2>&1) &
         fi
+        result="Background job started. ID: $jid. Check output with check_job."
       else
-        result=$(bash -c "$cmd" </dev/null 2>&1)
-      fi
-      local _ec=$?
-      [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
+        if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+          if _sandbox_needs_host_network "$cmd"; then
+            result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
+            result="[host] $result"
+          else
+            result=$(sandbox_run_cmd "$cmd" </dev/null)
+          fi
+        else
+          result=$(bash -c "$cmd" </dev/null 2>&1)
+        fi
+        local _ec=$?
+        if [ ${#result} -gt 16000 ]; then
+          result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
+        fi
+        [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
+      fi
+      ;;
+    send_message)
+      local to msg
+      to=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["to"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      msg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["message"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      mkdir -p "$bus_dir"
+      # Append message to target mailbox
+      local box="$bus_dir/${to}.jsonl"
+      printf '{"from": "%s", "time": %s, "msg": %s}\n' \
+        "${AGENT_NAME:-main}" "$(date +%s)" "$(printf '%s' "$msg" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+        >> "$box"
+      result="Message sent to $to."
+      ;;
+    read_messages)
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      local my_name="${AGENT_NAME:-main}"
+      local box="$bus_dir/${my_name}.jsonl"
+      if [ -f "$box" ]; then
+        result=$(cat "$box")
+        # Clear box after reading? Or keep? Let's rename to archive to clear.
+        mv "$box" "${box}.old"
+      else
+        result="No new messages for $my_name."
+      fi
+      ;;
+    find_definition)
+      local sym; sym=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["symbol"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      _detect_ctags
+      if [ -z "$_CTAGS_EXE" ]; then
+        # Fallback to grep for common definition patterns
+        result=$(grep -rnE "(def |class |fn |function |struct |interface )$sym" . --exclude-dir=.git --exclude-dir=node_modules | head -10)
+        [ -z "$result" ] && result="Symbol '$sym' not found (ctags missing, grep failed)."
+      else
+        # Use ctags
+        result=$("$_CTAGS_EXE" --output-format=json --fields=+nS -R . 2>/dev/null | python3 -c '
+import json,sys
+sym = sys.argv[1]
+matches = []
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        if d.get("name") == sym:
+            matches.append(f"{d.get(\"path\")}:{d.get(\"line\")}")
+    except: continue
+if matches: print("\n".join(matches[:10]))
+' "$sym")
+        [ -z "$result" ] && result="Symbol '$sym' not found via ctags."
+      fi
+      ;;
+    check_job)
+      local jid; jid=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["job_id"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      local log="/tmp/mix-$jid.log"
+      if [ ! -f "$log" ]; then
+        result="Error: job log not found: $log"
+      else
+        # Check if process still running — hard to do accurately without PID, but we can check log age or look for marker
+        # We will just return the tail of the log
+        result=$(tail -n 100 "$log")
+        [ -z "$result" ] && result="(job started but no output yet)"
+      fi
       ;;
     bash_with_heal)
-      local cmd
+      local cmd bg
       cmd=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["command"])' 2>/dev/null) || { echo "Error: bad args"; return; }
-      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
-        if _sandbox_needs_host_network "$cmd"; then
-          result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
-          result="[host] $result"
-        else
-          result=$(sandbox_run_cmd "$cmd" </dev/null)
-        fi
+      bg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("background",False))' 2>/dev/null)
+      
+      if [ "$bg" = "True" ]; then
+        local jid; jid="job-$RANDOM"
+        local log="/tmp/mix-$jid.log"
+        (bash -c "$cmd" >"$log" 2>&1) &
+        result="Background job started. ID: $jid. Check output with check_job."
       else
-        result=$(bash -c "$cmd" </dev/null 2>&1)
+        if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+          if _sandbox_needs_host_network "$cmd"; then
+            result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
+            result="[host] $result"
+          else
+            result=$(sandbox_run_cmd "$cmd" </dev/null)
+          fi
+        else
+          result=$(bash -c "$cmd" </dev/null 2>&1)
+        fi
+        if [ ${#result} -gt 16000 ]; then
+          result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
+        fi
       fi
       ;;
     read_file)
@@ -3591,6 +3733,92 @@ else:
       [ ! -d "$path" ] && { echo "Error: not a dir: $path"; return; }
       result=$(ls -F --color=never "$path" 2>&1) || true
       ;;
+    delete_file)
+      local path
+      path=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ] && ! _sandbox_path_allowed "$path"; then
+        echo "Error: sandbox mode — delete_file restricted to project dir. Path: $path"; return
+      fi
+      if [ -f "$path" ]; then
+        rm "$path" && result="Deleted $path" || result="Error: failed to delete $path"
+        if [[ "$result" == Deleted* ]]; then
+          file_cache_del "$path"
+          _sysprompt_invalidate
+        fi
+      else
+        result="Error: file not found: $path"
+      fi
+      ;;
+    move_file)
+      local src dst
+      src=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["source"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      dst=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["destination"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
+        if ! _sandbox_path_allowed "$src" || ! _sandbox_path_allowed "$dst"; then
+          echo "Error: sandbox mode — move_file restricted to project dir."; return
+        fi
+      fi
+      if [ -f "$src" ]; then
+        mkdir -p "$(dirname "$dst")"
+        mv "$src" "$dst" && result="Moved $src to $dst" || result="Error: failed to move $src"
+        if [[ "$result" == Moved* ]]; then
+          # Update cache: remove old, put new (if we have content)
+          # We check if old path was in cache by grep
+          if printf '%s' "$_FILE_CACHE" | grep -qF "\"$src\""; then
+             # Extract content from old cache entry
+             local _content; _content=$(printf '%s' "$_FILE_CACHE" | python3 -c "import json,sys;print(json.load(sys.stdin).get('$src',{}).get('content',''))" 2>/dev/null)
+             file_cache_del "$src"
+             [ -n "$_content" ] && file_cache_put "$dst" "$_content"
+          fi
+          _sysprompt_invalidate
+        fi
+      else
+        result="Error: source file not found: $src"
+      fi
+      ;;
+    create_files)
+      # args is {"files": {"path": "content", ...}}
+      result=$(python3 -c '
+import json, sys, os
+try:
+    args = json.load(sys.stdin)
+    files = args.get("files", {})
+    created = []
+    errors = []
+    for path, content in files.items():
+        if os.path.exists(path):
+            errors.append(f"Error: already exists: {path}")
+            continue
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                f.write(content)
+            created.append(path)
+        except Exception as e:
+            errors.append(f"Error: {path}: {str(e)}")
+    
+    if created:
+        print("Created files: " + ", ".join(created))
+    if errors:
+        print("\n".join(errors))
+except Exception as e:
+    print(f"Error parsing create_files args: {str(e)}")
+' <<< "$args" 2>/dev/null)
+      
+      # Update cache for all successfully created files
+      # We extract paths from the result string "Created files: path1, path2..."
+      if [[ "$result" == Created\ files:* ]]; then
+        local _paths_str="${result%%Error:*}"
+        _paths_str="${_paths_str#Created files: }"
+        IFS=', ' read -r -a _paths_arr <<< "$_paths_str"
+        for _p in "${_paths_arr[@]}"; do
+           # We need to get the content back from the args JSON to put in cache
+           local _c; _c=$(printf '%s' "$args" | python3 -c "import json,sys;print(json.load(sys.stdin)['files'].get('$(_mix_realpath "$_p")',''))" 2>/dev/null)
+           [ -n "$_c" ] && file_cache_put "$_p" "$_c" 2>/dev/null
+        done
+        _sysprompt_invalidate
+      fi
+      ;;
     create_file)
       if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
         local _cfpath; _cfpath=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null)
@@ -3699,6 +3927,55 @@ else:
         else
           result="Error: global memory file not found"
         fi
+      fi
+      ;;
+    send_message)
+      local to msg
+      to=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["to"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      msg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["message"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      mkdir -p "$bus_dir"
+      # Append message to target mailbox
+      local box="$bus_dir/${to}.jsonl"
+      printf '{"from": "%s", "time": %s, "msg": %s}\n' \
+        "${AGENT_NAME:-main}" "$(date +%s)" "$(printf '%s' "$msg" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+        >> "$box"
+      result="Message sent to $to."
+      ;;
+    read_messages)
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      local my_name="${AGENT_NAME:-main}"
+      local box="$bus_dir/${my_name}.jsonl"
+      if [ -f "$box" ]; then
+        result=$(cat "$box")
+        # Clear box after reading? Or keep? Let's rename to archive to clear.
+        mv "$box" "${box}.old"
+      else
+        result="No new messages for $my_name."
+      fi
+      ;;
+    find_definition)
+      local sym; sym=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["symbol"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      _detect_ctags
+      if [ -z "$_CTAGS_EXE" ]; then
+        # Fallback to grep for common definition patterns
+        result=$(grep -rnE "(def |class |fn |function |struct |interface )$sym" . --exclude-dir=.git --exclude-dir=node_modules | head -10)
+        [ -z "$result" ] && result="Symbol '$sym' not found (ctags missing, grep failed)."
+      else
+        # Use ctags
+        result=$("$_CTAGS_EXE" --output-format=json --fields=+nS -R . 2>/dev/null | python3 -c '
+import json,sys
+sym = sys.argv[1]
+matches = []
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        if d.get("name") == sym:
+            matches.append(f"{d.get(\"path\")}:{d.get(\"line\")}")
+    except: continue
+if matches: print("\n".join(matches[:10]))
+' "$sym")
+        [ -z "$result" ] && result="Symbol '$sym' not found via ctags."
       fi
       ;;
     spawn_subagent)
@@ -4627,17 +4904,23 @@ tmux_update() {
 
 
 # ─── Process one tool call ──────────────────────────────────────────────────
-# args: tc_line [silent_mode: "true"|"false"]
+# args: tc_line [silent_mode: "true"|"false"] [current_idx] [total_count]
 process_tc() {
   local tc_line="$1"
   local silent="${2:-false}"
+  local cur_idx="${3:-1}"
+  local total_count="${4:-1}"
   local rest="${tc_line#TC:}"
   local tid="${rest%%|||*}"
   rest="${rest#*|||}"
   local tname="${rest%%|||*}"
   local targs="${rest#*|||}"
 
-  [ "$silent" != "true" ] && echo -e "    \033[38;5;99m$I_TOOL\033[0m \033[1;36m$tname\033[0m"
+  if [ "$silent" != "true" ]; then
+    local _batch_prefix=""
+    [ "$total_count" -gt 1 ] && _batch_prefix="\033[0;90m[$cur_idx/$total_count]\033[0m "
+    echo -e "    ${_batch_prefix}\033[38;5;99m$I_TOOL\033[0m \033[1;36m$tname\033[0m"
+  fi
 
   local result=""
   case "$tname" in
@@ -4689,14 +4972,22 @@ process_tc() {
            else result="User declined (HIGH risk)."; fi
         fi
       elif [ "$_risk" = "MED" ]; then
-        if [ "$AUTO_YES" = "true" ]; then
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
           _run=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-running (batch mode)\033[0m"
         elif [ "$silent" = "true" ]; then
           result="Error: MED risk command requires interactive confirmation."
-        elif confirm "    Run? [Y/n] "; then
-          _run=true
         else
-          result="User declined.";
+          local _prompt="    Run? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans _rrc; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null; _rrc=$?
+          [ "$_rrc" -gt 128 ] && { echo ""; _ans="n"; }  # Ctrl+C = cancel
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _run=true ;;
+            n*|N*) _run=false; result="User declined." ;;
+            *) _run=true ;;
+          esac
         fi
       else
         _run=true  # LOW: auto-run
@@ -4745,7 +5036,24 @@ $_rh"
         fi
         # Always show Python-computed diff first (works on new/untracked files too)
         show_edit_diff "$targs"
-        if confirm "    Apply edit? [Y/n] "; then
+        local _do_edit=false
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
+          _do_edit=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-applying (batch mode)\033[0m"
+        else
+          local _prompt="    Apply edit? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans _rrc; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null; _rrc=$?
+          [ "$_rrc" -gt 128 ] && { echo ""; _ans="n"; }  # Ctrl+C = cancel
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _do_edit=true ;;
+            n*|N*) _do_edit=false; result="User declined edit." ;;
+            *) _do_edit=true ;;
+          esac
+        fi
+
+        if [ "$_do_edit" = "true" ]; then
           result=$(run_tool edit_file "$targs")
           FAIL_STREAK=0
           _TOOLS_USED=$((_TOOLS_USED + 1))
@@ -4758,8 +5066,8 @@ $_rh"
               [ -n "$_gdiff" ] && echo -e "    \033[0;90m$_gdiff\033[0m"
               _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
             fi
-            # Offer test run if test command configured
-            if [ -n "$TEST_CMD" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
+            # Offer test run if test command configured AND it is the last tool in batch
+            if [ -n "$TEST_CMD" ] && [ "$cur_idx" -eq "$total_count" ] && confirm "    Run tests ($TEST_CMD)? [Y/n] "; then
               echo -e "    \033[0;90m↳ $TEST_CMD...\033[0m"
               local _tres; _tres=$(eval "$TEST_CMD" 2>&1 | tail -30) || true
               printf '%s\n' "$_tres" | head -8 | while IFS= read -r _tl; do
@@ -4774,7 +5082,6 @@ $_rh"
             git -C "$WORKDIR" checkout -- "$p" 2>/dev/null || true
             echo -e "    \033[0;90m↳ rolled back (checkout --)\033[0m"
           fi
-          result="User declined edit."
         fi
       fi
       ;;
@@ -4783,6 +5090,97 @@ $_rh"
       [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_DIR $p\033[0m"
       result=$(run_tool list_files "$targs")
       FAIL_STREAK=0
+      ;;
+    send_message)
+      local t m; t=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["to"])' 2>/dev/null) || t="?"
+      m=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["message"])' 2>/dev/null) || m="?"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_MAIL sending message to $t\033[0m"
+      result=$(run_tool send_message "$targs")
+      ;;
+    read_messages)
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_MAIL checking inbox\033[0m"
+      result=$(run_tool read_messages "$targs")
+      ;;
+    find_definition)
+      local s; s=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["symbol"])' 2>/dev/null) || s="?"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_SEARCH finding definition: $s\033[0m"
+      result=$(run_tool find_definition "$targs")
+      ;;
+    check_job)
+      local jid; jid=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["job_id"])' 2>/dev/null) || jid="?"
+      [ "$silent" != "true" ] && echo -e "    \033[0;90m$I_READ checking job $jid\033[0m"
+      result=$(run_tool check_job "$targs")
+      ;;
+    delete_file)
+      local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
+      if [ "$silent" = "true" ]; then
+        result="Error: delete_file cannot be run in parallel/silent mode."
+      else
+        echo -e "      \033[1;31m$I_WARN   Deleting: $p\033[0m"
+        if confirm "    Delete file? [y/N] " "n"; then
+          result=$(run_tool delete_file "$targs")
+          _TOOLS_USED=$((_TOOLS_USED + 1))
+        else
+          result="User declined deletion."
+        fi
+      fi
+      ;;
+    move_file)
+      local s d; s=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["source"])' 2>/dev/null) || s="?"
+      d=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["destination"])' 2>/dev/null) || d="?"
+      if [ "$silent" = "true" ]; then
+        result="Error: move_file cannot be run in parallel/silent mode."
+      else
+        echo -e "      \033[0;36mMoving: $s -> $d\033[0m"
+        if confirm "    Move file? [Y/n] "; then
+          result=$(run_tool move_file "$targs")
+          _TOOLS_USED=$((_TOOLS_USED + 1))
+        else
+          result="User declined move."
+        fi
+      fi
+      ;;
+    create_files)
+      if [ "$silent" = "true" ]; then
+        result="Error: create_files cannot be run in parallel/silent mode."
+      else
+        echo -e "      \033[0;90mCreating multiple files...\033[0m"
+        printf '%s' "$targs" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+files=d.get("files",{})
+GRN,RST="\033[0;32m","\033[0m"
+for i, (path, content) in enumerate(files.items()):
+    if i >= 5:
+        print(f"      ... and {len(files)-5} more files")
+        break
+    print(f"      {GRN}file: {path}{RST}")
+    lines = content.splitlines()
+    for l in lines[:3]: print(f"        + {l}")
+    if len(lines) > 3: print(f"        ... ({len(lines)-3} more lines)")
+' 2>/dev/null
+        local _do_create=false
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
+          _do_create=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-creating (batch mode)\033[0m"
+        else
+          local _prompt="    Create files? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans _rrc; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null; _rrc=$?
+          [ "$_rrc" -gt 128 ] && { echo ""; _ans="n"; }  # Ctrl+C = cancel
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _do_create=true ;;
+            n*|N*) _do_create=false; result="User declined create_files." ;;
+            *) _do_create=true ;;
+          esac
+        fi
+        if [ "$_do_create" = "true" ]; then
+          result=$(run_tool create_files "$targs")
+          _TOOLS_USED=$((_TOOLS_USED + 1))
+          FAIL_STREAK=0
+        fi
+      fi
       ;;
     create_file)
       local p; p=$(printf '%s' "$targs" | python3 -c 'import json,sys;print(json.load(sys.stdin)["path"])' 2>/dev/null) || p="?"
@@ -4799,7 +5197,23 @@ $_rh"
   for l in lines[:15]: sys.stdout.write("    "+GRN+"+ "+l+RST+"\n")
   if len(lines)>15: sys.stdout.write("    \033[0;90m... (%d more lines)\033[0m\n" % (len(lines)-15))
   ' 2>/dev/null
-        if confirm "    Create file? [Y/n] "; then
+        local _do_create=false
+        if [ "$AUTO_YES" = "true" ] || [ "$_BATCH_AUTO_YES" = "true" ]; then
+          _do_create=true
+          [ "$_BATCH_AUTO_YES" = "true" ] && [ "$AUTO_YES" != "true" ] && echo -e "    \033[0;90m↳ auto-creating (batch mode)\033[0m"
+        else
+          local _prompt="    Create file? [Y/n"
+          [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
+          _prompt+="] "
+          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          case "$_ans" in
+            a*|A*) _BATCH_AUTO_YES=true; _do_create=true ;;
+            n*|N*) _do_create=false; result="User declined create." ;;
+            *) _do_create=true ;;
+          esac
+        fi
+
+        if [ "$_do_create" = "true" ]; then
           result=$(run_tool create_file "$targs")
           _TOOLS_USED=$((_TOOLS_USED + 1))
           FAIL_STREAK=0
@@ -4808,9 +5222,6 @@ $_rh"
             git -C "$WORKDIR" add "$p" 2>/dev/null || true
             _TURN_STAGED_FILES="${_TURN_STAGED_FILES:-} $p"
           fi
-        else
-          result="User declined create."
-          FAIL_STREAK=${FAIL_STREAK:-0}
         fi
       fi
       ;;
@@ -4840,14 +5251,15 @@ $_rh"
       ;;
   esac
   [ -z "$result" ] && result="(no output)"
+  _LAST_TOOL_RESULT="$result"
 
   # Guard against massive outputs that cause API 400 Bad Request
-  # Limit total response size to 32KB per turn
+  # Limit total response size to 16KB per tool call in history to save tokens.
   local byte_len
   byte_len=$(printf '%s' "$result" | wc -c)
-  if [ "$byte_len" -gt 32000 ]; then
-    result="$(printf '%s' "$result" | head -c 32000)
-... [TRUNCATED: Output exceeded 32KB ($byte_len bytes).]"
+  if [ "$byte_len" -gt 16000 ]; then
+    result="$(printf '%s' "$result" | head -c 16000)
+... [TRUNCATED: Output exceeded 16KB ($byte_len bytes). Use read_file on specific parts if needed.]"
   fi
 
   if [ "$silent" != "true" ]; then
@@ -4889,11 +5301,27 @@ $_rh"
 }
 # ─── Lightweight planning call (plan mode) ───────────────────────────────────
 call_api_plan() {
+  local _plan_model="${PLAN_MODEL:-$MODEL}"
+  local _plan_provider="${PLAN_PROVIDER:-$PROVIDER}"
+  local _plan_base_url="$BASE_URL"
+  local _plan_key="$API_KEY"
+
+  if [ "$_plan_provider" != "$PROVIDER" ]; then
+    # Cross-provider planning (e.g. use cheap Gemini while using Claude for main)
+    # We need to look up config for the other provider
+    # This is a bit complex in bash without a central registry, but we can check ENV
+    local _p_upper; _p_upper=$(echo "$_plan_provider" | tr '[:lower:]' '[:upper:]')
+    local _env_key; eval "_env_key=\${${_p_upper}_API_KEY:-}"
+    [ -n "$_env_key" ] && _plan_key="$_env_key"
+    local _env_url; eval "_env_url=\${${_p_upper}_BASE_URL:-}"
+    [ -n "$_env_url" ] && _plan_base_url="$_env_url"
+  fi
+
   local payload
   payload=$(printf '%s\n%s\n%s\n' \
     "$(build_system_prompt | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
     "$HISTORY" \
-    "$MODEL" \
+    "$_plan_model" \
   | python3 -c '
 import json,sys
 s=json.loads(sys.stdin.readline())
@@ -4906,8 +5334,8 @@ print(json.dumps({"model":m,"messages":msg}))
   local tmp; tmp=$(mktemp -t mix-$$-XXXXXX)
   local code
   code=$(curl -s -w "%{http_code}" -o "$tmp" --max-time 30 \
-    "${BASE_URL}/chat/completions" \
-    -H "Authorization: Bearer $API_KEY" \
+    "$_plan_base_url/chat/completions" \
+    -H "Authorization: Bearer $_plan_key" \
     -H "Content-Type: application/json" \
     -d "$payload" 2>/dev/null) || true
   local body; body=$(cat "$tmp"); rm -f "$tmp"
@@ -4915,6 +5343,9 @@ print(json.dumps({"model":m,"messages":msg}))
     'import json,sys; print(json.load(sys.stdin)["choices"][0]["message"].get("content",""))' 2>/dev/null || true
 }
 
+
+# Global turn counter — incremented by run_agent each call; used by pulse trigger
+TURN_COUNT=0
 
 # ─── Auto-Commit Turn ───────────────────────────────────────────────────────
 _commit_turn() {
@@ -5227,8 +5658,17 @@ run_agent() {
       fi
 
       # Process sequential tools (bash, edit, create)
+      local _seq_count=${#_sequential_tcs[@]}
+      local _seq_idx=0
+      _BATCH_AUTO_YES=false
       for tc in "${_sequential_tcs[@]}"; do
-        process_tc "$tc"
+        _seq_idx=$((_seq_idx + 1))
+        process_tc "$tc" "false" "$_seq_idx" "$_seq_count"
+        # Abort batch if tool failed (bash error or user decline)
+        if [[ "$_LAST_TOOL_RESULT" == "[FAILED"* ]] || [[ "$_LAST_TOOL_RESULT" == "Error:"* ]] || [[ "$_LAST_TOOL_RESULT" == "User declined"* ]]; then
+          [ "$_seq_idx" -lt "$_seq_count" ] && echo -e "    \033[0;90m↳ aborting remaining tools in batch due to failure/decline\033[0m"
+          break
+        fi
       done
 
       rm -rf "$_batch_dir"
@@ -5283,6 +5723,13 @@ run_agent() {
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
   
+  # Trigger background pulse update every 5 turns (requires tmux)
+  TURN_COUNT=$(( TURN_COUNT + 1 ))
+  if [ -n "${TMUX:-}" ] && [ $(( TURN_COUNT % 5 )) -eq 0 ]; then
+    local _pulse_j; _pulse_j=$(python3 -c 'import json; print(json.dumps({"name":"pulse_updater","task":"Write a 3-5 bullet terse project summary (recent changes, current state, next steps) to .agent/pulse.json as JSON: {\\"summary\\":\\"<bullets>\\",\\"timestamp\\":<epoch_int>}"}))' 2>/dev/null) || true
+    [ -n "$_pulse_j" ] && run_tool spawn_subagent "$_pulse_j" >/dev/null 2>&1 || true
+  fi
+
   _commit_turn "$input"
 
   ctx_bar       # show context window usage after every agent turn
@@ -5818,7 +6265,7 @@ handle_cmd() {
         echo "  Clipboard is empty or missing xclip/wl-paste/pbpaste"
       fi
       ;;
-    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; session_clear; echo "  History + session cleared." ;;
+    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; session_clear; _sysprompt_invalidate; echo "  History cleared (Pulse retained)." ;;
     /resume)
       if [ "$_SESSION_AVAILABLE" = true ]; then
         session_apply
@@ -6317,6 +6764,46 @@ handle_cmd() {
           && echo "  ↳ subagent [$_sname] spawned logging to /tmp/${_sname}.log" \
           || echo "  Failed to spawn subagent."
       fi
+      ;;
+    /doctor*)
+      echo -e "\n  \033[1;36m$I_SEARCH Diagnosing environment...\033[0m"
+      local _diag_file; _diag_file=$(mktemp -t mix-diag-XXXXXX)
+      {
+        echo "## SYSTEM INFO"
+        uname -a; date; uptime
+        echo -e "\n## DISK USAGE"
+        df -h .
+        echo -e "\n## MEMORY"
+        free -m 2>/dev/null || vmstat
+        echo -e "\n## RECENT FAILURES"
+        echo "Last tool result: ${_LAST_TOOL_RESULT:-none}"
+        echo -e "\n## ENVIRONMENT VARIABLES (selected)"
+        env | grep -E "PATH|EDITOR|LANG|SHELL|TERM|USER|WORKDIR|SANDBOX|PROVIDER|MODEL" | head -20
+        echo -e "\n## GIT STATUS"
+        git status -s 2>/dev/null || echo "not a git repo"
+      } > "$_diag_file"
+      
+      local _diag_content; _diag_content=$(cat "$_diag_file")
+      rm -f "$_diag_file"
+      
+      echo -e "  \033[0;90mAnalyzing snapshot with specialist model...\033[0m"
+      
+      # Use specialized prompt for diagnostic
+      local _diag_payload
+      _diag_payload=$(printf '%s\n' "$_diag_content" | python3 -c '
+import json,sys
+diag = sys.stdin.read()
+prompt = f"You are a Senior SRE/DevOps specialist. Analyze this environment snapshot and identify potential root causes for recent failures or environmental issues. Be extremely concise.\n\nSNAPSHOT:\n{diag}"
+print(json.dumps([{"role":"user","content":prompt}]))
+')
+      
+      local _old_hist="$HISTORY"
+      HISTORY="$_diag_payload"
+      local _fix; _fix=$(call_api)
+      HISTORY="$_old_hist"
+      
+      echo -e "\n\033[38;5;82m$I_OK DIAGNOSIS:\033[0m"
+      echo -e "$_fix\n"
       ;;
     /afk\ setup)
       telegram_setup

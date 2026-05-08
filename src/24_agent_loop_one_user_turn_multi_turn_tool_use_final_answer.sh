@@ -1,3 +1,6 @@
+# Global turn counter — incremented by run_agent each call; used by pulse trigger
+TURN_COUNT=0
+
 # ─── Auto-Commit Turn ───────────────────────────────────────────────────────
 _commit_turn() {
   local _input="$1"
@@ -374,10 +377,11 @@ run_agent() {
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
   
-  # Trigger background pulse update every 5 turns
-  if [ $(( TURN_COUNT % 5 )) -eq 0 ]; then
-    local pulse_task="You are a context manager. Summarize the current project state, recent changes, and next steps in 3-5 terse bullet points. No fluff. Keep it under 200 tokens. Current history: $HISTORY"
-    spawn_subagent "pulse_updater" "echo '$pulse_task' | mix --pipe | tail -n +2 > /tmp/pulse_msg.txt && . /home/jiren/projects/funs/building/agent/src/11c_session.sh && pulse_save \"\$(cat /tmp/pulse_msg.txt)\""
+  # Trigger background pulse update every 5 turns (requires tmux)
+  TURN_COUNT=$(( TURN_COUNT + 1 ))
+  if [ -n "${TMUX:-}" ] && [ $(( TURN_COUNT % 5 )) -eq 0 ]; then
+    local _pulse_j; _pulse_j=$(python3 -c 'import json; print(json.dumps({"name":"pulse_updater","task":"Write a 3-5 bullet terse project summary (recent changes, current state, next steps) to .agent/pulse.json as JSON: {\\"summary\\":\\"<bullets>\\",\\"timestamp\\":<epoch_int>}"}))' 2>/dev/null) || true
+    [ -n "$_pulse_j" ] && run_tool spawn_subagent "$_pulse_j" >/dev/null 2>&1 || true
   fi
 
   _commit_turn "$input"

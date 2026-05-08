@@ -76,7 +76,8 @@ process_tc() {
           local _prompt="    Run? [Y/n"
           [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
           _prompt+="] "
-          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          local _ans _rrc; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null; _rrc=$?
+          [ "$_rrc" -gt 128 ] && { echo ""; _ans="n"; }  # Ctrl+C = cancel
           case "$_ans" in
             a*|A*) _BATCH_AUTO_YES=true; _run=true ;;
             n*|N*) _run=false; result="User declined." ;;
@@ -138,7 +139,8 @@ $_rh"
           local _prompt="    Apply edit? [Y/n"
           [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
           _prompt+="] "
-          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          local _ans _rrc; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null; _rrc=$?
+          [ "$_rrc" -gt 128 ] && { echo ""; _ans="n"; }  # Ctrl+C = cancel
           case "$_ans" in
             a*|A*) _BATCH_AUTO_YES=true; _do_edit=true ;;
             n*|N*) _do_edit=false; result="User declined edit." ;;
@@ -260,7 +262,8 @@ for i, (path, content) in enumerate(files.items()):
           local _prompt="    Create files? [Y/n"
           [ "$total_count" -gt 1 ] && [ "$cur_idx" -lt "$total_count" ] && _prompt+="/a"
           _prompt+="] "
-          local _ans; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null || _ans="y"
+          local _ans _rrc; read -r -p "$_prompt" _ans < /dev/tty 2>/dev/null; _rrc=$?
+          [ "$_rrc" -gt 128 ] && { echo ""; _ans="n"; }  # Ctrl+C = cancel
           case "$_ans" in
             a*|A*) _BATCH_AUTO_YES=true; _do_create=true ;;
             n*|N*) _do_create=false; result="User declined create_files." ;;
