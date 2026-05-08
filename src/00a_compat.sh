@@ -30,18 +30,6 @@ _mix_date_nano() {
   fi
 }
 
-# ─── readlink -f: resolve canonical path ───────────────────────────────────
-# macOS has no readlink -f. Use python3 or manual resolution.
-_mix_readlink_f() {
-  local _p="$1"
-  if [ "$_MIX_OS" = Darwin ]; then
-    # python3 is already a required dependency
-    python3 -c "import os; print(os.path.realpath('$_p'))" 2>/dev/null || echo "$_p"
-  else
-    readlink -f "$_p" 2>/dev/null || echo "$_p"
-  fi
-}
-
 # ─── sed -i: in-place edit ────────────────────────────────────────────────
 # macOS sed -i requires a backup suffix (empty string for no backup)
 _mix_sed_i() {

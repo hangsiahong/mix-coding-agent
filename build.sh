@@ -56,6 +56,8 @@ for f in \
     src/19_spinner_background_process.sh \
     src/20_context_window_bar.sh \
     src/21_tmux_status_updater.sh \
+    src/22a_tool_bash.sh \
+    src/22b_tool_edit.sh \
     src/22_process_one_tool_call.sh \
     src/23_lightweight_planning_call_plan_mode.sh \
     src/24_agent_loop_one_user_turn_multi_turn_tool_use_final_answer.sh \

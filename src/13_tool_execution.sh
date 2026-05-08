@@ -141,22 +141,36 @@ if matches: print("\n".join(matches[:10]))
       if [ "$bg" = "True" ]; then
         local jid; jid="job-$RANDOM"
         local log="/tmp/mix-$jid.log"
-        (bash -c "$cmd" >"$log" 2>&1) &
+        (run_with_heal "$cmd" >"$log" 2>&1) &
         result="Background job started. ID: $jid. Check output with check_job."
       else
         if [ "${SANDBOX_ENABLED:-false}" = "true" ]; then
           if _sandbox_needs_host_network "$cmd"; then
-            result=$(cd "${WORKDIR:-$PWD}" && bash -c "$cmd" </dev/null 2>&1)
+            result=$(cd "${WORKDIR:-$PWD}" && run_with_heal "$cmd" </dev/null 2>&1)
             result="[host] $result"
           else
+            # sandbox_run_cmd currently doesnt support run_with_heal logic internally
             result=$(sandbox_run_cmd "$cmd" </dev/null)
           fi
         else
-          result=$(bash -c "$cmd" </dev/null 2>&1)
+          result=$(run_with_heal "$cmd" </dev/null)
         fi
-        if [ ${#result} -gt 16000 ]; then
-          result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
-        fi
+      fi
+      ;;
+    spawn_subagent)
+      local _sa_name _sa_task _sa_tty _sa_tmp
+      _sa_name=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])' 2>/dev/null) || _sa_name="subagent"
+      _sa_task=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["task"])' 2>/dev/null) || _sa_task=""
+      _sa_tty=$(tty)
+      _sa_tmp=$(mktemp -t mix-sub-XXXXXX)
+      printf '%s\n' "$_sa_task" > "$_sa_tmp"
+      
+      if [ -z "$TMUX" ]; then
+        result="Error: Not in tmux — cannot spawn subagent."
+      else
+        tmux new-window -d -n "$_sa_name" "bash -c 'cat $_sa_tmp | mix 2>&1 | tee /tmp/${_sa_name}.log; rm -f $_sa_tmp; echo -e \"\n  \033[38;5;82m$I_OK Subagent [${_sa_name}] finished!\033[0m (read /tmp/${_sa_name}.log)\" > $_sa_tty; echo \"\"; echo \"[Subagent done. Press Enter to close]\"; read -r'" 2>/dev/null \
+          && result="Subagent [$_sa_name] spawned. Logging to /tmp/${_sa_name}.log" \
+          || result="Error: Failed to spawn tmux window for subagent."
       fi
       ;;
     read_file)

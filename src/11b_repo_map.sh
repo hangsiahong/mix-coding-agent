@@ -26,7 +26,7 @@ _detect_ctags() {
 _repo_map_ctags() {
   local f="$1"
   [ -z "$_CTAGS_EXE" ] && return 1
-  
+
   # Universal Ctags JSON output is very rich
   "$_CTAGS_EXE" --output-format=json --fields=+nS --languages=Python,JavaScript,TypeScript,Go,Rust,Java,C,C++,Ruby,Sh -f - "$f" 2>/dev/null | python3 -c '
 import json, sys
