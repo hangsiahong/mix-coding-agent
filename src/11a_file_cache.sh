@@ -110,8 +110,16 @@ build_file_context() {
   _nfiles=$(printf '%s' "$_FILE_CACHE" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))' 2>/dev/null) || _nfiles=0
   [ "$_nfiles" -eq 0 ] && return
 
-  # Budget: 3000 chars total, max 8 files, 400 chars per file
-  local _budget=3000 _max_files=8 _per_file=400
+  # Budget: Scale based on context window.
+  # Default ~3k chars (1k tokens). Max 30k chars (10k tokens) or 5% of context.
+  local _budget=3000
+  if [ "${CTX_TOKENS:-0}" -gt 20000 ]; then
+    _budget=$(( CTX_TOKENS * 3 * 5 / 100 ))
+    [ "$_budget" -gt 30000 ] && _budget=30000
+  fi
+  local _max_files=15 _per_file=$(( _budget / 4 ))
+  [ "$_per_file" -gt 4000 ] && _per_file=4000
+  [ "$_per_file" -lt 400 ] && _per_file=400
 
   # Get ordered paths from cache (most recent first via reversed order)
   local _ordered_paths

@@ -213,6 +213,13 @@ Tested 30+ vectors: capabilities decode, namespace nesting, overlayfs, block dev
 - Optimized system prompt to encourage turn-saving via multi-tool responses.
 - Added fail-fast logic for tool batches and suppressed redundant test runs.
 - Documented in `memorybank/solutions/batch_tool_execution.md`.
+- Implemented Context & Token Efficiency optimizations:
+    - Adaptive File Cache scaling (up to 30k chars).
+    - Compact Repo Map symbols (f:, c:, etc.) + Hot File highlighting.
+    - Smart "head-tail" truncation for bash outputs (4KB/12KB).
+    - Support for cheap `PLAN_MODEL` offloading.
+    - Telegraphic/Caveman history compaction summaries.
+- Documented in `memorybank/solutions/context_and_token_efficiency.md`.
 - Reduced tool output truncation limit: 32KB → 16KB in `src/22_process_one_tool_call.sh`.
 - Prevents "context poisoning" from large bash/file-read results.
 - Documented in `memorybank/solutions/efficiency_optimization.md`.

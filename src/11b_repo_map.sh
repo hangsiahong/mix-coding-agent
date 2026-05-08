@@ -40,7 +40,9 @@ for line in sys.stdin:
         line_num = d.get("line", 0)
         # Skip internal/noisy kinds
         if kind in ("variable", "local", "member", "namespace", "import"): continue
-        display = f"{name}{sig} ({kind})"
+        # Compact prefixes
+        pfx = {"function":"f:", "class":"c:", "method":"m:", "struct":"s:", "trait":"t:", "interface":"i:", "enum":"e:", "api":"a:"}.get(kind, "d:")
+        display = f"{pfx}{name}{sig}"
         symbols.append((line_num, display))
     except: continue
 # Sort by line number
@@ -210,14 +212,20 @@ ${_entry}"
   done <<< "$_file_list"
 
   # Git awareness: show recently changed files (if git enabled)
+  local _recent=""
   if [ "$GIT_ENABLED" = true ]; then
-    local _recent
     _recent=$(git -C "$WORKDIR" diff --name-only HEAD~5 2>/dev/null | head -20 || true)
-    if [ -n "$_recent" ]; then
-      _map="${_map}
-── recently changed ──
-${_recent}"
-    fi
+  fi
+  # Add cached files (recently read)
+  local _cached_files; _cached_files=$(printf '%s' "$_FILE_CACHE_ORDER" | tr ' ' '\n' | tac | head -10)
+  _recent="${_recent}
+${_cached_files}"
+  _recent=$(printf '%s' "$_recent" | sed '/^$/d' | sort -u | head -20)
+
+  if [ -n "$_recent" ]; then
+    _map="${_map}
+── recently active ──
+$(printf '%s' "$_recent" | sed 's/^/  /')"
   fi
 
   # Hard trim to budget — system prompt has no room for excess

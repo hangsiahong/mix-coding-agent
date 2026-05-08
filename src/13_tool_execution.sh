@@ -53,6 +53,9 @@ run_tool() {
         result=$(bash -c "$cmd" </dev/null 2>&1)
       fi
       local _ec=$?
+      if [ ${#result} -gt 16000 ]; then
+        result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
+      fi
       [ $_ec -ne 0 ] && result="[FAILED exit=$_ec]
 $result"
       ;;
@@ -68,6 +71,9 @@ $result"
         fi
       else
         result=$(bash -c "$cmd" </dev/null 2>&1)
+      fi
+      if [ ${#result} -gt 16000 ]; then
+        result="${result:0:4000}\n\n...[TRUNCATED MIDDLE]...\n\n${result: -12000}"
       fi
       ;;
     read_file)
