@@ -529,6 +529,55 @@ else:
         fi
       fi
       ;;
+    send_message)
+      local to msg
+      to=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["to"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      msg=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["message"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      mkdir -p "$bus_dir"
+      # Append message to target mailbox
+      local box="$bus_dir/${to}.jsonl"
+      printf '{"from": "%s", "time": %s, "msg": %s}\n' \
+        "${AGENT_NAME:-main}" "$(date +%s)" "$(printf '%s' "$msg" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+        >> "$box"
+      result="Message sent to $to."
+      ;;
+    read_messages)
+      local bus_dir="${WORKDIR:-$PWD}/.mix/bus"
+      local my_name="${AGENT_NAME:-main}"
+      local box="$bus_dir/${my_name}.jsonl"
+      if [ -f "$box" ]; then
+        result=$(cat "$box")
+        # Clear box after reading? Or keep? Let's rename to archive to clear.
+        mv "$box" "${box}.old"
+      else
+        result="No new messages for $my_name."
+      fi
+      ;;
+    find_definition)
+      local sym; sym=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin)["symbol"])' 2>/dev/null) || { echo "Error: bad args"; return; }
+      _detect_ctags
+      if [ -z "$_CTAGS_EXE" ]; then
+        # Fallback to grep for common definition patterns
+        result=$(grep -rnE "(def |class |fn |function |struct |interface )$sym" . --exclude-dir=.git --exclude-dir=node_modules | head -10)
+        [ -z "$result" ] && result="Symbol '$sym' not found (ctags missing, grep failed)."
+      else
+        # Use ctags
+        result=$("$_CTAGS_EXE" --output-format=json --fields=+nS -R . 2>/dev/null | python3 -c '
+import json,sys
+sym = sys.argv[1]
+matches = []
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        if d.get("name") == sym:
+            matches.append(f"{d.get(\"path\")}:{d.get(\"line\")}")
+    except: continue
+if matches: print("\n".join(matches[:10]))
+' "$sym")
+        [ -z "$result" ] && result="Symbol '$sym' not found via ctags."
+      fi
+      ;;
     spawn_subagent)
       local _sa_name _sa_task _sa_tmp _sa_tty
       _sa_name=$(printf '%s' "$args" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("name",""))' 2>/dev/null) || { echo "Error: bad args"; return; }
