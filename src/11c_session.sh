@@ -5,6 +5,7 @@
 # Defines persistence across restarts.
 
 _SESSION_FILE=".agent/session.json"
+_PULSE_FILE=".agent/pulse.json"
 _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
@@ -236,6 +237,33 @@ session_apply() {
 session_clear() {
   rm -f "$_SESSION_FILE" 2>/dev/null
   _SESSION_AVAILABLE=false; export _SESSION_AVAILABLE
+}
+
+# --- Project Pulse (Context survival across /flush) ---
+
+pulse_save() {
+  local summary="$1"
+  [ -z "$summary" ] && return
+  python3 -c '
+import json, os, time, sys
+path = sys.argv[1]
+summary = sys.argv[2]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {"summary": summary, "timestamp": int(time.time())}
+with open(path, "w") as f:
+    json.dump(data, f)
+' "$_PULSE_FILE" "$summary" 2>/dev/null
+}
+
+pulse_load() {
+  [ ! -f "$_PULSE_FILE" ] && return
+  python3 -c '
+import json, sys, time
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+    age = (time.time() - d["timestamp"]) / 3600
+    print(f"\n[LAST SESSION PULSE ({age:.1f}h ago)]\n{d[\"summary\"]}")
+' "$_PULSE_FILE" 2>/dev/null
 }
 
 # Show startup hint if session available

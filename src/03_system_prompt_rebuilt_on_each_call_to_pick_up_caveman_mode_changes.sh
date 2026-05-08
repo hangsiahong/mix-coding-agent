@@ -227,6 +227,14 @@ $(cat "$_skill" 2>/dev/null)
     done
   fi
 
+  # Load pulse (long-term summary)
+  local pulse; pulse=$(pulse_load)
+  if [ -n "$pulse" ]; then
+    base="$base
+
+$pulse"
+  fi
+
   if [ "$CAVEMAN_MODE" = "off" ]; then
     printf '%s' "$base"
     return

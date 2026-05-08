@@ -26,7 +26,7 @@ handle_cmd() {
         echo "  Clipboard is empty or missing xclip/wl-paste/pbpaste"
       fi
       ;;
-    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; session_clear; echo "  History + session cleared." ;;
+    /flush)  HISTORY='[]'; rm -f "$HIST_FILE"; session_clear; _sysprompt_invalidate; echo "  History cleared (Pulse retained)." ;;
     /resume)
       if [ "$_SESSION_AVAILABLE" = true ]; then
         session_apply

@@ -374,6 +374,12 @@ run_agent() {
 
   [ "$turn" -ge "$MAX_TURNS" ] && echo -e "  \033[1;31mMax turns reached\033[0m"
   
+  # Trigger background pulse update every 5 turns
+  if [ $(( TURN_COUNT % 5 )) -eq 0 ]; then
+    local pulse_task="You are a context manager. Summarize the current project state, recent changes, and next steps in 3-5 terse bullet points. No fluff. Keep it under 200 tokens. Current history: $HISTORY"
+    spawn_subagent "pulse_updater" "echo '$pulse_task' | mix --pipe | tail -n +2 > /tmp/pulse_msg.txt && . /home/jiren/projects/funs/building/agent/src/11c_session.sh && pulse_save \"\$(cat /tmp/pulse_msg.txt)\""
+  fi
+
   _commit_turn "$input"
 
   ctx_bar       # show context window usage after every agent turn
