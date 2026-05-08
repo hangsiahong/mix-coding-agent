@@ -4,8 +4,8 @@
 # Session file: .agent/session.json (gitignored, < 50KB)
 # Defines persistence across restarts.
 
-_SESSION_FILE=".agent/session.json"
-_PULSE_FILE=".agent/pulse.json"
+_SESSION_FILE="$WORKDIR/.agent/session.json"
+_PULSE_FILE="$WORKDIR/.agent/pulse.json"
 _SESSION_VERSION=1
 _SESSION_AVAILABLE=false
 export _SESSION_AVAILABLE
@@ -253,16 +253,17 @@ data = {"summary": summary, "timestamp": int(time.time())}
 with open(path, "w") as f:
     json.dump(data, f)
 ' "$_PULSE_FILE" "$summary" 2>/dev/null
+  _sysprompt_invalidate 2>/dev/null || true
 }
 
 pulse_load() {
   [ ! -f "$_PULSE_FILE" ] && return
   python3 -c '
 import json, sys, time
-with open(sys.argv[1]) as f:
-    d = json.load(f)
-    age = (time.time() - d["timestamp"]) / 3600
-    print(f"\n[LAST SESSION PULSE ({age:.1f}h ago)]\n{d[\"summary\"]}")
+d = json.load(open(sys.argv[1]))
+age = (time.time() - d.get("timestamp", 0)) / 3600
+s = d.get("summary", "")
+print(f"\n[LAST SESSION PULSE ({age:.1f}h ago)]\n{s}")
 ' "$_PULSE_FILE" 2>/dev/null
 }
 
