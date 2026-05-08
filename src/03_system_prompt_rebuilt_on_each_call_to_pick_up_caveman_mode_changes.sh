@@ -43,7 +43,7 @@ Tools: bash read_file create_file edit_file list_files search_files. Full absolu
 ## WORKERS (tmux)
 - Spawn parallel bash task: bash → tmux new-window -d -n <name> 'cmd 2>&1 | tee /tmp/<name>.log'
 - Spawn parallel LLM subagent: use spawn_subagent tool with name + task (logs to /tmp/<name>.log)
-- Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log 
+- Read output: tmux capture-pane -p -t <name> (last screenful) or tail -f /tmp/<name>.log
 - Shared State (Message Bus): Subagents are isolated. Use the \`.mix/bus/\` directory to share state, hand off context, or coordinate findings (e.g. \`create_file\` to write, \`read_file\` to read).
 - Kill worker: tmux kill-window -t <name>
 - List workers: tmux list-windows
@@ -62,8 +62,7 @@ Suggest loading a skill if it matches the current task difficulty.
 wiki/maintainer mode — use when memorybank/ exists or user asks to build knowledge base.
 memorybank/index.md = catalog (read FIRST on fresh start). memorybank/log.md = timeline.
 INGEST: read→extract→write sources/<slug>.md→update entity pages→update index→append log.
-QUERY: index→find pages→synthesize→good answers become new pages.
-CAVEKIT: /spec creates SPEC.md, /build executes tasks, /check reads drift."
+QUERY: index→find pages→synthesize→good answers become new pages."
 
   # Inject discovered environment
   [ -n "$ENV_INFO" ]         && base+="
@@ -126,41 +125,11 @@ Common install commands to suggest:
   /sandbox install make             (build tooling)"
   fi
 
-  # Repo map — structural awareness of codebase
-  local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
-  if [ -n "$_rmap" ]; then
-    base+="
-
-## REPO MAP (files + structure — use this to navigate without reading files)
-$_rmap"
-  fi
-
-  # File content cache — recently accessed files, survives compaction
-  local _fctx; _fctx=$(build_file_context 2>/dev/null) || true
-  if [ -n "$_fctx" ]; then
-    base+="
-
-$_fctx"
-  fi
-
   # Global memory — injected every call so agent always has context
   local _gmem_file="${HOME}/.mix/memory.md"
   base+="
 GLOBAL MEMORY: $_gmem_file — persistent cross-project notes. Preferences, general patterns, lessons. Update proactively with update_global_memory when you learn something reusable. DO NOT store project-specific logic here (breaks prompt cache and pollutes other projects). Short bullet points only."
 
-  # Context budget warning — inject when history is consuming significant context
-  local _hist_chars=${#HISTORY}
-  local _est_ctx_tokens=$(( _hist_chars / 3 ))
-  local _ctx_pct=$(( _est_ctx_tokens * 100 / CTX_TOKENS ))
-  if [ "$_ctx_pct" -gt 60 ]; then
-    local _ctx_level=""
-    [ "$_ctx_pct" -gt 90 ] && _ctx_level="CRITICAL"
-    [ "$_ctx_pct" -gt 75 ] && [ "$_ctx_pct" -le 90 ] && _ctx_level="HIGH"
-    [ "$_ctx_pct" -gt 60 ] && [ "$_ctx_pct" -le 75 ] && _ctx_level="MODERATE"
-    base+="
-
-CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. Save key findings to memorybank before they get compacted. Avoid re-reading files you already have cached."
-  fi
   if [ -f "$_gmem_file" ]; then
     local _gmem_content; _gmem_content=$(cat "$_gmem_file" 2>/dev/null)
     # Cap injection at 2000 chars — keeps system prompt lean.
@@ -179,13 +148,6 @@ CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. 
 $_gmem_content
 ---"
   fi
-  # Mode-specific reasoning
-  case "$AGENT_MODE" in
-    deep) base+="
-MODE:deep — explain root cause before acting. justify why edit fixes the problem. min necessary changes. double-check before edit_file." ;;
-    plan) base+="
-MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
-  esac
 
   # Inject SPEC.md context if present — gives agent project spec every call
   # Cap at 1500 chars to keep system prompt lean. Full spec available via read_file.
@@ -213,6 +175,45 @@ CAVEKIT: §T status: . todo / ~ wip / x done. /build executes tasks. /spec mutat
 /check [§V|§I|§T]  drift report — reads only, zero writes
 Suggest /spec when: new project, unclear scope, user describes features/constraints, or repeated direction-changes."
   fi
+
+  # Repo map — structural awareness of codebase
+  local _rmap; _rmap=$(build_repo_map 2>/dev/null) || true
+  if [ -n "$_rmap" ]; then
+    base+="
+
+## REPO MAP (files + structure — use this to navigate without reading files)
+$_rmap"
+  fi
+
+  # File content cache — recently accessed files, survives compaction
+  local _fctx; _fctx=$(build_file_context 2>/dev/null) || true
+  if [ -n "$_fctx" ]; then
+    base+="
+
+$_fctx"
+  fi
+
+  # Context budget warning — inject when history is consuming significant context
+  local _hist_chars=${#HISTORY}
+  local _est_ctx_tokens=$(( _hist_chars / 3 ))
+  local _ctx_pct=$(( _est_ctx_tokens * 100 / CTX_TOKENS ))
+  if [ "$_ctx_pct" -gt 60 ]; then
+    local _ctx_level=""
+    [ "$_ctx_pct" -gt 90 ] && _ctx_level="CRITICAL"
+    [ "$_ctx_pct" -gt 75 ] && [ "$_ctx_pct" -le 90 ] && _ctx_level="HIGH"
+    [ "$_ctx_pct" -gt 60 ] && [ "$_ctx_pct" -le 75 ] && _ctx_level="MODERATE"
+    base+="
+
+CONTEXT BUDGET: ${_ctx_pct}% used (${_ctx_level}). Prefer concise tool results. Save key findings to memorybank before they get compacted. Avoid re-reading files you already have cached."
+  fi
+
+  # Mode-specific reasoning
+  case "$AGENT_MODE" in
+    deep) base+="
+MODE:deep — explain root cause before acting. justify why edit fixes the problem. min necessary changes. double-check before edit_file." ;;
+    plan) base+="
+MODE:plan — before ANY tool use, output PLAN: followed by numbered steps (3-7). Then proceed with tools." ;;
+  esac
 
   if [ -n "$ACTIVE_SKILLS" ]; then
     base+="

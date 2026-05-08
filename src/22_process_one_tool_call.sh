@@ -214,12 +214,12 @@ $_rh"
   [ -z "$result" ] && result="(no output)"
 
   # Guard against massive outputs that cause API 400 Bad Request
-  # Limit total response size to 32KB per turn
+  # Limit total response size to 16KB per tool call in history to save tokens.
   local byte_len
   byte_len=$(printf '%s' "$result" | wc -c)
-  if [ "$byte_len" -gt 32000 ]; then
-    result="$(printf '%s' "$result" | head -c 32000)
-... [TRUNCATED: Output exceeded 32KB ($byte_len bytes).]"
+  if [ "$byte_len" -gt 16000 ]; then
+    result="$(printf '%s' "$result" | head -c 16000)
+... [TRUNCATED: Output exceeded 16KB ($byte_len bytes). Use read_file on specific parts if needed.]"
   fi
 
   if [ "$silent" != "true" ]; then
